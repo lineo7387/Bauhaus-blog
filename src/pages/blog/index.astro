@@ -1,0 +1,137 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import BlogList from "../../components/blog/BlogList.astro";
+import CategoryFilter from "../../components/blog/CategoryFilter.astro";
+import SearchBar from "../../components/blog/SearchBar.astro";
+import Pagination from "../../components/blog/Pagination.astro";
+import { getCollection } from "astro:content";
+
+const allPosts = await getCollection("blog", ({ data }) => !data.draft);
+const sortedPosts = allPosts.sort(
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+);
+
+// Get unique categories
+const categories = [...new Set(sortedPosts.map((post) => post.data.category))];
+
+// URL-based filtering
+const urlCategory = Astro.url.searchParams.get("category") || "";
+const urlQuery = Astro.url.searchParams.get("q") || "";
+
+// Apply filters
+let filteredPosts = sortedPosts;
+if (urlCategory) {
+  filteredPosts = filteredPosts.filter(
+    (post) => post.data.category.toLowerCase() === urlCategory.toLowerCase(),
+  );
+}
+if (urlQuery) {
+  const query = urlQuery.toLowerCase();
+  filteredPosts = filteredPosts.filter(
+    (post) =>
+      post.data.title.toLowerCase().includes(query) ||
+      post.data.description.toLowerCase().includes(query) ||
+      post.data.category.toLowerCase().includes(query) ||
+      post.data.tags?.some((tag: string) => tag.toLowerCase().includes(query)),
+  );
+}
+
+// Pagination
+const postsPerPage = 3;
+const currentPage = Number(Astro.url.searchParams.get("page")) || 1;
+const totalPages = Math.ceil(filteredPosts.length / postsPerPage);
+const startIndex = (currentPage - 1) * postsPerPage;
+const paginatedPosts = filteredPosts.slice(
+  startIndex,
+  startIndex + postsPerPage,
+);
+---
+
+<BaseLayout
+  title="Blog"
+  description="Explore our collection of articles on design, typography, and web development."
+>
+  <!-- Hero Section -->
+  <section
+    class="relative bg-foreground border-b-4 border-black overflow-hidden"
+  >
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
+      <div class="grid lg:grid-cols-2 gap-12 items-end">
+        <div>
+          <span
+            class="inline-block bg-primary-yellow text-xs font-bold uppercase tracking-widest text-black px-3 py-1 mb-6"
+          >
+            All Articles
+          </span>
+          <h1
+            class="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter text-white leading-[0.9]"
+          >
+            The<br />
+            <span class="text-primary-yellow">Blog</span>
+          </h1>
+        </div>
+        <div class="text-white/70">
+          <p class="text-lg font-medium">
+            Discover {filteredPosts.length} article{
+              filteredPosts.length !== 1 ? "s" : ""
+            }{urlCategory ? ` in ${urlCategory}` : ""}{
+              urlQuery ? ` matching "${urlQuery}"` : ""
+            }.
+          </p>
+        </div>
+      </div>
+    </div>
+    <!-- Geometric decorations -->
+    <div
+      class="absolute top-8 right-8 w-16 h-16 bg-primary-red shape-circle border-2 border-white/20"
+    >
+    </div>
+    <div
+      class="absolute bottom-8 left-1/4 w-12 h-12 bg-primary-yellow shape-square border-2 border-white/20 rotate-45"
+    >
+    </div>
+  </section>
+
+  <!-- Filters Section -->
+  <section class="bg-muted border-b-4 border-black py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div
+        class="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between"
+      >
+        <CategoryFilter
+          categories={categories}
+          activeCategory={urlCategory || 'all'}
+          searchQuery={urlQuery}
+        />
+        <SearchBar placeholder="Search articles..." value={urlQuery} />
+      </div>
+    </div>
+  </section>
+
+  <!-- Posts Grid -->
+  <section class="bg-white py-16 lg:py-24">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div id="posts-container">
+        <BlogList posts={paginatedPosts} columns={3} />
+      </div>
+
+      <div class="mt-16 lg:mt-24">
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          baseUrl="/blog"
+          category={urlCategory}
+          searchQuery={urlQuery}
+        />
+      </div>
+
+      {
+        filteredPosts.length === 0 && (
+          <div class="text-center py-16">
+            <p class="text-xl font-medium text-black/60">No articles found.</p>
+          </div>
+        )
+      }
+    </div>
+  </section>
+</BaseLayout>

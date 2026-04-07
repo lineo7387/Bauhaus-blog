@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-background: #F0F0F0;
+  --color-foreground: #121212;
+  --color-primary-red: #D02020;
+  --color-primary-blue: #1040C0;
+  --color-primary-yellow: #F0C020;
+  --color-border: #121212;
+  --color-muted: #E0E0E0;
+  --color-white: #FFFFFF;
+
+  /* Typography */
+  --font-family-outfit: 'Outfit', sans-serif;
+
+  /* Shadows - Hard offset shadows for Bauhaus style */
+  --shadow-hard-sm: 4px 4px 0px 0px #121212;
+  --shadow-hard-md: 6px 6px 0px 0px #121212;
+  --shadow-hard-lg: 8px 8px 0px 0px #121212;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-family-outfit);
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  main {
+    flex: 1;
+  }
+}
+
+@layer utilities {
+
+  /* Geometric shapes */
+  .shape-circle {
+    border-radius: 9999px;
+  }
+
+  .shape-square {
+    border-radius: 0;
+  }
+
+  .shape-triangle {
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  }
+
+  /* Button press effect */
+  .btn-press:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+  }
+
+  /* Card hover lift */
+  .card-lift {
+    transition: transform 0.2s ease-out;
+  }
+
+  .card-lift:hover {
+    transform: translateY(-4px);
+  }
+
+  /* Grayscale image with color on hover */
+  .img-bauhaus {
+    filter: grayscale(100%);
+    transition: filter 0.3s ease-out;
+  }
+
+  .img-bauhaus:hover {
+    filter: grayscale(0%);
+  }
+
+  /* Pattern backgrounds */
+  .bg-dot-pattern {
+    background-image: radial-gradient(#FFFFFF 2px, transparent 2px);
+    background-size: 20px 20px;
+  }
+}

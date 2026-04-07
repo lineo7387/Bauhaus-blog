@@ -1,0 +1,41 @@
+---
+interface Props {
+  color?: 'red' | 'blue' | 'yellow';
+  size?: 'sm' | 'md' | 'lg';
+  shape?: 'circle' | 'square' | 'triangle';
+  class?: string;
+}
+
+const {
+  color = 'red',
+  size = 'md',
+  shape = 'circle',
+  class: className = ''
+} = Astro.props;
+
+const colorMap = {
+  red: 'bg-primary-red',
+  blue: 'bg-primary-blue',
+  yellow: 'bg-primary-yellow'
+};
+
+const sizeMap = {
+  sm: 'w-4 h-4',
+  md: 'w-8 h-8',
+  lg: 'w-12 h-12'
+};
+
+const shapeMap = {
+  circle: 'rounded-full',
+  square: 'rounded-none',
+  triangle: 'clip-path-triangle'
+};
+---
+
+<div class={`${colorMap[color]} ${sizeMap[size]} ${shapeMap[shape]} border-2 border-black ${className}`}></div>
+
+<style>
+  .clip-path-triangle {
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  }
+</style>

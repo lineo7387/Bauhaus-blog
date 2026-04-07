@@ -1,0 +1,51 @@
+---
+import { getCollection } from 'astro:content';
+import BlogCard from './BlogCard.astro';
+
+interface Props {
+  currentCategory: string;
+  excludeId?: string;
+}
+
+const { currentCategory, excludeId } = Astro.props;
+
+// Get related posts (same category, excluding current)
+const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+const relatedPosts = allPosts
+  .filter(post => post.data.category.toLowerCase() === currentCategory.toLowerCase() && post.id !== excludeId)
+  .sort(() => Math.random() - 0.5)
+  .slice(0, 3);
+
+// If not enough, get other posts
+if (relatedPosts.length < 2) {
+  const otherPosts = allPosts
+    .filter(post => post.id !== excludeId && !relatedPosts.some(p => p.id === post.id))
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3 - relatedPosts.length);
+  relatedPosts.push(...otherPosts);
+}
+---
+
+{relatedPosts.length > 0 && (
+  <section class="bg-primary-blue py-16 border-b-4 border-black">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <h2 class="text-2xl md:text-3xl font-black uppercase tracking-tight text-white mb-8">
+        Related Articles
+      </h2>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {relatedPosts.map(post => (
+          <div class="blog-card">
+            <BlogCard
+              title={post.data.title}
+              excerpt={post.data.description}
+              date={post.data.pubDate}
+              slug={post.id}
+              image={post.data.heroImage}
+              category={post.data.category}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+)}

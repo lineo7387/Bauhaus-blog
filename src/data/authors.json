@@ -1,0 +1,30 @@
+{
+  "Design Team": {
+    "name": "Design Team",
+    "bio": "A collective of designers and developers passionate about timeless design principles and modern web development.",
+    "role": "Core Contributors",
+    "twitter": "@bauhausblog",
+    "github": "bauhaus-blog"
+  },
+  "Sarah Chen": {
+    "name": "Sarah Chen",
+    "bio": "Senior UX Designer with 10+ years of experience. Passionate about typography, accessibility, and creating intuitive interfaces.",
+    "role": "Design Lead",
+    "twitter": "@sarahchen_design",
+    "github": "sarahchen"
+  },
+  "Marcus Weber": {
+    "name": "Marcus Weber",
+    "bio": "Full-stack developer and design systems enthusiast. Exploring the intersection of code and visual craft.",
+    "role": "Developer",
+    "twitter": "@marcusweber_dev",
+    "github": "marcusweber"
+  },
+  "Anonymous": {
+    "name": "Anonymous",
+    "bio": "A contributor to Bauhaus Blog.",
+    "role": "Contributor",
+    "twitter": null,
+    "github": null
+  }
+}

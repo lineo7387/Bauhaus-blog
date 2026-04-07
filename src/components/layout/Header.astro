@@ -1,0 +1,87 @@
+---
+const navLinks = [
+  { href: '/', label: 'Home' },
+  { href: '/blog', label: 'Blog' },
+  { href: '/skills', label: 'Skills' },
+  { href: '/about', label: 'About' },
+  { href: '/contact', label: 'Contact' }
+];
+
+const currentPath = Astro.url.pathname;
+---
+
+<header class="bg-white border-b-4 border-black sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex items-center justify-between h-16 md:h-20">
+      <!-- Logo with geometric shapes -->
+      <a href="/" class="flex items-center gap-2 group">
+        <div class="flex items-center gap-1">
+          <!-- Circle -->
+          <div class="w-6 h-6 md:w-8 md:h-8 bg-primary-red shape-circle border-2 border-black"></div>
+          <!-- Square -->
+          <div class="w-6 h-6 md:w-8 md:h-8 bg-primary-blue shape-square border-2 border-black"></div>
+          <!-- Triangle -->
+          <div class="w-6 h-6 md:w-8 md:h-6 bg-primary-yellow shape-triangle border-2 border-black"></div>
+        </div>
+        <span class="font-black text-lg md:text-xl uppercase tracking-tight hidden sm:block">
+          Bauhaus<span class="text-primary-red">.</span>
+        </span>
+      </a>
+
+      <!-- Desktop Navigation -->
+      <nav class="hidden md:flex items-center gap-8">
+        {navLinks.map(link => (
+          <a
+            href={link.href}
+            class={`font-bold uppercase text-sm tracking-wider transition-colors relative py-2
+              ${currentPath === link.href || (link.href !== '/' && currentPath.startsWith(link.href))
+                ? 'text-primary-red'
+                : 'text-black hover:text-primary-blue'
+              }
+              after:absolute after:bottom-0 after:left-0 after:w-full after:h-1 after:bg-primary-yellow after:scale-x-0 after:transition-transform after:duration-200 hover:after:scale-x-100`}
+          >
+            {link.label}
+          </a>
+        ))}
+      </nav>
+
+      <!-- Mobile Menu Button -->
+      <button
+        id="menu-toggle"
+        class="md:hidden p-2 border-2 border-black bg-white hover:bg-muted transition-colors"
+        aria-label="Toggle menu"
+      >
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="square" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Menu -->
+  <nav id="mobile-menu" class="md:hidden hidden border-t-4 border-black bg-white">
+    <div class="px-4 py-4 space-y-2">
+      {navLinks.map(link => (
+        <a
+          href={link.href}
+          class={`block font-bold uppercase text-sm tracking-wider py-3 px-4 border-2 border-black transition-colors
+            ${currentPath === link.href
+              ? 'bg-primary-red text-white'
+              : 'bg-white text-black hover:bg-muted'
+            }`}
+        >
+          {link.label}
+        </a>
+      ))}
+    </div>
+  </nav>
+</header>
+
+<script>
+  const menuToggle = document.getElementById('menu-toggle');
+  const mobileMenu = document.getElementById('mobile-menu');
+
+  menuToggle?.addEventListener('click', () => {
+    mobileMenu?.classList.toggle('hidden');
+  });
+</script>

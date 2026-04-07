@@ -1,0 +1,148 @@
+---
+interface Props {
+  currentPage: number;
+  totalPages: number;
+  baseUrl: string;
+  category?: string;
+  searchQuery?: string;
+}
+
+const {
+  currentPage,
+  totalPages,
+  baseUrl,
+  category = "",
+  searchQuery = "",
+} = Astro.props;
+
+const hasPrev = currentPage > 1;
+const hasNext = currentPage < totalPages;
+
+const getPageUrl = (page: number) => {
+  const params = new URLSearchParams();
+  if (page > 1) params.set("page", String(page));
+  if (category) params.set("category", category);
+  if (searchQuery) params.set("q", searchQuery);
+  const query = params.toString();
+  return query ? `${baseUrl}?${query}` : baseUrl;
+};
+
+// Generate page numbers to show
+const pages: (number | "...")[] = [];
+if (totalPages <= 7) {
+  for (let i = 1; i <= totalPages; i++) pages.push(i);
+} else {
+  pages.push(1);
+  if (currentPage > 3) pages.push("...");
+  for (
+    let i = Math.max(2, currentPage - 1);
+    i <= Math.min(totalPages - 1, currentPage + 1);
+    i++
+  ) {
+    pages.push(i);
+  }
+  if (currentPage < totalPages - 2) pages.push("...");
+  pages.push(totalPages);
+}
+---
+
+{
+  totalPages > 1 && (
+    <nav class="flex items-center justify-center gap-2" aria-label="Pagination">
+      {/* Previous */}
+      {hasPrev ? (
+        <a
+          href={getPageUrl(currentPage - 1)}
+          class="px-4 py-3 bg-white border-2 border-black font-bold text-sm uppercase shadow-hard-sm hover:bg-muted transition-colors btn-press flex items-center gap-2"
+        >
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="square"
+              stroke-width="3"
+              d="M19 12H5m7-7l-7 7 7 7"
+            />
+          </svg>
+          Prev
+        </a>
+      ) : (
+        <span class="px-4 py-3 bg-muted border-2 border-black font-bold text-sm uppercase text-black/40 cursor-not-allowed flex items-center gap-2">
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="square"
+              stroke-width="3"
+              d="M19 12H5m7-7l-7 7 7 7"
+            />
+          </svg>
+          Prev
+        </span>
+      )}
+
+      {/* Page numbers */}
+      {pages.map((page) =>
+        page === "..." ? (
+          <span class="px-2 py-3 font-bold text-black/40">...</span>
+        ) : (
+          <a
+            href={getPageUrl(page)}
+            class={`px-4 py-3 border-2 border-black font-bold text-sm uppercase transition-colors btn-press
+            ${
+              page === currentPage
+                ? "bg-primary-yellow text-black shadow-hard-sm"
+                : "bg-white text-black hover:bg-muted shadow-hard-sm"
+            }`}
+          >
+            {page}
+          </a>
+        ),
+      )}
+
+      {/* Next */}
+      {hasNext ? (
+        <a
+          href={getPageUrl(currentPage + 1)}
+          class="px-4 py-3 bg-white border-2 border-black font-bold text-sm uppercase shadow-hard-sm hover:bg-muted transition-colors btn-press flex items-center gap-2"
+        >
+          Next
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="square"
+              stroke-width="3"
+              d="M5 12h14m-7-7l7 7-7 7"
+            />
+          </svg>
+        </a>
+      ) : (
+        <span class="px-4 py-3 bg-muted border-2 border-black font-bold text-sm uppercase text-black/40 cursor-not-allowed flex items-center gap-2">
+          Next
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="square"
+              stroke-width="3"
+              d="M5 12h14m-7-7l7 7-7 7"
+            />
+          </svg>
+        </span>
+      )}
+    </nav>
+  )
+}
