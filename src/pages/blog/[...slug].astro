@@ -1,0 +1,194 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import BlogList from "../../components/blog/BlogList.astro";
+import CategoryFilter from "../../components/blog/CategoryFilter.astro";
+import Pagination from "../../components/blog/Pagination.astro";
+import BlogPostLayout from "../../layouts/BlogPostLayout.astro";
+import { getCollection, render } from "astro:content";
+import { BASE } from "../../utils/base";
+
+export async function getStaticPaths() {
+  const allPosts = await getCollection("blog", ({ data }) => !data.draft);
+  const sortedPosts = allPosts.sort(
+    (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+  );
+  const categories = [...new Set(sortedPosts.map((post) => post.data.category))];
+  const postsPerPage = 3;
+
+  const paths = [];
+
+  // Generate paths for each category with pagination
+  for (const cat of categories) {
+    const catPosts = sortedPosts.filter(
+      (post) => post.data.category.toLowerCase() === cat.toLowerCase()
+    );
+    const totalPages = Math.ceil(catPosts.length / postsPerPage);
+    for (let page = 1; page <= totalPages; page++) {
+      paths.push({
+        params: { slug: `${cat.toLowerCase()}/${page}` },
+        props: { type: "category", category: cat, page },
+      });
+    }
+  }
+
+  // Generate pagination paths for all posts (page 2+)
+  const totalAllPages = Math.ceil(sortedPosts.length / postsPerPage);
+  for (let page = 2; page <= totalAllPages; page++) {
+    paths.push({
+      params: { slug: String(page) },
+      props: { type: "pagination", category: "", page },
+    });
+  }
+
+  // Generate individual post pages
+  for (const post of allPosts) {
+    paths.push({
+      params: { slug: post.id },
+      props: { type: "post", post, category: "", page: 1 },
+    });
+  }
+
+  return paths;
+}
+
+const { slug } = Astro.params;
+const { type, post, category, page } = Astro.props;
+
+const allPosts = await getCollection("blog", ({ data }) => !data.draft);
+const sortedPosts = allPosts.sort(
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+);
+const categories = [...new Set(sortedPosts.map((p) => p.data.category))];
+
+let filteredPosts = sortedPosts;
+let currentPage = page || 1;
+let currentCategory = category || "";
+let totalPages = 1;
+
+if (type === "category" && category) {
+  filteredPosts = sortedPosts.filter(
+    (p) => p.data.category.toLowerCase() === category.toLowerCase()
+  );
+  const postsPerPage = 3;
+  totalPages = Math.ceil(filteredPosts.length / postsPerPage);
+  const startIndex = ((page || 1) - 1) * postsPerPage;
+  filteredPosts = filteredPosts.slice(startIndex, startIndex + postsPerPage);
+} else if (type === "pagination") {
+  const postsPerPage = 3;
+  totalPages = Math.ceil(sortedPosts.length / postsPerPage);
+  const startIndex = ((page || 1) - 1) * postsPerPage;
+  filteredPosts = sortedPosts.slice(startIndex, startIndex + postsPerPage);
+}
+
+const { Content } = type === "post" && post ? await render(post) : { Content: null };
+---
+
+{type === "post" ? (
+  <BlogPostLayout
+    title={post!.data.title}
+    description={post!.data.description}
+    pubDate={post!.data.pubDate}
+    updatedDate={post!.data.updatedDate}
+    heroImage={post!.data.heroImage}
+    category={post!.data.category}
+    tags={post!.data.tags}
+    author={post!.data.author}
+    readingTime={post!.data.readingTime}
+  >
+    <postContent />
+  </BlogPostLayout>
+) : (
+  <BaseLayout
+    title={category ? `${category} - Blog` : `Page ${page} - Blog`}
+    description="Explore our collection of articles on design, typography, and web development."
+  >
+    <!-- Hero Section -->
+    <section class="relative bg-foreground border-b-4 border-black overflow-hidden">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
+        <div class="grid lg:grid-cols-2 gap-12 items-end">
+          <div>
+            <span class="inline-block bg-primary-yellow text-xs font-bold uppercase tracking-widest text-black px-3 py-1 mb-6">
+              {category || "All Articles"}
+            </span>
+            <h1 class="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter text-white leading-[0.9]">
+              The<br />
+              <span class="text-primary-yellow">Blog</span>
+            </h1>
+          </div>
+          <div class="text-white/70">
+            <p class="text-lg font-medium">
+              Discover {filteredPosts.length} article{filteredPosts.length !== 1 ? "s" : ""}
+              {category ? ` in ${category}` : ""}.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="absolute top-8 right-8 w-16 h-16 bg-primary-red shape-circle border-2 border-white/20"></div>
+      <div class="absolute bottom-8 left-1/4 w-12 h-12 bg-primary-yellow shape-square border-2 border-white/20 rotate-45"></div>
+    </section>
+
+    <!-- Filters Section -->
+    <section class="bg-muted border-b-4 border-black py-8">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
+          <CategoryFilter categories={categories} activeCategory={currentCategory} />
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              id="search-input"
+              placeholder="Search articles..."
+              class="px-4 py-2 bg-white border-2 border-black font-medium text-sm focus:outline-none focus:border-primary-yellow"
+            />
+            <button
+              id="search-btn"
+              class="px-4 py-2 bg-primary-blue text-white border-2 border-black font-bold text-sm uppercase hover:bg-primary-blue/90 transition-colors btn-press"
+            >
+              Search
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Posts Grid -->
+    <section class="bg-white py-16 lg:py-24">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div id="posts-container">
+          <BlogList posts={filteredPosts} columns={3} />
+        </div>
+        <div class="mt-16 lg:mt-24">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            baseUrl={`${BASE}/blog`}
+            category={currentCategory}
+          />
+        </div>
+        {filteredPosts.length === 0 && (
+          <div class="text-center py-16">
+            <p class="text-xl font-medium text-black/60">No articles found.</p>
+          </div>
+        )}
+      </div>
+    </section>
+  </BaseLayout>
+)}
+
+<script>
+  const searchBtn = document.getElementById('search-btn');
+  const searchInput = document.getElementById('search-input') as HTMLInputElement;
+  searchBtn?.addEventListener('click', () => {
+    const query = searchInput?.value.trim();
+    if (query) {
+      window.location.href = `${import.meta.env.BASE_URL}blog?q=${encodeURIComponent(query)}`;
+    }
+  });
+  searchInput?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const query = searchInput.value.trim();
+      if (query) {
+        window.location.href = `${import.meta.env.BASE_URL}blog?q=${encodeURIComponent(query)}`;
+      }
+    }
+  });
+</script>

@@ -1,18 +1,18 @@
 ---
+import { BASE } from '../../utils/base';
+
 interface Props {
   categories: string[];
   activeCategory?: string;
-  searchQuery?: string;
 }
 
-const { categories, activeCategory = 'all', searchQuery = '' } = Astro.props;
+const { categories, activeCategory = '' } = Astro.props;
 
 const buildUrl = (category: string) => {
-  const params = new URLSearchParams();
-  if (category && category !== 'all') params.set('category', category);
-  if (searchQuery) params.set('q', searchQuery);
-  const query = params.toString();
-  return query ? `/blog?${query}` : '/blog';
+  if (!category || category === 'all') {
+    return `${BASE}/blog`;
+  }
+  return `${BASE}/blog/${category.toLowerCase()}`;
 };
 ---
 
@@ -20,7 +20,7 @@ const buildUrl = (category: string) => {
   <a
     href={buildUrl('all')}
     class={`font-bold uppercase text-sm px-4 py-2 border-2 border-black transition-all btn-press
-      ${activeCategory === 'all'
+      ${!activeCategory
         ? 'bg-primary-yellow text-black shadow-hard-sm'
         : 'bg-white text-black hover:bg-muted shadow-hard-sm'
       }`}

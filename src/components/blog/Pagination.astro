@@ -4,7 +4,6 @@ interface Props {
   totalPages: number;
   baseUrl: string;
   category?: string;
-  searchQuery?: string;
 }
 
 const {
@@ -12,19 +11,16 @@ const {
   totalPages,
   baseUrl,
   category = "",
-  searchQuery = "",
 } = Astro.props;
 
 const hasPrev = currentPage > 1;
 const hasNext = currentPage < totalPages;
 
 const getPageUrl = (page: number) => {
-  const params = new URLSearchParams();
-  if (page > 1) params.set("page", String(page));
-  if (category) params.set("category", category);
-  if (searchQuery) params.set("q", searchQuery);
-  const query = params.toString();
-  return query ? `${baseUrl}?${query}` : baseUrl;
+  if (category) {
+    return page === 1 ? `${baseUrl}/${category.toLowerCase()}` : `${baseUrl}/${category.toLowerCase()}/${page}`;
+  }
+  return page === 1 ? baseUrl : `${baseUrl}/${page}`;
 };
 
 // Generate page numbers to show
