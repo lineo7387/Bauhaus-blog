@@ -1,4 +1,6 @@
 ---
+import { BASE } from '../../utils/base';
+
 const currentYear = new Date().getFullYear();
 
 const socialLinks = [
@@ -34,22 +36,22 @@ const socialLinks = [
         <h4 class="font-black uppercase tracking-wider mb-6">Navigation</h4>
         <nav class="space-y-3">
           <a
-            href="/"
+            href={`${BASE}/`}
             class="block text-sm font-medium text-white/70 hover:text-primary-yellow transition-colors"
             >Home</a
           >
           <a
-            href="/blog"
+            href={`${BASE}/blog`}
             class="block text-sm font-medium text-white/70 hover:text-primary-yellow transition-colors"
             >Blog</a
           >
           <a
-            href="/about"
+            href={`${BASE}/about`}
             class="block text-sm font-medium text-white/70 hover:text-primary-yellow transition-colors"
             >About</a
           >
           <a
-            href="/contact"
+            href={`${BASE}/contact`}
             class="block text-sm font-medium text-white/70 hover:text-primary-yellow transition-colors"
             >Contact</a
           >

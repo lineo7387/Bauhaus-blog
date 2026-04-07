@@ -1,4 +1,6 @@
 ---
+import { BASE } from '../../utils/base';
+
 interface Props {
   title: string;
   excerpt: string;
@@ -43,7 +45,7 @@ const formattedDate = date.toLocaleDateString('en-US', {
     </div>
 
     <h3 class="text-xl font-black uppercase tracking-tight mb-3 leading-tight">
-      <a href={`/blog/${slug}`} class="hover:text-primary-red transition-colors">
+      <a href={`${BASE}/blog/${slug}`} class="hover:text-primary-red transition-colors">
         {title}
       </a>
     </h3>
@@ -53,7 +55,7 @@ const formattedDate = date.toLocaleDateString('en-US', {
     </p>
 
     <a
-      href={`/blog/${slug}`}
+      href={`${BASE}/blog/${slug}`}
       class="inline-flex items-center gap-2 text-sm font-bold uppercase text-primary-blue hover:text-primary-red transition-colors"
     >
       Read More

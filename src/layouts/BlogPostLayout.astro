@@ -2,6 +2,7 @@
 import BaseLayout from './BaseLayout.astro';
 import Button from '../components/ui/Button.astro';
 import RelatedPosts from '../components/blog/RelatedPosts.astro';
+import { BASE } from '../utils/base';
 
 interface Props {
   title: string;
@@ -131,7 +132,7 @@ const updatedFormattedDate = updatedDate?.toLocaleDateString('en-US', {
     <!-- Back to Blog -->
     <div class="bg-primary-red py-12">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <Button href="/blog" variant="yellow" size="lg">
+        <Button href={`${BASE}/blog`} variant="yellow" size="lg">
           Back to All Articles
         </Button>
       </div>

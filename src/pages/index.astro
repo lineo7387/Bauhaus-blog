@@ -4,6 +4,7 @@ import Button from "../components/ui/Button.astro";
 import FeaturedPost from "../components/blog/FeaturedPost.astro";
 import BlogList from "../components/blog/BlogList.astro";
 import { getCollection } from "astro:content";
+import { BASE } from "../utils/base";
 
 const allPosts = await getCollection("blog", ({ data }) => !data.draft);
 const sortedPosts = allPosts.sort(
@@ -44,10 +45,10 @@ const recentPosts = sortedPosts
             purity meets modern web craft.
           </p>
           <div class="flex flex-wrap gap-4">
-            <Button href="/blog" variant="primary" size="lg">
+            <Button href={`${BASE}/blog`} variant="primary" size="lg">
               Explore Articles
             </Button>
-            <Button href="/about" variant="outline" size="lg">
+            <Button href={`${BASE}/about`} variant="outline" size="lg">
               Learn More
             </Button>
           </div>
@@ -135,7 +136,7 @@ const recentPosts = sortedPosts
         >
           Recent Articles
         </h2>
-        <Button href="/blog" variant="yellow" size="md"> View All </Button>
+        <Button href={`${BASE}/blog`} variant="yellow" size="md"> View All </Button>
       </div>
       <BlogList posts={recentPosts} columns={3} />
     </div>
@@ -162,7 +163,7 @@ const recentPosts = sortedPosts
             web development. Every article is crafted to help you create better,
             more meaningful digital experiences.
           </p>
-          <Button href="/about" variant="secondary" size="lg">
+          <Button href={`${BASE}/about`} variant="secondary" size="lg">
             Our Story
           </Button>
         </div>

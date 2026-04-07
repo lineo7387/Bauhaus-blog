@@ -1,20 +1,22 @@
 ---
+import { BASE } from '../../utils/base';
+
 const navLinks = [
-  { href: '/', label: 'Home' },
-  { href: '/blog', label: 'Blog' },
-  { href: '/skills', label: 'Skills' },
-  { href: '/about', label: 'About' },
-  { href: '/contact', label: 'Contact' }
+  { href: `${BASE}/`, label: 'Home' },
+  { href: `${BASE}/blog`, label: 'Blog' },
+  { href: `${BASE}/skills`, label: 'Skills' },
+  { href: `${BASE}/about`, label: 'About' },
+  { href: `${BASE}/contact`, label: 'Contact' }
 ];
 
-const currentPath = Astro.url.pathname;
+const currentPath = Astro.url.pathname.replace(new RegExp(`^${BASE}`), '') || '/';
 ---
 
 <header class="bg-white border-b-4 border-black sticky top-0 z-50">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between h-16 md:h-20">
       <!-- Logo with geometric shapes -->
-      <a href="/" class="flex items-center gap-2 group">
+      <a href={`${BASE}/`} class="flex items-center gap-2 group">
         <div class="flex items-center gap-1">
           <!-- Circle -->
           <div class="w-6 h-6 md:w-8 md:h-8 bg-primary-red shape-circle border-2 border-black"></div>

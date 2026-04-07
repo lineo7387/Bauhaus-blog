@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Button from '../components/ui/Button.astro';
+import { BASE } from '../utils/base';
 
 const values = [
   {
@@ -180,10 +181,10 @@ const skills = [
         Explore our articles and discover how Bauhaus principles can transform your web design.
       </p>
       <div class="flex flex-wrap justify-center gap-4">
-        <Button href="/blog" variant="yellow" size="lg">
+        <Button href={`${BASE}/blog`} variant="yellow" size="lg">
           Read the Blog
         </Button>
-        <Button href="/contact" variant="outline" size="lg">
+        <Button href={`${BASE}/contact`} variant="outline" size="lg">
           Get in Touch
         </Button>
       </div>
