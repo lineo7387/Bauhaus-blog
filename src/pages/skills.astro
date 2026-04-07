@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Button from '../components/ui/Button.astro';
+import { BASE } from '../utils/base';
 
 const skillCategories = [
   {
@@ -275,10 +276,10 @@ const getLevelBars = (level: number) => {
         Whether you need a stunning website or a complete design system, let's create something exceptional.
       </p>
       <div class="flex flex-wrap justify-center gap-4">
-        <Button href="/contact" variant="yellow" size="lg">
+        <Button href={`${BASE}/contact`} variant="yellow" size="lg">
           Get in Touch
         </Button>
-        <Button href="/blog" variant="outline" size="lg">
+        <Button href={`${BASE}/blog`} variant="outline" size="lg">
           Read the Blog
         </Button>
       </div>

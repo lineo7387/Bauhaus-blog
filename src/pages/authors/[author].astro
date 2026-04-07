@@ -4,6 +4,7 @@ import BlogList from '../../components/blog/BlogList.astro';
 import Button from '../../components/ui/Button.astro';
 import authors from '../../data/authors.json';
 import { getCollection } from 'astro:content';
+import { BASE } from '../../utils/base';
 
 export async function getStaticPaths() {
   const allPosts = await getCollection('blog', ({ data }) => !data.draft);
@@ -81,7 +82,7 @@ const authorPosts = allPosts
           Articles by {author}
           <span class="text-primary-red ml-2">({authorPosts.length})</span>
         </h2>
-        <Button href="/blog" variant="outline" size="md">
+        <Button href={`${BASE}/blog`} variant="outline" size="md">
           All Articles
         </Button>
       </div>
