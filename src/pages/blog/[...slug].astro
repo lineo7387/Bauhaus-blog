@@ -17,35 +17,41 @@ export async function getStaticPaths() {
 
   const paths = [];
 
-  // Generate paths for each category with pagination
-  for (const cat of categories) {
-    const catPosts = sortedPosts.filter(
-      (post) => post.data.category.toLowerCase() === cat.toLowerCase()
-    );
-    const totalPages = Math.ceil(catPosts.length / postsPerPage);
-    for (let page = 1; page <= totalPages; page++) {
-      paths.push({
-        params: { slug: `${cat.toLowerCase()}/${page}` },
-        props: { type: "category", category: cat, page },
-      });
-    }
+  // Individual post pages
+  for (const post of allPosts) {
+    paths.push({
+      params: { slug: post.id },
+      props: { type: "post", post, category: "", page: 1 },
+    });
   }
 
-  // Generate pagination paths for all posts (page 2+)
-  const totalAllPages = Math.ceil(sortedPosts.length / postsPerPage);
-  for (let page = 2; page <= totalAllPages; page++) {
+  // /blog/2, /blog/3, ... (pagination for all posts)
+  const totalPages = Math.ceil(sortedPosts.length / postsPerPage);
+  for (let page = 2; page <= totalPages; page++) {
     paths.push({
       params: { slug: String(page) },
       props: { type: "pagination", category: "", page },
     });
   }
 
-  // Generate individual post pages
-  for (const post of allPosts) {
+  // /blog/:category and /blog/:category/:page — all in one loop
+  for (const cat of categories) {
+    const catSlug = cat.toLowerCase();
+    // /blog/design (category, page 1)
     paths.push({
-      params: { slug: post.id },
-      props: { type: "post", post, category: "", page: 1 },
+      params: { slug: catSlug },
+      props: { type: "category", category: cat, page: 1 },
     });
+    const catPosts = sortedPosts.filter(
+      (p) => p.data.category.toLowerCase() === catSlug
+    );
+    const catTotal = Math.ceil(catPosts.length / postsPerPage);
+    for (let page = 2; page <= catTotal; page++) {
+      paths.push({
+        params: { slug: `${catSlug}/${page}` },
+        props: { type: "category", category: cat, page },
+      });
+    }
   }
 
   return paths;
@@ -60,6 +66,7 @@ const sortedPosts = allPosts.sort(
 );
 const categories = [...new Set(sortedPosts.map((p) => p.data.category))];
 
+const postsPerPage = 3;
 let filteredPosts = sortedPosts;
 let currentPage = page || 1;
 let currentCategory = category || "";
@@ -69,12 +76,11 @@ if (type === "category" && category) {
   filteredPosts = sortedPosts.filter(
     (p) => p.data.category.toLowerCase() === category.toLowerCase()
   );
-  const postsPerPage = 3;
   totalPages = Math.ceil(filteredPosts.length / postsPerPage);
   const startIndex = ((page || 1) - 1) * postsPerPage;
   filteredPosts = filteredPosts.slice(startIndex, startIndex + postsPerPage);
 } else if (type === "pagination") {
-  const postsPerPage = 3;
+  totalPages = Math.ceil(sortedPosts.length / postsPerPage);
   totalPages = Math.ceil(sortedPosts.length / postsPerPage);
   const startIndex = ((page || 1) - 1) * postsPerPage;
   filteredPosts = sortedPosts.slice(startIndex, startIndex + postsPerPage);
