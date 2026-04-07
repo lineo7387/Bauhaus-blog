@@ -2,49 +2,19 @@
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import BlogList from "../../components/blog/BlogList.astro";
 import CategoryFilter from "../../components/blog/CategoryFilter.astro";
-import SearchBar from "../../components/blog/SearchBar.astro";
 import Pagination from "../../components/blog/Pagination.astro";
 import { getCollection } from "astro:content";
+import { BASE } from "../../utils/base";
 
 const allPosts = await getCollection("blog", ({ data }) => !data.draft);
 const sortedPosts = allPosts.sort(
   (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
 );
 
-// Get unique categories
 const categories = [...new Set(sortedPosts.map((post) => post.data.category))];
-
-// URL-based filtering
-const urlCategory = Astro.url.searchParams.get("category") || "";
-const urlQuery = Astro.url.searchParams.get("q") || "";
-
-// Apply filters
-let filteredPosts = sortedPosts;
-if (urlCategory) {
-  filteredPosts = filteredPosts.filter(
-    (post) => post.data.category.toLowerCase() === urlCategory.toLowerCase(),
-  );
-}
-if (urlQuery) {
-  const query = urlQuery.toLowerCase();
-  filteredPosts = filteredPosts.filter(
-    (post) =>
-      post.data.title.toLowerCase().includes(query) ||
-      post.data.description.toLowerCase().includes(query) ||
-      post.data.category.toLowerCase().includes(query) ||
-      post.data.tags?.some((tag: string) => tag.toLowerCase().includes(query)),
-  );
-}
-
-// Pagination
 const postsPerPage = 3;
-const currentPage = Number(Astro.url.searchParams.get("page")) || 1;
-const totalPages = Math.ceil(filteredPosts.length / postsPerPage);
-const startIndex = (currentPage - 1) * postsPerPage;
-const paginatedPosts = filteredPosts.slice(
-  startIndex,
-  startIndex + postsPerPage,
-);
+const totalPages = Math.ceil(sortedPosts.length / postsPerPage);
+const paginatedPosts = sortedPosts.slice(0, postsPerPage);
 ---
 
 <BaseLayout
@@ -72,11 +42,7 @@ const paginatedPosts = filteredPosts.slice(
         </div>
         <div class="text-white/70">
           <p class="text-lg font-medium">
-            Discover {filteredPosts.length} article{
-              filteredPosts.length !== 1 ? "s" : ""
-            }{urlCategory ? ` in ${urlCategory}` : ""}{
-              urlQuery ? ` matching "${urlQuery}"` : ""
-            }.
+            Discover {sortedPosts.length} article{sortedPosts.length !== 1 ? "s" : ""}.
           </p>
         </div>
       </div>
@@ -100,10 +66,22 @@ const paginatedPosts = filteredPosts.slice(
       >
         <CategoryFilter
           categories={categories}
-          activeCategory={urlCategory || 'all'}
-          searchQuery={urlQuery}
+          activeCategory=""
         />
-        <SearchBar placeholder="Search articles..." value={urlQuery} />
+        <div class="flex items-center gap-2">
+          <input
+            type="text"
+            id="search-input"
+            placeholder="Search articles..."
+            class="px-4 py-2 bg-white border-2 border-black font-medium text-sm focus:outline-none focus:border-primary-yellow"
+          />
+          <button
+            id="search-btn"
+            class="px-4 py-2 bg-primary-blue text-white border-2 border-black font-bold text-sm uppercase hover:bg-primary-blue/90 transition-colors btn-press"
+          >
+            Search
+          </button>
+        </div>
       </div>
     </div>
   </section>
@@ -117,21 +95,33 @@ const paginatedPosts = filteredPosts.slice(
 
       <div class="mt-16 lg:mt-24">
         <Pagination
-          currentPage={currentPage}
+          currentPage={1}
           totalPages={totalPages}
-          baseUrl="/blog"
-          category={urlCategory}
-          searchQuery={urlQuery}
+          baseUrl={`${BASE}/blog`}
+          category=""
         />
       </div>
-
-      {
-        filteredPosts.length === 0 && (
-          <div class="text-center py-16">
-            <p class="text-xl font-medium text-black/60">No articles found.</p>
-          </div>
-        )
-      }
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  const searchBtn = document.getElementById('search-btn');
+  const searchInput = document.getElementById('search-input') as HTMLInputElement;
+
+  searchBtn?.addEventListener('click', () => {
+    const query = searchInput?.value.trim();
+    if (query) {
+      window.location.href = `${import.meta.env.BASE_URL}blog?q=${encodeURIComponent(query)}`;
+    }
+  });
+
+  searchInput?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const query = searchInput.value.trim();
+      if (query) {
+        window.location.href = `${import.meta.env.BASE_URL}blog?q=${encodeURIComponent(query)}`;
+      }
+    }
+  });
+</script>
