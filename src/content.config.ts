@@ -16,6 +16,7 @@ const blog = defineCollection({
     draft: z.boolean().default(false),
     author: z.string().default('Anonymous'),
     readingTime: z.number().optional(),
+    planId: z.string().optional(),
   }),
 });
 

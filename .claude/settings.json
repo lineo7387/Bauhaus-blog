@@ -1,5 +1,17 @@
 {
   "skills": {
+    "plan-skill": {
+      "description": "目录策划：根据技能名生成完整学习路线图",
+      "path": ".claude/commands/plan-skill.md"
+    },
+    "write-article": {
+      "description": "文章编写：根据路线图生成符合规范的 .mdx 文章",
+      "path": ".claude/commands/write-article.md"
+    },
+    "review-article": {
+      "description": "文章审核：检查文章质量并更新路线图状态",
+      "path": ".claude/commands/review-article.md"
+    },
     "review-astro": {
       "description": "审查 Astro 布局和样式代码（Bauhaus 博客项目）",
       "path": ".claude/commands/review-astro.md"

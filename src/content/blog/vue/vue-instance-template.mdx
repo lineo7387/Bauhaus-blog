@@ -1,0 +1,491 @@
+---
+title: Vue 实例与模板语法
+description: 深入讲解 Vue 3 的应用创建方式（createApp）、模板语法核心规则（插值、指令、双向绑定），以及响应式数据（ref、reactive）和计算属性的使用
+pubDate: 2026-04-08
+category: vue
+tags: [vue, vue3, template, 入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: vue-instance-template
+---
+
+# Vue 实例与模板语法
+
+Vue 3 是当前最流行的渐进式 JavaScript 框架之一，它以简洁的 API 和强大的响应式系统著称。在深入学习 Vue 之前，理解**Vue 实例**的创建方式和**模板语法**的核心规则是必经之路。本文将带你从零开始，掌握 Vue 应用的基本结构和模板的使用方法。
+
+## 创建 Vue 应用
+
+Vue 3 提供了全新的 `createApp` 函数来创建应用实例，这是相较于 Vue 2 `new Vue()` 的重大变化。
+
+### 入口 HTML
+
+```html
+<div id="app"></div>
+```
+
+### 创建应用实例
+
+```javascript
+import { createApp } from 'vue'
+
+// 定义根组件（简单组件直接使用对象形式）
+const App = {
+  data() {
+    return {
+      message: 'Hello, Bauhaus!'
+    }
+  },
+  template: `<div>{{ message }}</div>`
+}
+
+// 创建应用实例并挂载到 DOM
+const app = createApp(App)
+app.mount('#app')
+```
+
+> **提示**：`createApp` 返回的实例是一个**应用对象**，所有的 API 都挂载在这个对象上，如 `use`、`component`、`mixin` 等。这种设计让 Vue 3 的模块化更加清晰。
+
+### 使用单文件组件（推荐方式）
+
+在实际项目中，通常使用 `.vue` 单文件组件：
+
+```vue
+<script setup>
+import { ref } from 'vue'
+
+const message = ref('Hello, Bauhaus!')
+</script>
+
+<template>
+  <div>{{ message }}</div>
+</template>
+
+<style scoped>
+div {
+  font-family: 'Outfit', sans-serif;
+  color: #1040C0;
+}
+</style>
+```
+
+> **约定**：`.vue` 文件是 Vue 3 的标准组件格式，包含 `<script setup>`（逻辑）、`<template>`（模板）和 `<style>`（样式）三个区块。
+
+## 模板语法基础
+
+Vue 的模板语法基于 HTML，允许在模板中嵌入**双花括号**表达式、指令等动态内容。
+
+### 插值表达式
+
+最基础的模板语法是**文本插值**，使用双花括号 `{{ }}`：
+
+```vue
+<template>
+  <div>
+    <h1>{{ title }}</h1>
+    <p>计数器：{{ count }}</p>
+    <p>计算结果：{{ count * 2 + 10 }}</p>
+    <p>三目运算：{{ count > 5 ? '大于5' : '小于等于5' }}</p>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const title = ref('Vue 模板语法')
+const count = ref(3)
+</script>
+```
+
+> **原理**：`{{ }}` 内部可以是任意 JavaScript 表达式，Vue 会将表达式的返回值渲染为文本内容。
+
+### 原始 HTML 渲染
+
+默认情况下，插值会作为纯文本渲染。如果需要渲染 HTML，需要使用 `v-html` 指令：
+
+```vue
+<template>
+  <div v-html="rawHtml"></div>
+</template>
+
+<script setup>
+const rawHtml = '<strong>加粗文本</strong> <span style="color:red">红色</span>'
+</script>
+```
+
+> **安全警告**：在生产环境中使用 `v-html` 时，务必确保内容来源可信，以避免 XSS 攻击。
+
+## 响应式数据
+
+Vue 3 的响应式系统是其核心优势之一。在 `<script setup>` 中使用 `ref` 或 `reactive` 声明的数据会自动具有响应性。
+
+### ref 定义基本类型
+
+```vue
+<script setup>
+import { ref } from 'vue'
+
+const name = ref('Bauhaus')
+const version = ref('3.x')
+const isActive = ref(true)
+</script>
+
+<template>
+  <div>
+    <p>框架：{{ name }} {{ version }}</p>
+    <p>状态：{{ isActive ? '激活' : '未激活' }}</p>
+    <button @click="name = 'Vue'">修改名称</button>
+  </div>
+</template>
+```
+
+> **原理**：`ref` 将基本类型包装为一个包含 `.value` 属性的响应式对象。在模板中自动解包，所以使用时不需写 `.value`。
+
+### reactive 定义对象类型
+
+```vue
+<script setup>
+import { reactive } from 'vue'
+
+const user = reactive({
+  name: 'Alice',
+  age: 28,
+  skills: ['Vue', 'TypeScript']
+})
+</script>
+
+<template>
+  <div>
+    <p>{{ user.name }} - {{ user.age }}岁</p>
+    <p>技能：{{ user.skills.join(', ') }}</p>
+    <button @click="user.age++">长大一岁</button>
+  </div>
+</template>
+```
+
+> **区别**：`ref` 适合基本类型，`reactive` 适合对象和数组。使用 `reactive` 时，修改对象的属性会自动触发视图更新。
+
+## 常用指令
+
+Vue 提供了一系列**指令**（以 `v-` 前缀开头的特殊属性）来增强模板的能力。
+
+### v-bind：属性绑定
+
+```vue
+<template>
+  <!-- 完整写法 -->
+  <img v-bind:src="imageUrl" alt="图片" />
+
+  <!-- 简写形式 -->
+  <img :src="imageUrl" alt="图片" />
+
+  <!-- 动态绑定 class -->
+  <div :class="{ active: isActive, 'text-large': isLarge }">
+    内容区域
+  </div>
+
+  <!-- 动态绑定 style -->
+  <div :style="{ color: textColor, fontSize: fontSize + 'px' }">
+    样式区域
+  </div>
+</template>
+
+<script setup>
+const imageUrl = 'https://picsum.photos/400/300'
+const isActive = true
+const isLarge = false
+const textColor = '#D02020'
+const fontSize = 16
+</script>
+```
+
+### v-on：事件绑定
+
+```vue
+<template>
+  <!-- 完整写法 -->
+  <button v-on:click="handleClick">点击</button>
+
+  <!-- 简写形式 -->
+  <button @click="handleClick">点击</button>
+
+  <!-- 传递参数 -->
+  <button @click="greet('Alice')">问候</button>
+
+  <!-- 修饰符：阻止默认行为 -->
+  <form @submit.prevent="submitForm">
+    <button type="submit">提交</button>
+  </form>
+
+  <!-- 修饰符：阻止冒泡 -->
+  <div @click.stop="handleDivClick">
+    <button @click="handleBtnClick">内部按钮</button>
+  </div>
+</template>
+
+<script setup>
+function handleClick() {
+  console.log('按钮被点击')
+}
+
+function greet(name) {
+  console.log(`你好，${name}！`)
+}
+
+function submitForm() {
+  console.log('表单已提交')
+}
+
+function handleDivClick() {
+  console.log('div 被点击')
+}
+
+function handleBtnClick() {
+  console.log('按钮 被点击')
+}
+</script>
+```
+
+### v-model：双向绑定
+
+```vue
+<template>
+  <!-- 文本输入 -->
+  <input v-model="username" type="text" placeholder="输入用户名" />
+  <p>你好，{{ username }}</p>
+
+  <!-- 多行文本 -->
+  <textarea v-model="bio" placeholder="自我介绍"></textarea>
+
+  <!-- 复选框 -->
+  <label>
+    <input type="checkbox" v-model="agree" />
+    同意协议
+  </label>
+
+  <!-- 单选框 -->
+  <div>
+    <label><input type="radio" v-model="plan" value="free" /> 免费版</label>
+    <label><input type="radio" v-model="plan" value="pro" /> 专业版</label>
+  </div>
+
+  <!-- 下拉选择 -->
+  <select v-model="country">
+    <option value="cn">中国</option>
+    <option value="us">美国</option>
+    <option value="jp">日本</option>
+  </select>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const username = ref('')
+const bio = ref('')
+const agree = ref(false)
+const plan = ref('free')
+const country = ref('cn')
+</script>
+```
+
+> **核心**：`v-model` 是 Vue 中最重要的指令之一，它在表单元素和数据属性之间建立了双向数据绑定。当用户修改表单值时，data 自动更新；当 data 变化时，表单显示也随之改变。
+
+## 计算属性与方法
+
+在模板中直接使用复杂表达式会导致模板臃肿，Vue 提供了**计算属性**和**方法**来解决这一问题。
+
+### 计算属性 computed
+
+```vue
+<template>
+  <div>
+    <p>姓：<input v-model="firstName" /></p>
+    <p>名：<input v-model="lastName" /></p>
+
+    <!-- 使用计算属性 -->
+    <p>全名：{{ fullName }}</p>
+    <p>姓名长度：{{ nameLength }}</p>
+
+    <!-- 原始方式（不推荐） -->
+    <p>（原始）全名：{{ firstName + ' ' + lastName }}</p>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+
+const firstName = ref('王')
+const lastName = ref('小明')
+
+// 计算属性：基于响应式数据自动计算
+const fullName = computed(() => {
+  return firstName.value + ' ' + lastName.value
+})
+
+// 带 get/set 的计算属性
+const nameLength = computed({
+  get: () => fullName.value.length,
+  // 此处无需 set 实现，略
+})
+</script>
+```
+
+> **优势**：计算属性会**缓存**结果，只有当依赖的响应式数据变化时才会重新计算。相比之下，方法每次渲染都会重新执行。
+
+### 方法 methods
+
+```vue
+<template>
+  <div>
+    <p>当前计数：{{ count }}</p>
+    <button @click="increment">+1</button>
+    <button @click="decrement">-1</button>
+
+    <!-- 方法每次调用都会执行 -->
+    <p>时间戳：{{ getTimestamp() }}</p>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const count = ref(0)
+
+function increment() {
+  count.value++
+}
+
+function decrement() {
+  count.value--
+}
+
+function getTimestamp() {
+  return Date.now()
+}
+</script>
+```
+
+> **选择建议**：对于需要根据已有数据派生出新值的场景，使用**计算属性**；对于需要执行副作用或操作（如事件处理、异步调用）的场景，使用**方法**。
+
+## 完整示例：计数器组件
+
+让我们用一个完整的计数器组件来串联以上知识：
+
+```vue
+<script setup>
+import { ref, computed } from 'vue'
+
+// 响应式数据
+const count = ref(0)
+const step = ref(1)
+
+// 方法
+function increment() {
+  count.value += step.value
+}
+
+function decrement() {
+  count.value -= step.value
+}
+
+function reset() {
+  count.value = 0
+}
+
+// 计算属性
+const isPositive = computed(() => count.value > 0)
+const isNegative = computed(() => count.value < 0)
+const statusText = computed(() => {
+  if (count.value === 0) return '归零'
+  return isPositive.value ? '正数' : '负数'
+})
+</script>
+
+<template>
+  <div class="counter">
+    <h2>{{ statusText }}</h2>
+    <div class="display">{{ count }}</div>
+
+    <div class="controls">
+      <button @click="decrement">-</button>
+      <button @click="reset">重置</button>
+      <button @click="increment">+</button>
+    </div>
+
+    <div class="step">
+      <label>步进值：</label>
+      <input type="number" v-model.number="step" min="1" max="100" />
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.counter {
+  padding: 1.5rem;
+  border: 3px solid #121212;
+  box-shadow: 6px 6px 0 0 #121212;
+  max-width: 300px;
+}
+
+.display {
+  font-size: 3rem;
+  font-weight: bold;
+  text-align: center;
+  padding: 1rem;
+  background: #F0C020;
+  color: #121212;
+  margin: 1rem 0;
+}
+
+.controls {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.controls button {
+  padding: 0.5rem 1.2rem;
+  border: 2px solid #121212;
+  background: #1040C0;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+  box-shadow: 3px 3px 0 0 #121212;
+  transition: transform 0.1s;
+}
+
+.controls button:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 0 #121212;
+}
+
+.controls button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 0 #121212;
+}
+
+.step {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.step input {
+  padding: 0.3rem;
+  border: 2px solid #121212;
+  width: 60px;
+  text-align: center;
+}
+</style>
+```
+
+## 总结
+
+本文涵盖了 Vue 3 的核心入门知识：
+
+- **应用创建**：`createApp` 是 Vue 3 的标准入口，配合 `.vue` 单文件组件实现模块化开发
+- **模板语法**：`{{ }}` 插值、`v-bind` 属性绑定、`v-on` 事件绑定、`v-model` 双向绑定是模板的四大基石
+- **响应式数据**：`ref` 和 `reactive` 提供了直观且强大的响应式能力
+- **计算属性 vs 方法**：计算属性适合派生数据并自动缓存，方法适合执行操作和副作用
+
+掌握以上内容后，你已经具备了构建简单 Vue 应用的能力。下一篇文章我们将深入探讨 **响应式原理**，理解 Vue 如何追踪数据变化并高效更新 DOM。
