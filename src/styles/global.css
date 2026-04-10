@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;900&display=swap');
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @theme {
   /* Colors */
@@ -84,4 +85,162 @@
     background-image: radial-gradient(#FFFFFF 2px, transparent 2px);
     background-size: 20px 20px;
   }
+}
+
+/* ============================================
+   Markdown / Prose 元素自定义样式 (Bauhaus)
+   ============================================ */
+
+/* 段落 */
+.prose p {
+  margin-bottom: 1.5rem;
+}
+
+/* 全系列标题（H1-H6）上下间距 */
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  margin-top: 2.5rem !important;
+  margin-bottom: 1rem !important;
+}
+
+/* 文章内容第一行元素顶部间距归零（避免页面顶部留白过多） */
+.prose > *:first-child {
+  margin-top: 0 !important;
+}
+
+/* 链接 hover 效果 */
+.prose a:hover {
+  background-color: var(--color-primary-yellow);
+  color: var(--color-foreground) !important;
+  box-shadow: 4px 4px 0px 0px var(--color-foreground);
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+/* 引用层级颜色轮换 */
+.prose blockquote {
+  border-left-width: 4px;
+}
+.prose blockquote blockquote {
+  border-left-color: var(--color-primary-blue);
+}
+.prose blockquote blockquote blockquote {
+  border-left-color: var(--color-primary-yellow);
+}
+/* 引用嵌套超过3层回退红色 */
+.prose blockquote blockquote blockquote blockquote {
+  border-left-color: var(--color-primary-red);
+}
+
+/* 表格斑马纹 */
+.prose table tbody tr:nth-child(even) {
+  background-color: var(--color-muted);
+}
+.prose table tbody tr:nth-child(odd) {
+  background-color: var(--color-white);
+}
+.prose table {
+  border-collapse: collapse;
+  border: 2px solid var(--color-foreground);
+}
+
+/* 分割线用几何图形替代 */
+.prose hr {
+  border: none;
+  height: 24px;
+  background: transparent;
+  position: relative;
+  margin: 2rem auto;
+  width: 120px;
+}
+.prose hr::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  background-color: var(--color-primary-red);
+}
+.prose hr::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  background-color: var(--color-primary-blue);
+}
+
+/* 代码块顶部标题栏（rehype-pretty-code 自动注入 data-language） */
+.prose pre {
+  position: relative;
+  padding-top: 2.5rem;
+  background-color: #1a1a1a !important;
+  border-left: 6px solid var(--color-primary-red);
+}
+/* 代码块有语言标签时显示标题栏 */
+.prose pre[data-language]::before {
+  content: attr(data-language);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2rem;
+  background-color: var(--color-foreground);
+  color: var(--color-white);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  border-bottom: 2px solid var(--color-primary-yellow);
+}
+
+/* 图片交互 */
+.prose img {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+.prose img:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 12px 12px 0px 0px var(--color-foreground) !important;
+}
+
+/* 标题强强调下划线 */
+.prose strong {
+  text-decoration: underline;
+  text-decoration-color: var(--color-primary-red);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 4px;
+}
+
+/* 无序列表自定义方形 bullet */
+.prose ul > li::marker {
+  color: var(--color-primary-red);
+  font-size: 1.2em;
+  line-height: 1;
+}
+
+/* 有序列表序号粗体 */
+.prose ol > li::marker {
+  font-weight: 900;
+  color: var(--color-primary-blue);
+}
+
+/* 代码块内语法高亮（shiki 等高亮器输出的 span） */
+.prose pre code {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  font-size: 0.875rem;
+  line-height: 1.7;
 }
