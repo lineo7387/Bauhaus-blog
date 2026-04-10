@@ -1,0 +1,502 @@
+---
+title: useCallback 与 useMemo
+description: 理解 React 中的记忆化原理，掌握 useCallback 和 useMemo 的适用场景与性能优化策略
+pubDate: 2026-04-10
+category: react
+tags: [react, hooks, useCallback, useMemo, 性能优化, 进阶]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 9
+planId: react-usecallback-usememo
+---
+
+## 前言
+
+**useCallback** 和 **useMemo** 是 React 提供的两个性能优化 Hook。它们基于**记忆化（Memoization）**技术，避免不必要的计算和渲染。但过度使用反而会损害性能，本篇文章将帮助你正确理解和使用这两个 Hook。
+
+## 什么是记忆化
+
+**记忆化**是一种优化技术：对于相同的输入，返回缓存的结果，而不是重新计算。
+
+```
+// 无记忆化：每次调用都执行
+function add(a, b) {
+  return a + b;
+}
+
+// 记忆化：结果被缓存
+function memoizedAdd(a, b) {
+  if (cache.has([a, b])) {
+    return cache.get([a, b]);
+  }
+  const result = a + b;
+  cache.set([a, b], result);
+  return result;
+}
+```
+
+## useCallback
+
+### 基本语法
+
+```jsx
+const cachedFn = useCallback(fn, dependencies);
+```
+
+`useCallback` 返回一个**记忆化的回调函数**，只有当依赖变化时才返回新的函数。
+
+### 不使用 useCallback
+
+```jsx
+function Parent() {
+  const [count, setCount] = useState(0);
+
+  // ❌ 每次渲染都创建新函数
+  function handleClick() {
+    console.log('点击');
+  }
+
+  return <Child onClick={handleClick} />;
+}
+```
+
+### 使用 useCallback
+
+```jsx
+function Parent() {
+  const [count, setCount] = useState(0);
+
+  // ✓ 只有依赖变化时才创建新函数
+  const handleClick = useCallback(() => {
+    console.log('点击');
+  }, []);  // 空依赖：永远返回同一个函数
+
+  return <Child onClick={handleClick} />;
+}
+```
+
+### 依赖参数的回调
+
+```jsx
+function SearchComponent({ onSearch }) {
+  const [query, setQuery] = useState('');
+
+  // 依赖 query：当 query 变化时才创建新函数
+  const handleSubmit = useCallback((e) => {
+    e.preventDefault();
+    onSearch(query);
+  }, [query, onSearch]);
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input value={query} onChange={e => setQuery(e.target.value)} />
+      <button type="submit">搜索</button>
+    </form>
+  );
+}
+```
+
+## useMemo
+
+### 基本语法
+
+```jsx
+const cachedValue = useMemo(() => expensiveComputation, dependencies);
+```
+
+`useMemo` 返回一个**记忆化的计算值**，只有当依赖变化时才重新计算。
+
+### 不使用 useMemo
+
+```jsx
+function ExpensiveList({ items, filter }) {
+  // ❌ 每次渲染都重新计算
+  const filteredItems = items.filter(item => item.name.includes(filter));
+
+  return <List data={filteredItems} />;
+}
+```
+
+### 使用 useMemo
+
+```jsx
+function ExpensiveList({ items, filter }) {
+  // ✓ 只有 items 或 filter 变化时才重新计算
+  const filteredItems = useMemo(
+    () => items.filter(item => item.name.includes(filter)),
+    [items, filter]
+  );
+
+  return <List data={filteredItems} />;
+}
+```
+
+### 昂贵计算示例
+
+```jsx
+function DataAnalysis({ dataset }) {
+  // 计算量很大的操作
+  const statistics = useMemo(() => {
+    console.log('开始计算统计数据...');
+    const sorted = [...dataset].sort((a, b) => a - b);
+    const sum = sorted.reduce((a, b) => a + b, 0);
+    const mean = sum / sorted.length;
+    const median = sorted.length % 2 === 0
+      ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+      : sorted[Math.floor(sorted.length / 2)];
+
+    return { mean, median, sum, count: sorted.length };
+  }, [dataset]);
+
+  return (
+    <div>
+      <p>平均值：{statistics.mean.toFixed(2)}</p>
+      <p>中位数：{statistics.median.toFixed(2)}</p>
+    </div>
+  );
+}
+```
+
+## 适用场景
+
+### 场景 1：传递给子组件的回调函数
+
+```jsx
+function Parent() {
+  const [count, setCount] = useState(0);
+
+  // 当且仅当这个回调需要作为 props 传给 memo 化的子组件时
+  const handleClick = useCallback(() => {
+    console.log('点击了');
+  }, []);
+
+  return <MemoizedButton onClick={handleClick} />;
+}
+
+// 子组件使用 React.memo
+const MemoizedButton = React.memo(function Button({ onClick }) {
+  return <button onClick={onClick}>按钮</button>;
+});
+```
+
+### 场景 2：作为其他 Hook 的依赖
+
+```jsx
+function SearchResults({ query }) {
+  const [results, setResults] = useState([]);
+
+  // useEffect 依赖这个回调函数
+  const fetchResults = useCallback(async () => {
+    const data = await api.search(query);
+    setResults(data);
+  }, [query]);
+
+  useEffect(() => {
+    fetchResults();
+  }, [fetchResults]);  // 如果不用 useCallback，这里会有 ESLint 警告
+
+  return <ul>{results.map(r => <li key={r.id}>{r.title}</li>)}</ul>;
+}
+```
+
+### 场景 3：创建昂贵的初始值
+
+```jsx
+function ExpensiveInit() {
+  // 避免每次渲染都重新执行昂贵的初始化计算
+  const data = useMemo(() => {
+    return expensiveInitialization();
+  }, []);
+  // 或
+  const data = useRef(null);
+  if (data.current === null) {
+    data.current = expensiveInitialization();
+  }
+
+  return <div>{/* 使用 data */}</div>;
+}
+```
+
+### 场景 4：派生数据的缓存
+
+```jsx
+function Dashboard({ orders }) {
+  // 从订单列表派生统计数据
+  const stats = useMemo(() => {
+    return {
+      total: orders.length,
+      revenue: orders.reduce((sum, o) => sum + o.amount, 0),
+      average: orders.length > 0
+        ? orders.reduce((sum, o) => sum + o.amount, 0) / orders.length
+        : 0
+    };
+  }, [orders]);
+
+  return (
+    <div>
+      <p>订单总数：{stats.total}</p>
+      <p>总收入：¥{stats.revenue.toFixed(2)}</p>
+      <p>平均订单额：¥{stats.average.toFixed(2)}</p>
+    </div>
+  );
+}
+```
+
+## 常见错误
+
+### 错误 1：过度使用
+
+```jsx
+function BadExample({ name }) {
+  // ❌ 过度优化：普通值不需要 useMemo
+  const myName = useMemo(() => name, [name]);
+
+  // ❌ 过度优化：普通函数不需要 useCallback
+  const handleClick = useCallback(() => {
+    console.log(name);
+  }, [name]);
+
+  return <div>{myName}</div>;
+}
+
+// ✓ 简单直接
+function GoodExample({ name }) {
+  return <div>{name}</div>;
+}
+```
+
+:::warning
+记忆化也有开销（比较依赖、缓存结果）。对于简单计算，记忆化本身的开销可能比计算本身还大。
+:::
+
+### 错误 2：忘记声明依赖
+
+```jsx
+function WrongExample({ items, filter }) {
+  // ❌ 忘记 filter 依赖
+  const filtered = useMemo(() => {
+    return items.filter(item => item.name.includes(filter));
+  }, [items]);  // filter 是闭包变量，但没在依赖数组中
+
+  return <List data={filtered} />;
+}
+
+// ✓ 正确
+const filtered = useMemo(() => {
+  return items.filter(item => item.name.includes(filter));
+}, [items, filter]);
+```
+
+### 错误 3：返回新的对象/数组/函数
+
+```jsx
+function WrongExample({ a, b }) {
+  // ❌ useMemo 的工厂函数每次都返回新对象
+  const config = useMemo(() => {
+    return { a, b, timestamp: Date.now() };  // 每次都是新对象！
+  }, [a, b]);
+
+  // ❌ useCallback 回调中返回新函数
+  const getWrapper = useCallback(() => {
+    return () => {  // 返回的是新函数
+      console.log(a);
+    };
+  }, [a]);
+}
+```
+
+### 错误 4：过早优化
+
+```jsx
+// ❌ 在开发早期就加性能优化
+function PrematureOptimization({ items }) {
+  const expensiveResult = useMemo(
+    () => items.map(item => expensiveOperation(item)),
+    [items]
+  );
+
+  // 但实际上 items 可能只有几个元素，根本不需要优化
+  return <ul>{expensiveResult.map(r => <li key={r.id}>{r.name}</li>)}</ul>;
+}
+```
+
+## 性能测量
+
+### 使用 React DevTools Profiler
+
+1. 在 React DevTools 中打开 Profiler
+2. 记录一次交互（点击、输入等）
+3. 查看渲染次数和耗时
+
+### 使用 console.time
+
+```jsx
+function MeasuredComponent({ data }) {
+  const processed = useMemo(() => {
+    console.time('处理数据');
+    const result = data.map(item => heavyComputation(item));
+    console.timeEnd('处理数据');
+    return result;
+  }, [data]);
+
+  return <List data={processed} />;
+}
+```
+
+### 识别性能问题
+
+```
+渲染慢的常见原因：
+1. 组件层级过深 → 考虑 Composition
+2. 不必要的重新渲染 → 考虑 React.memo
+3. 昂贵的计算 → 考虑 useMemo
+4. 不稳定的函数引用 → 考虑 useCallback
+5. 大列表没有虚拟化 → 考虑 react-window
+```
+
+## React.memo 与它们的配合
+
+`React.memo` 可以让组件在 props 没变化时不重新渲染，配合 `useCallback` 使用效果最好：
+
+```jsx
+const ListItem = React.memo(function ListItem({ item, onSelect }) {
+  return (
+    <div onClick={() => onSelect(item.id)}>
+      {item.name}
+    </div>
+  );
+});
+
+function ItemList({ items }) {
+  const [selectedId, setSelectedId] = useState(null);
+
+  // 关键：每个 item 的回调是独立的
+  const handleSelect = useCallback((id) => {
+    setSelectedId(id);
+  }, []);
+
+  return (
+    <div>
+      {items.map(item => (
+        <ListItem
+          key={item.id}
+          item={item}
+          onSelect={handleSelect}  // 所有 item 共用同一个回调
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+## useCallback + useRef 组合
+
+用于在回调中访问最新的 state 值，同时保持稳定的函数引用：
+
+```jsx
+function ChatInput({ onSend }) {
+  const [message, setMessage] = useState('');
+  const messageRef = useRef(message);
+
+  // 同步 ref
+  useEffect(() => {
+    messageRef.current = message;
+  });
+
+  // 稳定引用，但能访问最新值
+  const handleSubmit = useCallback(() => {
+    if (!messageRef.current.trim()) return;
+    onSend(messageRef.current);
+    setMessage('');
+  }, [onSend]);
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input value={message} onChange={e => setMessage(e.target.value)} />
+      <button type="submit">发送</button>
+    </form>
+  );
+}
+```
+
+## 完整示例：优化的大型列表
+
+```jsx
+import { useState, useMemo, useCallback } from 'react';
+
+// 子组件：使用 React.memo + 稳定的 onClick
+const ProductRow = React.memo(function ProductRow({ product, onToggle }) {
+  return (
+    <tr>
+      <td>{product.name}</td>
+      <td>¥{product.price}</td>
+      <td>
+        <button onClick={() => onToggle(product.id)}>
+          {product.inStock ? '下架' : '上架'}
+        </button>
+      </td>
+    </tr>
+  );
+});
+
+function ProductTable({ products }) {
+  const [filter, setFilter] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+
+  // 记忆化过滤后的数据
+  const filteredProducts = useMemo(() => {
+    return products
+      .filter(p => p.name.toLowerCase().includes(filter.toLowerCase()))
+      .sort((a, b) => {
+        if (sortBy === 'name') return a.name.localeCompare(b.name);
+        if (sortBy === 'price') return a.price - b.price;
+        return 0;
+      });
+  }, [products, filter, sortBy]);
+
+  // 稳定的回调函数
+  const handleToggle = useCallback((id) => {
+    console.log('切换商品', id);
+  }, []);
+
+  return (
+    <div>
+      <input
+        value={filter}
+        onChange={e => setFilter(e.target.value)}
+        placeholder="搜索商品..."
+      />
+      <select value={sortBy} onChange={e => setSortBy(e.target.value)}>
+        <option value="name">按名称</option>
+        <option value="price">按价格</option>
+      </select>
+
+      <table>
+        <thead>
+          <tr><th>名称</th><th>价格</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+          {filteredProducts.map(product => (
+            <ProductRow
+              key={product.id}
+              product={product}
+              onToggle={handleToggle}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+```
+
+## 小结
+
+- **useCallback**：返回记忆化的函数，用于避免子组件不必要的重新渲染，或作为其他 Hook 的稳定依赖
+- **useMemo**：返回记忆化的值，用于缓存昂贵的计算结果或派生数据
+- **何时使用**：作为 props 传递给 `React.memo` 组件、作为其他 Hook 的依赖、处理昂贵计算
+- **何时不用**：简单计算、普通组件、性能问题不明显时
+- **测量优先**：使用 React DevTools Profiler 确认性能问题后再优化
+
+掌握了性能优化的基础后，下一篇文章我们将学习 **Context 与全局状态**，了解如何在 React 中管理跨组件的共享状态。

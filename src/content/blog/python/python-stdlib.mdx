@@ -1,0 +1,321 @@
+---
+title: 常用标准库详解
+description: 深入讲解 datetime 日期时间、collections 容器、functools 高阶函数、itertools 与 contextlib 等常用标准库的实用技巧
+pubDate: 2026-04-10
+category: python
+tags: [python, 标准库, datetime, collections, functools, itertools]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 7
+planId: python-stdlib
+---
+
+## 前言
+
+Python 标准库是随 Python 一起安装的丰富工具集，涵盖了几乎所有常见编程场景。掌握这些标准工具，可以避免重复造轮子，提升开发效率。
+
+## datetime 日期时间
+
+### 基本概念
+
+Python 的日期时间体系由四个主要类型组成：
+
+- `date`：日期（年、月、日）
+- `time`：时间（时、分、秒、微秒）
+- `datetime`：日期时间（date + time）
+- `timedelta`：时间间隔
+
+```python
+from datetime import date, time, datetime, timedelta
+
+# date：日期
+d = date(2026, 4, 10)
+print(d)                  # 2026-04-10
+print(d.year, d.month, d.day)  # 2026 4 10
+print(d.strftime("%Y年%m月%d日"))  # 2026年04月10日
+
+# datetime：日期时间
+dt = datetime(2026, 4, 10, 9, 30, 0)
+print(dt)  # 2026-04-10 09:30:00
+
+# 当前时间
+now = datetime.now()
+print(now)  # 2026-04-10 09:30:45.123456
+
+# 解析字符串
+dt = datetime.strptime("2026-04-10 09:30", "%Y-%m-%d %H:%M")
+```
+
+### 时间运算
+
+```python
+from datetime import datetime, timedelta
+
+start = datetime(2026, 4, 10, 9, 0)
+end = datetime(2026, 4, 10, 17, 30)
+
+# 时间差
+delta = end - start
+print(delta)               # 8:30:00
+print(delta.total_seconds())  # 30600.0 秒
+print(delta.days)          # 0 天
+
+# 加减时间
+future = start + timedelta(days=7, hours=2)
+past = end - timedelta(hours=3)
+```
+
+### 时区处理
+
+```python
+from datetime import datetime, timezone, timedelta
+
+# UTC 时间
+utc_now = datetime.now(timezone.utc)
+print(utc_now)
+
+# 本地时间（需 pytz 或 zoneinfo）
+from zoneinfo import ZoneInfo
+
+beijing = ZoneInfo("Asia/Shanghai")
+dt_beijing = datetime(2026, 4, 10, 9, 0, tzinfo=beijing)
+print(dt_beijing)  # 2026-04-10 09:00:00+08:00
+```
+
+## collections 容器
+
+### namedtuple — 带名字的元组
+
+```python
+from collections import namedtuple
+
+Point = namedtuple("Point", ["x", "y"])
+p = Point(3, 4)
+
+print(p.x, p.y)           # 3 4
+print(p[0], p[1])         # 3 4（元组访问方式）
+print(p._fields)          # ('x', 'y')
+
+# 方法
+print(p._asdict())        # {'x': 3, 'y': 4}
+p2 = p._replace(x=5)      # 创建新实例：Point(x=5, y=4)
+```
+
+### deque — 双端队列
+
+```python
+from collections import deque
+
+dq = deque([1, 2, 3])
+
+dq.append(4)      # 右侧添加：deque([1, 2, 3, 4])
+dq.appendleft(0)  # 左侧添加：deque([0, 1, 2, 3, 4])
+dq.pop()          # 右侧弹出：返回 4
+dq.popleft()      # 左侧弹出：返回 0
+
+# 限制最大长度（自动移除对端元素）
+window = deque(maxlen=3)
+for x in [1, 2, 3, 4, 5]:
+    window.append(x)
+    print(window)
+
+# deque([1, 2, 3])
+# deque([2, 3, 4])
+# deque([3, 4, 5])
+```
+
+### Counter — 计数器
+
+```python
+from collections import Counter
+
+# 统计元素出现次数
+words = ["apple", "banana", "apple", "cherry", "banana", "apple"]
+counter = Counter(words)
+
+print(counter)          # Counter({'apple': 3, 'banana': 2, 'cherry': 1})
+print(counter["apple"])  # 3
+
+# 最常见的元素
+print(counter.most_common(2))  # [('apple', 3), ('banana', 2)]
+
+# 运算
+c1 = Counter(["a", "b", "a"])
+c2 = Counter(["a", "c"])
+print(c1 + c2)           # Counter({'a': 3, 'b': 1, 'c': 1})
+print(c1 - c2)           # Counter({'b': 1})  只保留正数
+```
+
+### defaultdict — 默认值字典
+
+```python
+from collections import defaultdict
+
+# 访问不存在的键时自动创建默认值
+groups = defaultdict(list)
+
+groups["fruits"].append("apple")
+groups["fruits"].append("banana")
+groups["vegetables"].append("carrot")
+
+print(groups)  # defaultdict(<class 'list'>, {'fruits': ['apple', 'banana'], 'vegetables': ['carrot']})
+
+# 常用默认值类型
+int_dict = defaultdict(int)    # 默认值 0
+set_dict = defaultdict(set)    # 默认值空集合
+```
+
+### ChainMap — 链接多个字典
+
+```python
+from collections import ChainMap
+
+defaults = {"theme": "dark", "language": "zh"}
+user_prefs = {"theme": "light", "font_size": 14}
+
+# 合并查找（user_prefs 优先）
+combined = ChainMap(user_prefs, defaults)
+print(combined["theme"])      # light（来自 user_prefs）
+print(combined["language"])   # zh（来自 defaults）
+```
+
+## functools 高阶函数
+
+### lru_cache — 记忆化缓存
+
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
+def fibonacci(n: int) -> int:
+    return n if n <= 1 else fibonacci(n - 1) + fibonacci(n - 2)
+
+# fib(100) 会递归展开，首次调用产生 101 个调用栈深度
+# 由于 @lru_cache 缓存，后续递归分支中的 f(0)、f(1) 等直接命中缓存
+print(fibonacci.cache_info())  # CacheInfo(hits=?, misses=101, ...)
+```
+
+### partial — 偏函数
+
+```python
+from functools import partial
+
+# 固定函数的部分参数
+def power(base, exponent):
+    return base ** exponent
+
+square = partial(power, exponent=2)  # 固定 exponent=2
+cube = partial(power, exponent=3)   # 固定 exponent=3
+
+print(square(5))   # 25
+print(cube(3))     # 27
+```
+
+### reduce — 累积计算
+
+```python
+from functools import reduce
+
+# 累积求和
+numbers = [1, 2, 3, 4, 5]
+total = reduce(lambda a, b: a + b, numbers, 0)
+print(total)  # 15
+
+# 找最大值
+max_val = reduce(lambda a, b: a if a > b else b, numbers)
+print(max_val)  # 5
+
+# 字典合并
+dicts = [{"a": 1}, {"b": 2}, {"c": 3}]
+merged = reduce(lambda a, b: {**a, **b}, dicts, {})
+print(merged)  # {'a': 1, 'b': 2, 'c': 3}
+```
+
+## itertools
+
+### 常用函数
+
+```python
+import itertools
+
+# count：无限计数器
+for i in itertools.count(10, 2):  # 从 10 开始，每次 +2
+    if i > 20:
+        break
+    print(i, end=" ")  # 10 12 14 16 18 20
+
+# cycle：无限循环
+colors = itertools.cycle(["红", "绿", "蓝"])
+for _ in range(5):
+    print(next(colors), end=" ")  # 红 绿 蓝 红 绿
+
+# repeat：重复
+print(list(itertools.repeat(0, 3)))  # [0, 0, 0]
+
+# islice：惰性切片
+print(list(itertools.islice(itertools.count(), 5, 10)))
+# [5, 6, 7, 8, 9]
+```
+
+### 组合函数
+
+```python
+import itertools
+
+# product：笛卡尔积
+for x, y in itertools.product([1, 2], ["a", "b"]):
+    print(f"{x}{y}", end=" ")  # 1a 1b 2a 2b
+
+# permutations：排列
+print(list(itertools.permutations([1, 2, 3], 2)))
+# [(1, 2), (1, 3), (2, 1), (2, 3), (3, 1), (3, 2)]
+
+# combinations：组合
+print(list(itertools.combinations([1, 2, 3], 2)))
+# [(1, 2), (1, 3), (2, 3)]
+
+# groupby：分组
+data = ["aa", "ab", "bb", "bc"]
+for key, group in itertools.groupby(data, key=lambda x: x[0]):
+    print(f"{key}: {list(group)}")
+# a: ['aa', 'ab']
+# b: ['bb', 'bc']
+```
+
+## contextlib 工具
+
+```python
+from contextlib import contextmanager, suppress, redirect_stdout
+import io
+
+# @contextmanager：用生成器实现上下文管理器
+@contextmanager
+def timer(label: str):
+    import time
+    start = time.perf_counter()
+    yield
+    elapsed = time.perf_counter() - start
+    print(f"{label}: {elapsed:.4f}s")
+
+with timer("计算"):
+    sum(range(1000000))
+
+# suppress：忽略指定异常
+with suppress(FileNotFoundError):
+    open("nonexistent.txt").close()
+
+# redirect_stdout：重定向 print 输出
+buffer = io.StringIO()
+with redirect_stdout(buffer):
+    print("被捕获的输出")
+print(buffer.getvalue().strip())  # 被捕获的输出
+```
+
+## 小结
+
+- **datetime**：`date`/`datetime`/`timedelta` 是日期时间处理的标准工具
+- **collections**：namedtuple、deque、Counter、defaultdict 各有所长
+- **functools**：`lru_cache` 加速递归函数，`reduce` 累积计算
+- **itertools**：`count/cycle/repeat` 无限迭代器，`product/permutations/combinations` 组合生成
+- **contextlib**：`@contextmanager` 简化上下文管理器编写，`suppress` 忽略异常

@@ -5,7 +5,7 @@ skill: vue
 version: "3.x"
 status: planning
 createdAt: 2026-04-08
-updatedAt: 2026-04-08
+updatedAt: 2026-04-10
 ---
 
 ## 基础知识
@@ -15,7 +15,7 @@ updatedAt: 2026-04-08
       difficulty: easy
       estimatedWords: 1500
 
-- [ ] 响应式原理深度解析
+- [✅] 响应式原理深度解析
       desc: 深入理解 Vue 3 的 Proxy 响应式系统与依赖追踪机制
       difficulty: hard
       estimatedWords: 2500

@@ -1,0 +1,334 @@
+---
+title: 装饰器与元编程
+description: 深入掌握 Python 函数装饰器、类装饰器、带参数的装饰器、functools.wraps，以及类元编程与 __new__ 的高级用法
+pubDate: 2026-04-10
+category: python
+tags: [python, 装饰器, 元编程, functools, 闭包]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 9
+planId: python-decorator
+---
+
+## 前言
+
+装饰器是 Python 中最重要的元编程工具之一。它允许你在不修改原函数源码的情况下，为函数或类添加额外的行为。理解装饰器需要扎实掌握闭包和函数作为一等对象的概念。
+
+## 函数装饰器基础
+
+装饰器本质上是一个接受函数并返回新函数的函数：
+
+```python
+# 定义装饰器
+def uppercase_decorator(func):
+    """将函数返回值转换为大写"""
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)  # 调用原函数
+        return result.upper()           # 包装返回值
+    return wrapper
+
+
+# 使用 @ 语法糖应用装饰器
+@uppercase_decorator
+def greet(name: str) -> str:
+    return f"Hello, {name}"
+
+
+print(greet("Alice"))  # HELLO, ALICE
+```
+
+等价于：
+
+```python
+def greet(name: str) -> str:
+    return f"Hello, {name}"
+
+greet = uppercase_decorator(greet)
+```
+
+## functools.wraps
+
+装饰器会覆盖原函数的元信息（`__name__`、`__doc__` 等），使用 `functools.wraps` 保留：
+
+```python
+import functools
+
+def uppercase_decorator(func):
+    @functools.wraps(func)  # 保留原函数元信息
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        return result.upper()
+    return wrapper
+
+
+@uppercase_decorator
+def greet(name: str) -> str:
+    """返回问候语"""
+    return f"Hello, {name}"
+
+
+print(greet.__name__)  # greet（而非 wrapper）
+print(greet.__doc__)   # 返回问候语（而非空）
+```
+
+## 带参数的装饰器
+
+### 装饰器工厂函数
+
+返回一个装饰器的函数：
+
+```python
+def repeat(times: int):
+    """重复执行函数指定次数的装饰器工厂"""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            results = []
+            for _ in range(times):
+                results.append(func(*args, **kwargs))
+            return results
+        return wrapper
+    return decorator
+
+
+@repeat(3)
+def say_hello():
+    return "Hello!"
+
+print(say_hello())  # ['Hello!', 'Hello!', 'Hello!']
+```
+
+### 实际应用：计时器
+
+```python
+import time
+import functools
+
+def timer(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        elapsed = time.perf_counter() - start
+        print(f"{func.__name__} 执行耗时: {elapsed:.4f} 秒")
+        return result
+    return wrapper
+
+
+@timer
+def slow_function():
+    time.sleep(0.5)
+
+slow_function()
+# slow_function 执行耗时: 0.5004 秒
+```
+
+### 实际应用：缓存
+
+```python
+import functools
+
+def cache(func):
+    """简单内存缓存（适用于纯函数）"""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        # 生成缓存键
+        key = (args, tuple(sorted(kwargs.items())))
+        if key not in wrapper._cache:
+            wrapper._cache[key] = func(*args, **kwargs)
+        return wrapper._cache[key]
+    wrapper._cache = {}
+    return wrapper
+
+
+@cache
+def fibonacci(n: int) -> int:
+    return n if n <= 1 else fibonacci(n - 1) + fibonacci(n - 2)
+
+
+print(fibonacci(100))  # 快速返回（利用缓存）
+```
+
+## 类装饰器
+
+类装饰器作用于类本身：
+
+```python
+def add_repr(cls):
+    """为类添加默认的 __repr__ 方法（如果没有的话）"""
+    if "__repr__" not in cls.__dict__:
+        def __repr__(self):
+            return f"{cls.__name__}()"
+        cls.__repr__ = __repr__
+    return cls
+
+
+@add_repr
+class Point:
+    def __init__(self, x: float, y: float):
+        self.x = x
+        self.y = y
+
+
+p = Point(1, 2)
+print(p)  # Point()
+```
+
+## 类作为装饰器（可调用对象）
+
+只要实现了 `__call__` 方法，对象就可以像函数一样被调用：
+
+```python
+class CallCounter:
+    """统计函数调用次数"""
+    def __init__(self, func):
+        functools.update_wrapper(self, func)
+        self.func = func
+        self.call_count = 0
+
+    def __call__(self, *args, **kwargs):
+        self.call_count += 1
+        print(f"{self.func.__name__} 被调用了 {self.call_count} 次")
+        return self.func(*args, **kwargs)
+
+
+@CallCounter
+def add(a, b):
+    return a + b
+
+
+add(1, 2)  # add 被调用了 1 次，返回 3
+add(3, 4)  # add 被调用了 2 次，返回 7
+```
+
+## 装饰器堆叠
+
+同一函数可以应用多个装饰器（就近优先）：
+
+```python
+def debug(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        print(f"调用: {func.__name__}")
+        result = func(*args, **kwargs)
+        print(f"{func.__name__} 返回: {result}")
+        return result
+    return wrapper
+
+def uppercase(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs).upper()
+    return wrapper
+
+@debug
+@uppercase
+def greet(name):
+    return f"hello, {name}"
+
+# 执行顺序（从内到外）：
+# 1. uppercase 包装 greet，返回 wrapper1
+# 2. debug 包装 wrapper1，返回 wrapper2
+# 3. 调用时：wrapper2 → wrapper1 → greet
+# 输出：
+# 调用: greet
+# hello, NAME
+# greet 返回: HELLO, NAME
+```
+
+## 类元编程
+
+### `__new__` 方法
+
+`__new__` 在 `__init__` 之前调用，负责创建实例，通常用于不可变对象或单例模式：
+
+```python
+class UppercaseStr(str):
+    """自动将字符串转为大写的类"""
+    def __new__(cls, value):
+        instance = super().__new__(cls, value.upper())
+        return instance
+
+
+s = UppercaseStr("hello")
+print(s)  # HELLO
+```
+
+### 类作为装饰器
+
+```python
+class TotalCalls:
+    """追踪类所有方法调用次数"""
+    def __init__(self, cls):
+        self.cls = cls
+        self.calls = {}
+
+        for name in dir(cls):
+            if not name.startswith("_") or name == "__call__":
+                attr = getattr(cls, name)
+                if callable(attr):
+                    setattr(self, name, self._wrap(attr, name))
+        return self
+
+    def _wrap(self, method, name):
+        @functools.wraps(method)
+        def wrapper(*args, **kwargs):
+            self.calls[name] = self.calls.get(name, 0) + 1
+            return method(*args, **kwargs)
+        return wrapper
+
+    def __call__(self, *args, **kwargs):
+        return self.cls(*args, **kwargs)
+
+
+@TotalCalls
+class Calculator:
+    def add(self, a, b):
+        return a + b
+
+    def multiply(self, a, b):
+        return a * b
+
+
+calc = Calculator()
+calc.add(1, 2)
+calc.add(3, 4)
+calc.multiply(2, 3)
+
+print(calc.calls)  # {'add': 2, 'multiply': 1}
+```
+
+### 元类（Metaclass）
+
+元类控制类的创建行为：
+
+```python
+class SingletonMeta(type):
+    """单例模式元类：确保类只有一个实例"""
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class Database(metaclass=SingletonMeta):
+    pass
+
+
+db1 = Database()
+db2 = Database()
+print(db1 is db2)  # True —— 同一实例
+```
+
+## 小结
+
+- 装饰器是接受函数并返回包装后新函数的函数
+- `functools.wraps` 保留被装饰函数的元信息
+- 带参数的装饰器使用**装饰器工厂函数**（返回装饰器的函数）
+- 类也可以作为装饰器（通过 `__call__` 或装饰类本身）
+- 多个装饰器按从近到远顺序堆叠
+- `__new__` 在 `__init__` 之前执行，常用于不可变对象
+- **元类**是类的类，控制类的创建行为（高级主题）

@@ -1,0 +1,490 @@
+---
+title: 条件渲染与列表渲染
+description: 掌握 React 中的条件渲染模式（&&、||、三元运算符）与列表渲染（map）技巧，深入理解 Key 的作用与最佳实践
+pubDate: 2026-04-10
+category: react
+tags: [react, 条件渲染, 列表渲染, key, 入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 6
+planId: react-conditional-list-rendering
+---
+
+## 前言
+
+React 的核心哲学之一是**UI 是状态的函数**。当状态变化时，界面需要根据条件显示不同的内容，或者渲染一个列表中的多个元素。条件渲染和列表渲染是 React 中最常见的需求之一，本文将系统讲解这两类渲染模式及其最佳实践。
+
+## 条件渲染
+
+### if 语句（早期 return）
+
+最直接的方式是在组件内部使用条件判断，决定返回什么内容：
+
+```jsx
+function AuthStatus({ isLoggedIn }) {
+  // 早期返回：未登录时直接返回特定 UI
+  if (!isLoggedIn) {
+    return <p>请登录以继续</p>;
+  }
+
+  return (
+    <div>
+      <p>欢迎回来！</p>
+      <button>进入控制台</button>
+    </div>
+  );
+}
+```
+
+### 三元运算符
+
+适用于两种状态之间的切换：
+
+```jsx
+function SubscriptionBadge({ tier }) {
+  return (
+    <div className="badge">
+      {/* 根据 tier 显示不同徽章 */}
+      {tier === 'pro' ? (
+        <span style={{ color: '#D02020', fontWeight: 'bold' }}>PRO</span>
+      ) : tier === 'enterprise' ? (
+        <span style={{ color: '#1040C0', fontWeight: 'bold' }}>ENTERPRISE</span>
+      ) : (
+        <span style={{ color: '#666' }}>FREE</span>
+      )}
+    </div>
+  );
+}
+```
+
+### 逻辑与运算符（&&）
+
+适用于"满足条件时渲染，否则什么都不渲染"的场景：
+
+```jsx
+function NotificationPanel({ messages }) {
+  return (
+    <div className="panel">
+      <h3>通知</h3>
+
+      {/* 有消息时渲染徽章 */}
+      {messages.length > 0 && (
+        <span className="badge">{messages.length}</span>
+      )}
+
+      {/* 消息列表 */}
+      {messages.map(msg => (
+        <div key={msg.id} className="message">{msg.text}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+:::warning
+**Falsy 值陷阱**：使用 `&&` 时，左侧表达式如果结果为 `0`、`''`、`false` 时，虽然不会渲染，但可能意外显示这些值：
+
+```jsx
+// ❌ count 为 0 时，会渲染出 0
+{count > 0 && <span>{count} 条消息</span>}
+
+// ✓ 改用三元运算符或 || 运算符
+{count > 0 ? `${count} 条消息` : '无消息'}
+// 或
+{count || '无消息'}
+```
+:::
+
+### 或运算符（||）作为默认值
+
+使用 `||` 为 falsy 值提供后备内容：
+
+```jsx
+function UserGreeting({ username }) {
+  return <h1>欢迎，{username || '访客'}！</h1>;
+}
+
+function ScoreDisplay({ score }) {
+  return <p>得分：{score || 0}</p>;
+}
+```
+
+### 完整条件渲染组件示例
+
+```jsx
+function UserCard({ user, isAdmin, isOnline }) {
+  // 方式1：早期返回
+  if (!user) {
+    return <div className="loading">加载中...</div>;
+  }
+
+  // 方式2：三元运算符（布尔状态切换）
+  const statusText = isOnline ? '在线' : '离线';
+  const statusColor = isOnline ? '#20A020' : '#999';
+
+  // 方式3：逻辑与（可选内容）
+  const adminBadge = isAdmin && (
+    <span style={{ background: '#D02020', color: 'white', padding: '0.1rem 0.4rem', fontSize: '0.75rem' }}>
+      管理员
+    </span>
+  );
+
+  return (
+    <div className="user-card">
+      <div className="avatar">
+        <img src={user.avatar} alt={user.name} />
+        <span
+          className="status-dot"
+          style={{ background: statusColor }}
+        />
+      </div>
+      <div className="info">
+        <h3>
+          {user.name}
+          {adminBadge}
+        </h3>
+        <p style={{ color: statusColor }}>{statusText}</p>
+        <p>{user.bio || '这个人很懒，什么都没写'}</p>
+      </div>
+    </div>
+  );
+}
+```
+
+## 列表渲染
+
+### 使用 map 渲染列表
+
+`map` 是 JavaScript 数组方法，返回一个新数组，非常适合生成 JSX 列表：
+
+```jsx
+const frameworks = ['React', 'Vue', 'Angular', 'Svelte'];
+
+function FrameworkList() {
+  return (
+    <ul>
+      {frameworks.map((name, index) => (
+        <li key={index}>{name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### renderItem 提取模式
+
+将列表项提取为独立组件，提高可读性和可维护性：
+
+```jsx
+// 列表项组件
+function FrameworkItem({ name, url, description }) {
+  return (
+    <li className="framework-item">
+      <h4>
+        <a href={url} target="_blank" rel="noopener noreferrer">
+          {name}
+        </a>
+      </h4>
+      <p>{description}</p>
+    </li>
+  );
+}
+
+// 主组件
+function FrameworkList() {
+  const frameworks = [
+    { id: 1, name: 'React', url: 'https://react.dev', description: '用于构建用户界面的 JavaScript 库' },
+    { id: 2, name: 'Vue', url: 'https://vuejs.org', description: '渐进式 JavaScript 框架' },
+    { id: 3, name: 'Angular', url: 'https://angular.io', description: '企业级应用平台' },
+  ];
+
+  return (
+    <ul>
+      {frameworks.map(framework => (
+        <FrameworkItem
+          key={framework.id}
+          {...framework}
+        />
+      ))}
+    </ul>
+  );
+}
+```
+
+### 过滤与映射结合
+
+在 JSX 中同时过滤和映射：
+
+```jsx
+function FilteredProductList() {
+  const [filter, setFilter] = useState('all');
+
+  const products = [
+    { id: 1, name: '极简主义设计', category: 'design', price: 199 },
+    { id: 2, name: 'React 进阶', category: 'code', price: 299 },
+    { id: 3, name: '色彩理论基础', category: 'design', price: 249 },
+    { id: 4, name: 'Vue 实战', category: 'code', price: 279 },
+  ];
+
+  // 先过滤，后映射
+  const visibleProducts = filter === 'all'
+    ? products
+    : products.filter(p => p.category === filter);
+
+  return (
+    <div>
+      <div className="filters">
+        <button onClick={() => setFilter('all')}>全部</button>
+        <button onClick={() => setFilter('design')}>设计</button>
+        <button onClick={() => setFilter('code')}>编程</button>
+      </div>
+
+      <ul>
+        {visibleProducts.map(product => (
+          <li key={product.id}>
+            {product.name} — ¥{product.price}
+          </li>
+        ))}
+      </ul>
+
+      {visibleProducts.length === 0 && (
+        <p>没有找到匹配的产品</p>
+      )}
+    </div>
+  );
+}
+```
+
+## Key 的作用与最佳实践
+
+### 什么是 Key
+
+Key 是 React 用于识别列表中每个元素的**唯一标识**。它帮助 React 在更新时精确定位需要变化的元素：
+
+```jsx
+// key 帮助 React 识别每个列表项的身份
+{todos.map(todo => (
+  <TodoItem
+    key={todo.id}     // ← 唯一标识
+    todo={todo}
+    onToggle={toggleTodo}
+  />
+))}
+```
+
+### Key 的工作原理（Diff 算法）
+
+当列表重新渲染时，React 使用 Key 来匹配新旧树中的元素：
+
+```
+初始渲染：
+  [A, B, C]  key=[1, 2, 3]
+
+更新后：
+  [A, D, B]  key=[1, 4, 2]
+
+React 识别：
+  - key=1: A 未变化，更新复用
+  - key=2: B 位置变化（从索引1到索引2），移动而非销毁重建
+  - key=3: 消失（被销毁）
+  - key=4: 新增（创建）
+```
+
+### Key 的最佳实践
+
+```jsx
+function KeyBestPractices() {
+  const users = [
+    { id: 1, name: 'Alice' },   // ✓ 使用数据库 ID
+    { id: 2, name: 'Bob' },
+    { id: 3, name: 'Carol' },
+  ];
+
+  return (
+    <div>
+      {/* ❌ 错误：使用数组索引作为 key */}
+      {users.map((user, index) => (
+        <div key={index}>{user.name}</div>  // index 不稳定！
+      ))}
+
+      {/* ✓ 正确：使用稳定唯一 ID */}
+      {users.map(user => (
+        <div key={user.id}>{user.name}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+### 何时可以使用索引作为 Key
+
+在**数据不会重新排序、不会添加/删除中间项**的情况下，索引是安全的：
+
+```jsx
+// ✓ 安全：数据顺序固定，只在末尾追加
+const staticList = ['React', 'Vue', 'Angular'];
+{staticList.map((item, i) => <li key={i}>{item}</li>)}
+
+// ✓ 安全：布尔状态列表，不会改变顺序
+const [completed, setCompleted] = useState([false, true, false]);
+{completed.map((done, i) => <Checkbox key={i} checked={done} />)}
+
+// ❌ 不安全：数据会被删除、重排
+const [items, setItems] = useState([...]);
+{items.map(item => <div key={item.id}>{item.name}</div>)}
+```
+
+:::warning
+**索引作为 Key 的风险**：如果列表项被删除或重新排序，使用索引会导致 React 无法正确复用 DOM 元素，可能引发状态混乱（如表单输入值错位）。**生产环境中始终使用唯一 ID 作为 key。**
+:::
+
+### key 必须是同辈中唯一
+
+Key 在**同一层级的兄弟元素之间**必须唯一，不需要全局唯一：
+
+```jsx
+// ✓ 正确：section 内的 items 各自独立
+<article>
+  <section>
+    {posts.map(post => <Post key={post.id} {...post} />)}
+  </section>
+  <section>
+    {products.map(product => <Product key={product.id} {...product} />)}
+  </section>
+</article>
+```
+
+## 完整示例：可排序表格
+
+```jsx
+import { useState } from 'react';
+
+function SortableTable() {
+  const [data, setData] = useState([
+    { id: 1, name: '极简设计原则', category: '设计', rating: 4.8, views: 12500 },
+    { id: 2, name: 'React Hooks 实战', category: '编程', rating: 4.6, views: 8900 },
+    { id: 3, name: '色彩心理学', category: '设计', rating: 4.9, views: 15200 },
+    { id: 4, name: 'TypeScript 入门', category: '编程', rating: 4.5, views: 7800 },
+    { id: 5, name: '字体设计基础', category: '设计', rating: 4.7, views: 6200 },
+  ]);
+
+  const [sortKey, setSortKey] = useState('views');
+  const [sortDir, setSortDir] = useState('desc');
+  const [filter, setFilter] = useState('');
+
+  function handleSort(key) {
+    if (key === sortKey) {
+      // 同一列：反转方向
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      // 新列：升序
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  // 过滤 + 排序
+  const filtered = data
+    .filter(item => item.name.toLowerCase().includes(filter.toLowerCase()))
+    .sort((a, b) => {
+      const aVal = a[sortKey];
+      const bVal = b[sortKey];
+      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+
+  const SortIcon = ({ column }) => {
+    if (column !== sortKey) return <span style={{ opacity: 0.3 }}>↕</span>;
+    return <span>{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  };
+
+  return (
+    <div style={{ maxWidth: 700, margin: '2rem auto' }}>
+      <h2>文章管理</h2>
+
+      {/* 筛选 */}
+      <div style={{ marginBottom: '1rem' }}>
+        <input
+          type="text"
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          placeholder="搜索文章..."
+          style={{ padding: '0.5rem', width: '100%', border: '2px solid #121212', fontSize: '1rem' }}
+        />
+      </div>
+
+      {/* 表格 */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #121212' }}>
+        <thead>
+          <tr style={{ background: '#1040C0', color: 'white' }}>
+            {[
+              { key: 'name', label: '文章' },
+              { key: 'category', label: '分类' },
+              { key: 'rating', label: '评分' },
+              { key: 'views', label: '浏览' },
+            ].map(col => (
+              <th
+                key={col.key}
+                onClick={() => handleSort(col.key)}
+                style={{ padding: '0.75rem', textAlign: 'left', cursor: 'pointer', userSelect: 'none' }}
+              >
+                {col.label} <SortIcon column={col.key} />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map(item => (
+            <tr
+              key={item.id}
+              style={{ borderBottom: '1px solid #ddd', background: 'white' }}
+            >
+              <td style={{ padding: '0.75rem' }}>{item.name}</td>
+              <td>
+                <span style={{
+                  display: 'inline-block',
+                  padding: '0.2rem 0.5rem',
+                  fontSize: '0.75rem',
+                  border: '1px solid',
+                  borderColor: item.category === '设计' ? '#1040C0' : '#D02020',
+                  color: item.category === '设计' ? '#1040C0' : '#D02020',
+                }}>
+                  {item.category}
+                </span>
+              </td>
+              <td style={{ color: '#F0C020', fontWeight: 'bold' }}>
+                ★ {item.rating}
+              </td>
+              <td>{item.views.toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* 空状态 */}
+      {filtered.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
+          没有找到匹配的文章
+        </div>
+      )}
+
+      <p style={{ color: '#666', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+        共 {filtered.length} 篇文章
+      </p>
+    </div>
+  );
+}
+
+export default SortableTable;
+```
+
+## 小结
+
+- **条件渲染**：早期返回、`&&` 运算符、三元运算符、`||` 默认值，各有其适用场景
+- **Falsy 值陷阱**：注意 `0`、`''`、`false` 使用 `&&` 时的边界情况
+- **列表渲染**：`Array.map()` 是生成列表的标准方式，每个元素需要 `key` 属性
+- **Key 的作用**：帮助 React 识别每个列表项，支持高效的更新和 DOM 复用
+- **Key 最佳实践**：始终使用稳定唯一 ID，避免使用数组索引（除非数据绝对不变）
+- **过滤与映射**：可以先过滤后映射，也可以在 map 内部用三元处理空状态
+
+条件渲染和列表渲染是 React 动态 UI 的基石。掌握这些模式后，你已经具备了构建完整交互式 React 应用的能力。接下来可以进入**进阶技能**部分，深入学习 `useEffect` 等 Hooks 的高级用法。

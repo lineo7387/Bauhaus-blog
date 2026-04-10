@@ -1,0 +1,501 @@
+---
+title: 事件处理与绑定
+description: 深入理解 React 的合成事件系统、事件绑定方式、传参模式以及事件委托机制，掌握各类交互事件的处理方法
+pubDate: 2026-04-10
+category: react
+tags: [react, 事件, synthetic-event, 入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 6
+planId: react-event-handling
+---
+
+import { useState } from 'react';
+
+## 前言
+
+交互式应用离不开事件处理。React 封装了浏览器的原生事件，形成了**合成事件（SyntheticEvent）**系统，提供了一套跨浏览器兼容、行为一致的 API。本文将详细介绍 React 事件处理的各个方面。
+
+## 合成事件系统
+
+### 什么是合成事件
+
+React 在所有支持的浏览器中，为你提供相同接口的跨浏览器事件对象——这就是**合成事件**。它整合了浏览器的原生事件，并在其上构建了统一的 API：
+
+```jsx
+function EventDemo() {
+  function handleClick(event) {
+    // event 是一个合成事件，跨浏览器兼容
+    console.log('点击了！');
+    console.log('事件类型:', event.type);           // click
+    console.log('触发元素:', event.currentTarget);  // 绑定事件的元素
+    console.log('原生事件:', event.nativeEvent);    // 原始浏览器事件
+
+    // 阻止默认行为
+    event.preventDefault();
+
+    // 阻止事件冒泡
+    event.stopPropagation();
+  }
+
+  return <button onClick={handleClick}>点击我</button>;
+}
+```
+
+### 合成事件 vs 原生事件
+
+| 特性 | 合成事件（SyntheticEvent） | 原生事件（NativeEvent） |
+|------|---------------------------|------------------------|
+| 跨浏览器兼容 | ✓ 自动兼容 | ✗ 需要处理兼容性 |
+| 事件池 | ✓ 可复用，事件对象被池化 | ✗ 每事件一个对象 |
+| 自动绑定 | ✓ 事件处理器中 `this` 指向组件实例（类组件） | ✗ 需要手动绑定 |
+| 卸载时自动清理 | ✓ 自动解绑 | ✗ 需手动清理 |
+
+## 事件绑定方式
+
+### 在函数组件中绑定事件
+
+函数组件中，事件处理器就是普通的 JavaScript 函数，因此不需要处理 `this` 绑定问题：
+
+```jsx
+function FunctionEventDemo() {
+  // 方式1：箭头函数（直接定义）
+  const handleClick = () => {
+    console.log('点击了');
+  };
+
+  // 方式2：普通函数
+  function handleMouseEnter() {
+    console.log('鼠标进入');
+  }
+
+  return (
+    <div>
+      <button onClick={handleClick}>按钮1</button>
+      <div onMouseEnter={handleMouseEnter}>悬停区域</div>
+    </div>
+  );
+}
+```
+
+### 事件处理器的内联写法
+
+对于简单逻辑，可以直接在 JSX 中内联定义：
+
+```jsx
+function InlineEventDemo() {
+  return (
+    <div>
+      {/* 内联箭头函数 */}
+      <button onClick={() => console.log('点击1')}>按钮1</button>
+
+      {/* 访问外部变量 */}
+      <button onClick={() => alert('Hello!')}>弹出提示</button>
+
+      {/* 调用带参数的函数 */}
+      <button onClick={() => handleAction('save')}>保存</button>
+      <button onClick={() => handleAction('delete')}>删除</button>
+    </div>
+  );
+}
+
+function handleAction(action) {
+  console.log(`执行操作: ${action}`);
+}
+```
+
+:::tip
+**内联 vs 单独函数**：简单逻辑适合内联写法；复杂逻辑或需要复用时，定义独立的函数更清晰。过度的内联箭头函数会在每次渲染时创建新函数引用，可能导致子组件不必要的重新渲染（后续文章会详述 `useCallback`）。
+:::
+
+## 向事件处理器传参
+
+### 方式一：箭头函数包装
+
+```jsx
+function ArgDemo() {
+  function deleteItem(id) {
+    console.log(`删除 ID: ${id}`);
+  }
+
+  return (
+    <div>
+      {/* ❌ 直接传参：事件对象被作为参数，id 丢失 */}
+      <button onClick={deleteItem(1)}>错误写法</button>
+
+      {/* ✓ 箭头函数包装 */}
+      <button onClick={() => deleteItem(1)}>删除项目1</button>
+      <button onClick={() => deleteItem(2)}>删除项目2</button>
+
+      {/* ✓ 同时传递事件对象和额外参数 */}
+      <button onClick={(e) => {
+        console.log('事件类型:', e.type);
+        deleteItem(3);
+      }}>
+        带事件信息的删除
+      </button>
+    </div>
+  );
+}
+```
+
+### 方式二：闭包捕获
+
+```jsx
+function ClosureDemo() {
+  // 创建带参数的事件处理器
+  const createHandler = (userId, action) => (e) => {
+    console.log(`用户 ${userId} 执行了 ${action}`);
+    console.log('触发元素:', e.currentTarget.textContent);
+  };
+
+  return (
+    <div>
+      <button onClick={createHandler(1, '编辑')}>用户1-编辑</button>
+      <button onClick={createHandler(2, '删除')}>用户2-删除</button>
+    </div>
+  );
+}
+```
+
+## 常用事件类型
+
+### 鼠标事件
+
+```jsx
+function MouseEvents() {
+  const [hoverCount, setHoverCount] = useState(0);
+
+  return (
+    <div
+      onClick={() => console.log('点击')}
+      onDoubleClick={() => console.log('双击')}
+      onMouseEnter={() => setHoverCount(c => c + 1)}
+      onMouseLeave={() => console.log('鼠标离开')}
+      onMouseMove={(e) => console.log(`位置: ${e.clientX}, ${e.clientY}`)}
+      style={{ padding: '2rem', background: '#f0f0f0', cursor: 'pointer' }}
+    >
+      <p>鼠标进入次数：{hoverCount}</p>
+      <p>在区域内移动查看坐标</p>
+    </div>
+  );
+}
+```
+
+### 表单事件
+
+```jsx
+function FormEvents() {
+  const [text, setText] = useState('');
+  const [selected, setSelected] = useState('vue');
+
+  function handleSubmit(e) {
+    e.preventDefault();  // 阻止表单默认提交行为
+    console.log('提交:', { text, selected });
+  }
+
+  function handleChange(e) {
+    setText(e.target.value);
+  }
+
+  function handleSelectChange(e) {
+    setSelected(e.target.value);
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div>
+        <label>
+          名称：
+          <input
+            type="text"
+            value={text}
+            onChange={handleChange}
+            placeholder="输入名称"
+          />
+        </label>
+        <p>输入内容：{text}</p>
+      </div>
+
+      <div>
+        <label>
+          框架：
+          <select value={selected} onChange={handleSelectChange}>
+            <option value="react">React</option>
+            <option value="vue">Vue</option>
+            <option value="angular">Angular</option>
+          </select>
+        </label>
+        <p>选择：{selected}</p>
+      </div>
+
+      <button type="submit">提交表单</button>
+    </form>
+  );
+}
+```
+
+### 键盘事件
+
+```jsx
+function KeyboardEvents() {
+  const [log, setLog] = useState([]);
+
+  function handleKeyDown(e) {
+    const entry = {
+      key: e.key,
+      code: e.code,
+      ctrl: e.ctrlKey,
+      shift: e.shiftKey,
+      time: new Date().toLocaleTimeString()
+    };
+    setLog(prev => [entry, ...prev].slice(0, 10));  // 保留最近10条
+  }
+
+  return (
+    <div>
+      <input
+        onKeyDown={handleKeyDown}
+        placeholder="在此输入，查看按键日志..."
+        style={{ padding: '0.5rem', width: '100%', fontSize: '1rem' }}
+      />
+      <div style={{ marginTop: '1rem', fontFamily: 'monospace', fontSize: '0.875rem' }}>
+        {log.map((entry, i) => (
+          <div key={i}>
+            [{entry.time}] key={entry.key.padEnd(8)} code={entry.code.padEnd(20)}
+            {entry.ctrl && ' [Ctrl]'}
+            {entry.shift && ' [Shift]'}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+### 焦点事件
+
+```jsx
+function FocusEvents() {
+  const [status, setStatus] = useState('未聚焦');
+
+  return (
+    <div>
+      <input
+        type="text"
+        onFocus={() => setStatus('已聚焦')}
+        onBlur={() => setStatus('已失焦')}
+        placeholder="点击这里..."
+      />
+      <p>状态：{status}</p>
+    </div>
+  );
+}
+```
+
+## 事件委托机制
+
+### React 如何处理事件
+
+React 16 及之前：事件委托到 `document` 根节点  
+React 17+：事件委托到挂载到的 **DOM 根节点**（支持多 React 版本共存）
+
+```jsx
+// React 17+ 的事件委托
+// 事件监听器被附加到 React 应用的根 DOM 节点，而非 document
+
+function EventDelegation() {
+  return (
+    <div id="root">
+      {/* 点击任何按钮，事件冒泡到根节点，由 React 统一处理 */}
+      <button onClick={() => alert('按钮1')}>按钮1</button>
+      <button onClick={() => alert('按钮2')}>按钮2</button>
+      <button onClick={() => alert('按钮3')}>按钮3</button>
+    </div>
+  );
+}
+```
+
+### 手动事件监听器
+
+在某些场景下（如监听第三方库的 DOM 变化），需要手动添加事件监听器。使用 `useEffect` 和清理函数：
+
+```jsx
+import { useEffect, useState } from 'react';
+
+function useWindowSize() {
+  const [size, setSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+
+  useEffect(() => {
+    function handleResize() {
+      setSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    }
+
+    // 添加事件监听
+    window.addEventListener('resize', handleResize);
+
+    // 清理函数：组件卸载时移除监听器
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);  // 空依赖数组：仅在挂载/卸载时执行
+
+  return size;
+}
+
+function WindowSizeDisplay() {
+  const { width, height } = useWindowSize();
+
+  return (
+    <div>
+      <p>窗口宽度：{width}px</p>
+      <p>窗口高度：{height}px</p>
+    </div>
+  );
+}
+```
+
+:::warning
+**清理函数的重要性**：`useEffect` 中的事件监听、定时器等，必须在清理函数中移除，否则会导致内存泄漏和意外行为。
+:::
+
+## 事件对象的常用属性
+
+```jsx
+function EventProperties() {
+  function handleEvent(e) {
+    // 事件基础属性
+    console.log('type:', e.type);           // 事件类型
+    console.log('target:', e.target);        // 触发事件的元素
+    console.log('currentTarget:', e.currentTarget); // 绑定事件的元素
+
+    // 键盘事件专属
+    // e.key       - 按下的键值（'a', 'Enter', 'ArrowUp'）
+    // e.code      - 物理键码（'KeyA', 'Enter', 'ArrowUp'）
+    // e.ctrlKey   - Ctrl 键是否按下
+    // e.shiftKey  - Shift 键是否按下
+    // e.altKey    - Alt 键是否按下
+
+    // 鼠标事件专属
+    // e.clientX / e.clientY - 相对于视口的坐标
+    // e.pageX / e.pageY     - 相对于页面的坐标
+    // e.button     - 按下的鼠标按钮（0=左, 1=中, 2=右）
+
+    // 表单事件专属
+    // e.target.value - 输入值
+    // e.target.checked - 复选框/单选框状态
+  }
+
+  return (
+    <div>
+      <input onKeyDown={handleEvent} placeholder="按任意键" />
+      <button onClick={handleEvent}>点击</button>
+    </div>
+  );
+}
+```
+
+## 完整示例：计数器（事件驱动版）
+
+```jsx
+import { useState } from 'react';
+
+function EventCounter() {
+  const [count, setCount] = useState(0);
+  const [history, setHistory] = useState([]);
+
+  function handleIncrement() {
+    setCount(prev => prev + 1);
+    setHistory(prev => [...prev, { op: '+', time: Date.now() }]);
+  }
+
+  function handleDecrement() {
+    setCount(prev => prev - 1);
+    setHistory(prev => [...prev, { op: '-', time: Date.now() }]);
+  }
+
+  function handleReset() {
+    setCount(0);
+    setHistory([]);
+  }
+
+  function handleUndo() {
+    if (history.length === 0) return;
+    const last = history[history.length - 1];
+    setHistory(prev => prev.slice(0, -1));
+
+    if (last.op === '+') {
+      setCount(prev => prev - 1);
+    } else {
+      setCount(prev => prev + 1);
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: 320, margin: '2rem auto', padding: '1.5rem', border: '3px solid #121212', boxShadow: '6px 6px 0 0 #121212' }}>
+      <h2 style={{ textAlign: 'center', margin: '0 0 1rem' }}>事件计数器</h2>
+
+      <div style={{ fontSize: '3rem', fontWeight: 'bold', textAlign: 'center', padding: '1rem', background: '#F0C020', color: '#121212', marginBottom: '1rem' }}>
+        {count}
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '1rem' }}>
+        <button
+          onClick={handleDecrement}
+          style={{ padding: '0.5rem 1.5rem', fontSize: '1.25rem', fontWeight: 'bold', background: '#1040C0', color: 'white', border: '2px solid #121212', cursor: 'pointer' }}
+        >
+          −
+        </button>
+        <button
+          onClick={handleReset}
+          style={{ padding: '0.5rem 1rem', fontWeight: 'bold', background: '#F0C020', color: '#121212', border: '2px solid #121212', cursor: 'pointer' }}
+        >
+          重置
+        </button>
+        <button
+          onClick={handleIncrement}
+          style={{ padding: '0.5rem 1.5rem', fontSize: '1.25rem', fontWeight: 'bold', background: '#D02020', color: 'white', border: '2px solid #121212', cursor: 'pointer' }}
+        >
+          +
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <button
+          onClick={handleUndo}
+          disabled={history.length === 0}
+          style={{ padding: '0.5rem 1rem', opacity: history.length === 0 ? 0.4 : 1, cursor: history.length === 0 ? 'not-allowed' : 'pointer', border: '2px solid #121212' }}
+        >
+          撤销
+        </button>
+      </div>
+
+      {history.length > 0 && (
+        <div style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#666' }}>
+          最近操作：{history[history.length - 1]?.op === '+' ? '+1' : '-1'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default EventCounter;
+```
+
+## 小结
+
+- **合成事件**：React 封装了浏览器的原生事件，提供跨浏览器兼容的 API
+- **事件绑定**：函数组件中直接传递函数引用，无需处理 `this` 绑定
+- **传参方式**：用箭头函数包装 `() => handler(param)`，或使用闭包
+- **常用事件**：`onClick`、`onChange`、`onSubmit`、`onKeyDown`、`onFocus` 等
+- **事件委托**：React 将事件监听器附加到根节点，而非每个元素，提高性能
+- **手动清理**：`useEffect` 中添加的事件监听器、定时器，必须在清理函数中移除
+
+掌握事件处理后，接下来我们将学习 React 的**条件渲染与列表渲染**，了解如何根据状态动态控制 UI 的显示与隐藏。

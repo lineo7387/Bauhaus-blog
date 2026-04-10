@@ -1,0 +1,258 @@
+---
+title: 模块与包管理
+description: 详解 Python 的 import 机制、自定义模块、__name__ == "__main__"、包结构、相对导入与绝对导入
+pubDate: 2026-04-10
+category: python
+tags: [python, 模块, 包管理, import]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 7
+planId: python-modules
+---
+
+## 前言
+
+Python 的强大之处之一在于其丰富的标准库和第三方生态。一切皆模块——从内置的 `math` 到第三方的 `requests`，理解模块的导入机制是高效使用 Python 库的基础。
+
+## import 机制
+
+### 基本导入
+
+```python
+# 导入整个模块
+import math
+
+print(math.sqrt(16))  # 4.0
+print(math.pi)        # 3.141592653589793
+
+# 给模块起别名
+import math as m
+print(m.sqrt(16))
+
+# 导入特定成员
+from math import sqrt, pi
+print(sqrt(16))  # 4.0 —— 直接使用，无需 math.
+
+# 给导入的成员起别名
+from math import sqrt as s, pi as p
+print(s(25))
+```
+
+### 导入顺序
+
+Python 按以下顺序查找模块：
+
+1. `sys.modules`（已缓存的模块）
+2. 内置模块（`sys.builtin_module_names`）
+3. `sys.path` 列表中的路径
+
+```python
+import sys
+
+for path in sys.path:
+    print(path)
+
+# sys.path 的初始值：
+# 1. 当前脚本所在目录
+# 2. PYTHONPATH 环境变量指定的目录
+# 3. Python 安装目录的 site-packages
+```
+
+## 自定义模块
+
+每个 `.py` 文件就是一个模块。创建一个 `utils.py`：
+
+```python
+# utils.py
+
+def add(a, b):
+    return a + b
+
+def multiply(a, b):
+    return a * b
+
+PI = 3.14159
+```
+
+然后在另一个文件中使用：
+
+```python
+# main.py
+from utils import add, multiply, PI
+
+print(add(1, 2))      # 3
+print(multiply(3, 4)) # 12
+print(PI)             # 3.14159
+```
+
+## `__name__ == "__main__"`
+
+这个约定用于区分**直接运行**还是**被导入**：
+
+```python
+# greeter.py
+
+def greet(name: str) -> None:
+    print(f"Hello, {name}!")
+
+if __name__ == "__main__":
+    # 只有直接运行此文件时才执行
+    greet("Python")
+```
+
+```bash
+# 直接运行：__name__ == "__main__"，会执行 greet
+python greeter.py
+# Hello, Python!
+
+# 作为模块导入：__name__ == "greeter"，不执行 greet
+python -c "import greeter"
+# （无输出）
+```
+
+:::tip
+这是 Python 的标准入口模式——代码放在 `if __name__ == "__main__":` 下，保证模块在被导入时不会产生副作用。
+:::
+
+## 包结构
+
+包是包含 `__init__.py` 的目录，用于组织多个模块：
+
+```
+mypackage/
+├── __init__.py      # 包初始化文件
+├── module_a.py       # 模块 A
+├── module_b.py       # 模块 B
+└── subpackage/
+    ├── __init__.py
+    └── module_c.py
+```
+
+### `__init__.py` 的作用
+
+```python
+# mypackage/__init__.py
+
+# 方式一：选择性地导出成员（推荐）
+from .module_a import some_function
+from .module_b import SomeClass
+
+__all__ = ["some_function", "SomeClass"]  # from mypackage import * 时导入这些
+```
+
+```python
+# 使用包
+from mypackage import some_function, SomeClass
+some_function()
+```
+
+### 相对导入
+
+包内部可以使用相对路径导入：
+
+```python
+# mypackage/subpackage/module_c.py
+
+# 从同级的 module_a 导入
+from .. import module_a
+
+# 从父包的 module_b 导入
+from ..module_b import some_class
+
+# 从父包导入特定成员
+from ..module_b import some_function
+```
+
+### 绝对导入 vs 相对导入
+
+```python
+# 绝对导入（推荐）
+from package.module import function
+import package.module
+
+# 相对导入（包内部使用）
+from . import sibling_module
+from ..parent_module import function
+```
+
+:::warning
+相对导入只能在**包内**使用，不能在顶层脚本中使用。直接运行 `.py` 文件时，该文件的 `__name__` 是 `"__main__"`，包结构不存在，相对导入会失败。
+:::
+
+## 模块的查找与安装
+
+```python
+import sys
+
+# 查看所有已导入的模块
+print(sys.modules.keys())
+
+# 查看模块文件路径
+import os
+print(os.__file__)  # /usr/lib/python3.x/os.py
+
+# 查找模块来源
+import importlib
+math_spec = importlib.util.find_spec("math")
+print(math_spec.origin)  # /usr/lib/python3.x/lib-dynload/math.cpython-xxx.so
+```
+
+### 安装第三方包
+
+```bash
+# pip 安装
+pip install requests
+
+# 指定版本
+pip install requests==2.31.0
+
+# 从 requirements.txt 安装
+pip install -r requirements.txt
+
+# 列出已安装的包
+pip list
+
+# 导出当前环境依赖
+pip freeze > requirements.txt
+```
+
+## 动态导入
+
+在需要时才导入模块，或根据字符串动态导入：
+
+```python
+# 延迟导入（优化启动时间）
+def heavy_function():
+    import numpy as np  # 真正使用时才导入
+    return np.dot([1, 2], [3, 4])
+
+# 动态导入
+module_name = "math"
+module = __import__(module_name)
+print(module.sqrt(16))  # 4.0
+
+# 推荐方式：importlib
+import importlib
+math = importlib.import_module("math")
+print(math.pi)
+```
+
+## 包版本管理工具
+
+| 工具 | 说明 |
+|------|------|
+| `pip` | Python 内置包管理器 |
+| `venv` | 内置虚拟环境工具 |
+| `pip-tools` | 依赖锁定 |
+| `poetry` | 现代项目管理和打包 |
+| `pipenv` | Pipfile 锁定的开发环境 |
+
+## 小结
+
+- `import` 和 `from ... import` 是导入模块的两种方式
+- `if __name__ == "__main__":` 区分直接运行和被导入
+- 包是带 `__init__.py` 的目录，用于组织模块
+- **相对导入**使用 `.` 和 `..`，只能在包内使用
+- **绝对导入**从项目根目录或 `sys.path` 出发，推荐优先使用
+- 使用 `pip` 配合虚拟环境管理依赖，避免全局污染

@@ -1,0 +1,224 @@
+---
+title: Python 环境搭建与基础语法
+description: 掌握 Python 3 的安装方式、解释器运行模式、代码缩进规范以及变量命名规则，为后续学习打下坚实基础
+pubDate: 2026-04-10
+category: python
+tags: [python, 环境搭建, 基础语法]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 6
+planId: python-environment-setup
+---
+
+## 前言
+
+Python 是一门注重**可读性**的语言，其设计哲学强调代码清晰、简洁。在动手写第一个程序之前，先把开发环境准备好，并理解 Python 的基础语法约定。
+
+## 安装 Python 3
+
+### macOS
+
+推荐使用 [python.org](https://www.python.org/downloads/) 官方安装包或 Homebrew 安装：
+
+```bash
+# 使用 Homebrew 安装
+brew install python3
+
+# 验证版本
+python3 --version
+# Python 3.13.0
+```
+
+### Windows
+
+下载 Windows 安装包（`python-3.13.0-amd64.exe`），安装时勾选 **"Add Python to PATH"**，然后在命令提示符或 PowerShell 中验证：
+
+```bash
+python --version
+```
+
+### Linux
+
+大多数发行版已预装 Python，可通过包管理器安装或升级：
+
+```bash
+# Ubuntu / Debian
+sudo apt update && sudo apt install python3 python3-pip
+
+# 验证
+python3 --version
+```
+
+## 运行 Python 代码
+
+Python 有两种运行方式：**交互式解释器**和**脚本文件**。
+
+### 交互式解释器
+
+直接输入 `python3` 或 `python` 进入 REPL（Read-Eval-Print Loop），适合快速测试代码片段：
+
+```python
+>>> print("Hello, Python!")
+Hello, Python!
+>>> 2 + 3
+5
+```
+
+### 脚本文件
+
+将代码保存为 `.py` 文件，通过解释器执行：
+
+```python
+# hello.py
+print("Hello, Python!")
+```
+
+```bash
+python3 hello.py
+# Hello, Python!
+```
+
+### Python 编辑器
+
+推荐使用以下编辑器：
+
+- **VS Code** + Python 扩展
+- **PyCharm**（社区版免费）
+- **Cursor** / **Windsurf** 等 AI 辅助编辑器
+
+## 代码缩进规范
+
+Python 使用**缩进**而不是花括号来划分代码块，这是 Python 与大多数语言最显著的区别。
+
+```python
+# 正确的缩进
+if True:
+    print("缩进一层（4个空格）")
+    if True:
+        print("缩进两层")
+print("没有缩进，与 if 同级")
+
+# 错误示例（缩进不一致）
+if True:
+  print("这会导致 IndentationError")
+```
+
+:::warning
+Python 官方推荐使用 **4 个空格**作为一级缩进。不要混用 Tab 和空格——这会在某些编辑器中引发奇怪的错误。主流 IDE（如 VS Code）通常可以配置为按 Tab 自动插入 4 个空格。
+:::
+
+## 变量与命名规则
+
+### 基本赋值
+
+Python 是**动态类型**语言，变量无需声明类型，直接赋值即可：
+
+```python
+name = "Alice"       # 字符串
+age = 25             # 整数
+height = 1.68        # 浮点数
+is_student = True    # 布尔值
+```
+
+### 变量命名规范
+
+```python
+# 合法命名
+user_name = "Bob"     # 蛇形命名（snake_case）
+counter = 0          # 全小写 + 数字
+_private = "hidden"  # 单下划线前缀：约定为"私有"（不强制）
+__class__ = "meta"   # 双下划线前后缀：Python 内部使用
+
+# 非法命名
+# 2nd_place = "第二名"  # 不能以数字开头
+# my-name = "no"        # 不能使用连字符
+# class = "keyword"     # 不能使用保留关键字
+```
+
+### 保留关键字
+
+以下词语是 Python 的保留字，不能用作变量名：
+
+```python
+# 可通过以下方式查看所有保留字
+import keyword
+print(keyword.kwlist)
+# ['False', 'None', 'True', 'and', 'as', 'assert', ...]
+```
+
+## 注释与文档
+
+### 单行注释
+
+```python
+# 这是单行注释，以井号开头
+x = 10  # 行尾注释
+```
+
+### 多行注释
+
+```python
+# 多行注释可以用多个井号
+# 也可以用三引号（严格来说是文档字符串 docstring）
+"""
+这是一个多行字符串，
+常用于模块、函数或类的文档说明。
+"""
+```
+
+### 文档字符串（Docstring）
+
+```python
+def greet(name):
+    """
+    向指定名字的用户打印问候语。
+
+    Args:
+        name: 用户名字符串
+
+    Returns:
+        None
+    """
+    print(f"Hello, {name}!")
+```
+
+## 第一个完整的 Python 程序
+
+```python
+# greet.py
+"""问候程序，演示 Python 基础语法"""
+
+
+def greet(name: str) -> None:
+    """打印问候语"""
+    print(f"Hello, {name}!")
+
+
+if __name__ == "__main__":
+    # 程序入口：只有直接运行此文件时才会执行
+    user = "Python Learner"
+    greet(user)
+```
+
+```bash
+python3 greet.py
+# Hello, Python Learner!
+```
+
+## 常见错误
+
+| 错误类型 | 原因 | 示例 |
+|---------|------|------|
+| `IndentationError` | 缩进不一致 | 混用 Tab 和空格 |
+| `SyntaxError` | 语法错误 | 括号、引号不匹配 |
+| `NameError` | 使用未定义的变量 | 拼写错误 |
+
+## 小结
+
+- Python 3 可通过官方包、Homebrew 或系统包管理器安装
+- 代码块由**缩进**（而非花括号）划分，推荐 4 空格
+- 变量名使用 **snake_case**，遵循标识符命名规范
+- `if __name__ == "__main__":` 是脚本入口的最佳实践
+
+下一节我们将学习 Python 的数据类型与运算符。

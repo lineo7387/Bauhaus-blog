@@ -1,0 +1,294 @@
+---
+title: 文件操作与数据序列化
+description: 详解 Python 文件读写、路径处理 pathlib、JSON/YAML/CSV 序列化与反序列化，以及常见陷阱的规避方法
+pubDate: 2026-04-10
+category: python
+tags: [python, 文件操作, JSON, CSV, YAML, pathlib]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 7
+planId: python-file-io
+---
+
+## 前言
+
+几乎所有应用都需要与文件系统交互——读取配置、存储数据、日志记录。Python 的文件操作简洁优雅，`pathlib` 提供了跨平台的路径处理，数据序列化则让 Python 对象可以持久化或网络传输。
+
+## 文件读写基础
+
+### 文本文件
+
+```python
+# 读取
+with open("example.txt", "r", encoding="utf-8") as f:
+    content = f.read()          # 读取全部内容
+
+with open("example.txt", "r", encoding="utf-8") as f:
+    lines = f.readlines()       # 读取所有行（含换行符）
+    first_line = f.readline()    # 读取一行
+
+# 逐行迭代（推荐，最内存友好）
+with open("example.txt", "r", encoding="utf-8") as f:
+    for line in f:
+        print(line.rstrip())     # rstrip() 去除换行符
+
+# 写入
+with open("output.txt", "w", encoding="utf-8") as f:
+    f.write("Hello, Python!\n")   # 写入字符串
+    f.writelines(["line1\n", "line2\n"])  # 写入多行
+
+# 追加
+with open("log.txt", "a", encoding="utf-8") as f:
+    f.write("New log entry\n")
+```
+
+### 二进制文件
+
+```python
+# 读取二进制
+with open("image.png", "rb") as f:
+    data = f.read()
+
+# 写入二进制
+with open("copy.png", "wb") as f:
+    f.write(data)
+```
+
+### 编码问题
+
+```python
+# 明确指定编码，避免平台差异
+with open("file.txt", "r", encoding="utf-8") as f:
+    content = f.read()
+
+# 处理编码错误
+with open("file.txt", "r", encoding="utf-8", errors="replace") as f:
+    content = f.read()
+
+# 常见 errors 参数
+# "replace"：用 ? 替换无法解码的字符
+# "ignore"：忽略无法解码的字符
+# "surrogateescape"：保留原始字节（用于调试）
+```
+
+## pathlib 路径处理
+
+`pathlib`（Python 3.4+）是处理文件路径的现代标准，比 `os.path` 更直观：
+
+```python
+from pathlib import Path
+
+# 路径对象
+p = Path("src/main.py")
+
+# 基本属性
+print(p.name)        # main.py          文件名
+print(p.stem)        # main             不含扩展名
+print(p.suffix)      # .py              扩展名
+print(p.parent)      # src              父目录
+print(p.parts)       # ('src', 'main.py') 路径各部分
+
+# 判断
+print(p.exists())    # True
+print(p.is_file())   # True
+print(p.is_dir())    # False
+
+# 路径拼接
+reports = Path("data") / "reports" / "2026"
+reports.mkdir(parents=True, exist_ok=True)  # 创建目录（递归）
+```
+
+### 路径遍历
+
+```python
+from pathlib import Path
+
+src = Path("src")
+
+# 遍历所有 .py 文件（递归）
+for py_file in src.rglob("*.py"):
+    print(py_file)
+
+# 遍历顶级文件（不递归）
+for item in src.iterdir():
+    print(item.name)
+
+# .glob vs .rglob
+src.glob("*.py")     # 仅当前目录
+src.rglob("*.py")    # 递归所有子目录
+```
+
+### 文件操作
+
+```python
+from pathlib import Path
+
+p = Path("example.txt")
+
+# 创建 / 删除
+p.touch()                    # 创建空文件
+p.unlink()                   # 删除文件（不存在会报错）
+p.unlink(missing_ok=True)    # 删除（不存在不报错，Python 3.8+）
+
+# 复制（需要 shutil）
+import shutil
+shutil.copy("src.txt", "dst.txt")
+
+# 重命名 / 移动
+p.rename("renamed.txt")
+shutil.move("old_path", "new_path")
+```
+
+## JSON 序列化
+
+JSON 是 Web API 和配置文件最常用的格式：
+
+```python
+import json
+
+# Python 对象 → JSON 字符串
+data = {"name": "Alice", "age": 25, "scores": [98, 87, 95]}
+
+json_str = json.dumps(data, indent=2, ensure_ascii=False)
+print(json_str)
+
+# 写入文件
+with open("data.json", "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+
+# JSON 字符串 → Python 对象
+parsed = json.loads(json_str)
+
+# 读取文件
+with open("data.json", "r", encoding="utf-8") as f:
+    loaded = json.load(f)
+```
+
+### 自定义 JSON 序列化
+
+```python
+import json
+from datetime import datetime
+
+class DatetimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return {"__datetime__": obj.isoformat()}
+        return super().default(obj)
+
+def datetime_decoder(dct):
+    """配合 DatetimeEncoder 的解码器"""
+    if "__datetime__" in dct:
+        return datetime.fromisoformat(dct["__datetime__"])
+    return dct
+
+data = {"event": "会议", "time": datetime(2026, 4, 10, 9, 0)}
+
+json_str = json.dumps(data, cls=DatetimeEncoder)
+print(json_str)
+# {"event": "会议", "time": {"__datetime__": "2026-04-10T09:00:00"}}
+
+# 解码时使用 object_hook
+loaded = json.loads(json_str, object_hook=datetime_decoder)
+print(loaded["time"])  # 2026-04-09 09:00:00（恢复为 datetime 对象）
+```
+
+## CSV 序列化
+
+```python
+import csv
+
+# 写入 CSV
+with open("users.csv", "w", newline="", encoding="utf-8") as f:
+    writer = csv.writer(f)
+    writer.writerow(["姓名", "年龄", "城市"])    # 表头
+    writer.writerows([                        # 批量写入
+        ["Alice", 25, "北京"],
+        ["Bob", 30, "上海"],
+    ])
+
+# 使用字典写入（更清晰）
+with open("users.csv", "w", newline="", encoding="utf-8") as f:
+    writer = csv.DictWriter(f, fieldnames=["姓名", "年龄", "城市"])
+    writer.writeheader()
+    writer.writerows([
+        {"姓名": "Alice", "年龄": 25, "城市": "北京"},
+        {"姓名": "Bob", "年龄": 30, "城市": "上海"},
+    ])
+
+# 读取 CSV
+with open("users.csv", "r", encoding="utf-8") as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        print(row)
+    # {'姓名': 'Alice', '年龄': '25', '城市': '北京'}
+```
+
+:::warning
+使用 `newline=""` 打开 CSV 文件，避免在 Windows 上写入时出现空行。
+:::
+
+## YAML 序列化
+
+需要安装 `pyyaml`：`pip install pyyaml`
+
+```python
+import yaml
+
+config = {
+    "database": {
+        "host": "localhost",
+        "port": 5432,
+        "users": ["Alice", "Bob"]
+    },
+    "debug": True
+}
+
+# 写入 YAML
+with open("config.yaml", "w", encoding="utf-8") as f:
+    yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+
+# 读取 YAML
+with open("config.yaml", "r", encoding="utf-8") as f:
+    loaded = yaml.safe_load(f)
+
+print(loaded["database"]["host"])  # localhost
+```
+
+:::tip
+使用 `yaml.safe_load` 而非 `yaml.load`，后者可能执行任意 Python 代码，存在安全风险。
+:::
+
+## pickle（Python 对象序列化）
+
+```python
+import pickle
+
+data = {"name": "Alice", "skills": ["Python", "Go"]}
+
+# 序列化到文件
+with open("data.pkl", "wb") as f:
+    pickle.dump(data, f)
+
+# 反序列化
+with open("data.pkl", "rb") as f:
+    loaded = pickle.load(f)
+
+# 序列化为字节
+bytes_data = pickle.dumps(data)
+restored = pickle.loads(bytes_data)
+```
+
+:::warning
+`pickle` 仅限 Python 使用，存在安全风险——**永远不要**从不可信来源反序列化 pickle 数据。
+:::
+
+## 小结
+
+- `with open()` 是文件读写的标准方式，确保资源正确释放
+- `pathlib.Path` 是现代、跨平台的路径处理方式，优于 `os.path`
+- **JSON** 是通用数据交换格式，`json.dump/load` 处理文件
+- **CSV** 使用 `csv.DictReader/DictWriter` 更易维护，`newline=""`
+- **YAML** 使用 `safe_load`，适合配置文件
+- **pickle** 仅限 Python 使用，存在安全风险，不适合处理不可信数据

@@ -1,0 +1,223 @@
+---
+title: 字符串处理与格式化
+description: 详解 Python 字符串的常用方法、f-string 和 format 格式化语法，以及正则表达式基础用法
+pubDate: 2026-04-10
+category: python
+tags: [python, 字符串, 格式化, 正则表达式]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 7
+planId: python-string
+---
+
+## 前言
+
+字符串是编程中最常用的数据类型之一。Python 的字符串功能丰富，支持多种格式化方式，并内置了强大的 `re` 模块处理正则表达式。
+
+## 字符串基础
+
+```python
+# 单引号或双引号（等价）
+s1 = "Hello"
+s2 = 'World'
+
+# 三引号：多行字符串
+poem = """
+床前明月光，
+疑是地上霜。
+举头望明月，
+低头思故乡。
+"""
+
+# 字符串不可变
+# s1[0] = "h"  # TypeError: 'str' object does not support item assignment
+```
+
+## 常用字符串方法
+
+### 大小写与空白处理
+
+```python
+s = "  Hello, Python!  "
+
+s.strip()      # "Hello, Python!"  去除两端空白
+s.lstrip()     # "Hello, Python!  "  去除左侧空白
+s.rstrip()     # "  Hello, Python!"  去除右侧空白
+
+s.lower()      # "  hello, python!  "
+s.upper()      # "  HELLO, PYTHON!  "
+s.title()      # "  Hello, Python!  "  首字母大写
+s.capitalize() # "  hello, python!  "  首个字符大写
+
+s.replace("Python", "World")  # "  Hello, World!  "
+```
+
+### 查找与判断
+
+```python
+s = "Hello, Python"
+
+s.find("Python")    # 7（首次出现的索引，未找到返回 -1）
+s.index("Python")   # 7（类似 find，但未找到抛 ValueError）
+s.count("o")        # 2（出现次数）
+
+s.startswith("Hello")  # True
+s.endswith("Python")   # True
+s.isdigit()            # False —— 至少包含非数字字符
+"123".isdigit()        # True
+s.isalpha()            # False —— 含逗号和空格
+```
+
+### 分割与连接
+
+```python
+s = "apple, banana, cherry"
+
+s.split(", ")          # ['apple', 'banana', 'cherry']
+s.split(", ", 1)       # ['apple', 'banana, cherry']  最多分割 1 次
+
+# join：连接列表为字符串
+words = ["2026", "04", "10"]
+"-".join(words)        # "2026-04-10"
+"/".join(words)        # "2026/04/10"
+
+# partition：按分隔符拆成三段
+s.partition(", ")     # ('apple', ', ', 'banana, cherry')
+```
+
+## 字符串格式化
+
+### f-string（Python 3.6+，推荐）
+
+```python
+name = "Alice"
+age = 25
+score = 98.5
+
+# 基本用法
+f"姓名: {name}, 年龄: {age}"
+
+# 表达式
+f"十年后年龄: {age + 10}"
+
+# 格式化数字
+f"分数: {score:.2f}"     # "分数: 98.50"（保留两位小数）
+f"百分比: {0.85:.0%}"   # "百分比: 85%"（百分比格式）
+
+# 对齐
+f"|{'左对齐':<10}|{'居中':^10}|{'右对齐':>10}|"
+# |左对齐     |   居中   |    右对齐|
+
+# 引号与大括号
+f"大括号本身 {{}}"        # "大括号本身 {}"
+f"姓\"名: {name}"        # 姓"名: Alice
+```
+
+### format 方法
+
+```python
+"{0} {1} {0}".format("Hello", "World")  # "Hello World Hello"（位置参数）
+"{name} 是 {age} 岁".format(name="Bob", age=30)  # 关键字参数
+"{:>10}".format("右")  # "        右"（右对齐）
+"{:.2f}".format(3.14159)  # "3.14"
+```
+
+### 旧式 % 格式化
+
+```python
+"Hello, %s" % "Python"        # "Hello, Python"
+"%s 有 %d 个苹果" % ("Bob", 5)  # "Bob 有 5 个苹果"
+"%05d" % 42                   # "00042"（零填充）
+```
+
+:::tip
+优先使用 **f-string**，它是最简洁、可读性最强的格式化方式（Python 3.6+）。
+:::
+
+## 正则表达式基础
+
+Python 的 `re` 模块提供正则表达式支持：
+
+### 基本匹配
+
+```python
+import re
+
+text = "我的邮箱是 alice@example.com，另一个是 bob@test.cn"
+
+# 搜索匹配
+match = re.search(r'\w+@\w+\.\w+', text)
+if match:
+    print(match.group())  # alice@example.com
+
+# findall：找出所有匹配
+emails = re.findall(r'\w+@\w+\.\w+', text)
+print(emails)  # ['alice@example.com', 'bob@test.cn']
+```
+
+### 正则语法
+
+```python
+import re
+
+# 字符类
+re.findall(r'[aeiou]', "hello")       # ['e', 'o']  元音字母
+re.findall(r'[a-zA-Z]', "Hello123")   # ['H', 'e', 'l', 'l', 'o']
+
+# 数量符
+re.findall(r'\d+', "abc123def456")     # ['123', '456']  一个或多个数字
+re.findall(r'\d*', "abc")             # ['', '', '', '']  零个或多个
+re.findall(r'fo?', "f fo foo")        # ['f', 'fo', 'foo']  o 可选
+
+# 边界
+re.findall(r'\bword\b', "a word here")  # ['word']  单词边界
+re.findall(r'^\d+', "123abc")          # ['123']  开头
+re.findall(r'\d+$', "abc123")          # ['123']  结尾
+```
+
+### 捕获组
+
+```python
+# 使用捕获组提取特定部分
+text = "2026-04-10"
+
+# 提取年月日
+match = re.match(r'(\d{4})-(\d{2})-(\d{2})', text)
+if match:
+    year, month, day = match.groups()
+    print(year, month, day)  # 2026 04 10
+
+# 命名组
+match = re.match(r'(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})', text)
+print(match.groupdict())  # {'year': '2026', 'month': '04', 'day': '10'}
+```
+
+### 替换与分割
+
+```python
+# re.sub：替换
+text = "Hello, World!"
+result = re.sub(r'World', 'Python', text)
+print(result)  # Hello, Python!
+
+# 使用捕获组引用
+text = "2026-04-10"
+result = re.sub(r'(\d{4})-(\d{2})-(\d{2})', r'\3/\2/\1', text)
+print(result)  # 10/04/2026
+
+# re.split：用正则分割
+re.split(r'[,;]', "a,b;c;d")  # ['a', 'b', 'c', 'd']
+```
+
+:::tip
+正则表达式中建议使用**原始字符串**（`r'...'`），避免反斜杠被 Python 转义处理两次。
+:::
+
+## 小结
+
+- Python 字符串是**不可变**对象，所有"修改"都返回新字符串
+- `strip/split/join/replace` 是最常用的字符串操作方法
+- **f-string**（Python 3.6+）是首选格式化方式
+- 正则表达式通过 `re.search/findall/sub/match` 进行匹配、查找、替换
+- 正则中使用 `r'...'` 原始字符串避免转义问题

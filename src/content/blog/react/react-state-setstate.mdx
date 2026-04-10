@@ -1,0 +1,503 @@
+---
+title: State 与 setState 机制
+description: 深入理解 useState Hook 的工作原理，掌握状态更新的异步性、批量更新机制、函数式更新以及状态提升模式
+pubDate: 2026-04-10
+category: react
+tags: [react, state, hooks, 入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: react-state-setstate
+---
+
+## 前言
+
+**状态（State）**是 React 组件中最重要的概念之一。它是组件的私有数据，会随用户交互或外部事件而变化，并触发组件重新渲染。正确理解和使用状态，是构建 React 应用的基础。
+
+## useState Hook 基础
+
+### 什么是 Hook
+
+**Hook** 是 React 16.8 引入的特性，它让你在函数组件中使用 state 和其他 React 特性。`useState` 是最常用的 Hook 之一：
+
+```jsx
+import { useState } from 'react';
+
+function Counter() {
+  // useState 返回一个数组：[当前值, 更新函数]
+  const [count, setCount] = useState(0);
+
+  return (
+    <div>
+      <p>计数：{count}</p>
+      <button onClick={() => setCount(count + 1)}>+1</button>
+    </div>
+  );
+}
+```
+
+`useState(0)` 中的 `0` 是状态的**初始值**。它可以是任意类型：数字、字符串、布尔、数组、对象等。
+
+### useState 返回值
+
+```jsx
+// 数组解构
+const [state, setState] = useState(initialValue);
+
+// 等价于
+const stateAndSetter = useState(initialValue);
+const state = stateAndSetter[0];
+const setState = stateAndSetter[1];
+```
+
+### 多种初始值类型
+
+```jsx
+// 数字
+const [count, setCount] = useState(0);
+
+// 字符串
+const [name, setName] = useState('Bauhaus');
+
+// 布尔
+const [isActive, setIsActive] = useState(false);
+
+// 对象
+const [user, setUser] = useState({
+  name: 'Alice',
+  age: 28,
+  email: 'alice@example.com'
+});
+
+// 数组
+const [items, setItems] = useState(['React', 'Vue', 'TypeScript']);
+
+// 函数（惰性初始化）
+const [data, setData] = useState(() => {
+  // 仅在首次渲染时执行，避免每次渲染都创建大对象
+  return expensiveComputation();
+});
+```
+
+:::tip
+**惰性初始化**：如果初始状态的计算比较耗时，可以将函数传给 `useState`。这个函数只会在首次渲染时执行，后续更新不会重复计算。
+:::
+
+## 状态更新与重新渲染
+
+### 状态更新的触发
+
+当状态变化时，React 会安排一次**重新渲染**：
+
+```jsx
+function Demo() {
+  const [value, setValue] = useState('初始值');
+
+  return (
+    <div>
+      <p>{value}</p>
+      {/* 点击触发状态更新 → 组件重新渲染 */}
+      <button onClick={() => setValue('新值')}>修改</button>
+    </div>
+  );
+}
+```
+
+### 组件重新渲染的过程
+
+```
+用户点击
+  ↓
+调用 setState(新值)
+  ↓
+React 检测到状态变化
+  ↓
+重新执行组件函数（生成新 JSX）
+  ↓
+Diff 算法对比新旧虚拟 DOM
+  ↓
+仅更新变化的部分到真实 DOM
+```
+
+## 状态更新的异步性
+
+### setState 是异步的
+
+**重要**：`setState` 的调用是**异步**的。状态不会立即更新：
+
+```jsx
+function AsyncDemo() {
+  const [count, setCount] = useState(0);
+
+  function handleClick() {
+    setCount(count + 1);
+    // ❌ 此时 count 仍然是旧值（0）
+    console.log(count);  // 输出 0
+
+    setCount(count + 1);
+    setCount(count + 1);
+    // 以上三次 setCount 都基于相同的旧值（0）
+    // 最终 count = 1，而不是 3
+  }
+
+  return (
+    <div>
+      <p>计数：{count}</p>
+      <button onClick={handleClick}>快速+3</button>
+    </div>
+  );
+}
+```
+
+:::warning
+**批量更新**：在 React 18 中，同一个事件处理函数内的多次 `setState` 调用会被**批量处理**，最终只触发一次重新渲染。这意味着上述代码点击一次后，count 只会变为 1，而非 3。
+:::
+
+### 函数式更新
+
+要基于当前状态进行更新，应该使用**函数式更新**：
+
+```jsx
+function FunctionalUpdate() {
+  const [count, setCount] = useState(0);
+
+  function handleClick() {
+    // 使用箭头函数，参数是当前最新状态
+    setCount(prev => prev + 1);  // 1
+    setCount(prev => prev + 1);  // 2
+    setCount(prev => prev + 1);  // 3
+    // 最终 count = 3 ✓
+  }
+
+  function handleReset() {
+    // 也可以传入一个值来直接设置
+    setCount(0);
+  }
+
+  return (
+    <div>
+      <p>计数：{count}</p>
+      <button onClick={handleClick}>+3</button>
+      <button onClick={handleReset}>重置</button>
+    </div>
+  );
+}
+```
+
+:::tip
+**何时用函数式更新**：当新的状态依赖于旧状态时（尤其是在循环或快速连续调用中），必须使用函数式更新 `setCount(prev => ...)`，以确保使用最新的状态值。
+:::
+
+## 对象与数组的状态更新
+
+### 更新对象
+
+**注意**：状态中的对象是**不可变**的。必须创建新对象，而非直接修改：
+
+```jsx
+function ObjectState() {
+  const [user, setUser] = useState({
+    name: 'Alice',
+    age: 28,
+    skills: ['React', 'TypeScript']
+  });
+
+  function updateName(newName) {
+    // ❌ 错误：直接修改对象
+    // user.name = newName;
+    // setUser(user);
+
+    // ✓ 正确：创建新对象（展开运算符）
+    setUser({ ...user, name: newName });
+  }
+
+  function addSkill(skill) {
+    setUser({
+      ...user,
+      skills: [...user.skills, skill]  // 数组也需要创建新数组
+    });
+  }
+
+  function birthday() {
+    setUser(prev => ({
+      ...prev,
+      age: prev.age + 1
+    }));
+  }
+
+  return (
+    <div>
+      <p>姓名：{user.name}</p>
+      <p>年龄：{user.age}</p>
+      <p>技能：{user.skills.join(', ')}</p>
+
+      <button onClick={() => updateName('Bob')}>改名 Bob</button>
+      <button onClick={() => addSkill('Vue')}>加技能</button>
+      <button onClick={birthday}>过生日</button>
+    </div>
+  );
+}
+```
+
+### 更新数组
+
+```jsx
+function ArrayState() {
+  const [items, setItems] = useState([
+    { id: 1, text: '学习 React', done: false },
+    { id: 2, text: '构建项目', done: false },
+  ]);
+
+  function addItem(text) {
+    const newItem = {
+      id: Date.now(),  // 简单生成 ID
+      text,
+      done: false
+    };
+    setItems([...items, newItem]);  // 在末尾添加
+  }
+
+  function toggleItem(id) {
+    setItems(items.map(item =>
+      item.id === id ? { ...item, done: !item.done } : item
+    ));
+  }
+
+  function deleteItem(id) {
+    setItems(items.filter(item => item.id !== id));  // 过滤删除
+  }
+
+  return (
+    <div>
+      {items.map(item => (
+        <div key={item.id} style={{ textDecoration: item.done ? 'line-through' : 'none' }}>
+          <input
+            type="checkbox"
+            checked={item.done}
+            onChange={() => toggleItem(item.id)}
+          />
+          {item.text}
+          <button onClick={() => deleteItem(item.id)}>删除</button>
+        </div>
+      ))}
+      <button onClick={() => addItem('新任务')}>添加任务</button>
+    </div>
+  );
+}
+```
+
+:::warning
+**不可变性原则**：React 的状态更新必须遵循不可变性（Immutability）。不要直接修改数组或对象（如 `items.push()`、`user.age++`），而应该创建新的数组/对象。这样 React 才能正确检测到变化并触发更新。
+:::
+
+## 状态提升
+
+当多个组件需要共享状态时，将状态**提升**到它们的最近公共祖先：
+
+```jsx
+// 状态提升到父组件
+function Parent() {
+  // 状态放在父组件
+  const [messages, setMessages] = useState(['你好', '欢迎']);
+
+  function addMessage(text) {
+    setMessages(prev => [...prev, text]);
+  }
+
+  function deleteMessage(index) {
+    setMessages(prev => prev.filter((_, i) => i !== index));
+  }
+
+  return (
+    <div>
+      {/* 子组件通过 props 接收状态和更新函数 */}
+      <MessageList messages={messages} onDelete={deleteMessage} />
+      <MessageInput onSend={addMessage} />
+    </div>
+  );
+}
+
+// 子组件1：展示消息列表
+function MessageList({ messages, onDelete }) {
+  return (
+    <ul>
+      {messages.map((msg, index) => (
+        <li key={index}>
+          {msg}
+          <button onClick={() => onDelete(index)}>删除</button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// 子组件2：输入新消息
+function MessageInput({ onSend }) {
+  const [input, setInput] = useState('');
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!input.trim()) return;
+    onSend(input);
+    setInput('');
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input value={input} onChange={e => setInput(e.target.value)} />
+      <button type="submit">发送</button>
+    </form>
+  );
+}
+```
+
+:::tip
+**状态提升的适用场景**：适用于兄弟组件需要通信或父子组件需要共享状态时。如果状态层级过深或共享范围过广，考虑使用 Context API 或状态管理库。
+:::
+
+## 状态设计的最佳实践
+
+### 保持状态精简
+
+只存储无法通过其他数据计算得出的值：
+
+```jsx
+function PriceDisplay({ price, discount }) {
+  // ❌ 不必要的状态
+  const [finalPrice, setFinalPrice] = useState(price);
+
+  // ✓ 派生值不需要状态，直接计算
+  const finalPrice = discount > 0 ? price * (1 - discount) : price;
+  const tax = finalPrice * 0.13;
+  const total = finalPrice + tax;
+
+  return (
+    <div>
+      <p>原价：¥{price}</p>
+      <p>折后价：¥{finalPrice.toFixed(2)}</p>
+      <p>含税：¥{total.toFixed(2)}</p>
+    </div>
+  );
+}
+```
+
+### 相关状态分组
+
+如果多个状态总是一起变化，考虑合并为一个对象：
+
+```jsx
+// ❌ 分离的状态
+const [x, setX] = useState(0);
+const [y, setY] = useState(0);
+const [dragging, setDragging] = useState(false);
+
+// ✓ 相关状态合并
+const [position, setPosition] = useState({ x: 0, y: 0, dragging: false });
+```
+
+:::warning
+**不必过度合并**：如果状态之间变化频率不同，拆分多个独立的 `useState` 可以减少不必要的渲染。
+:::
+
+## 完整示例：Todo 应用
+
+```jsx
+import { useState } from 'react';
+
+function TodoApp() {
+  const [todos, setTodos] = useState([
+    { id: 1, text: '学习 React 基础', done: false },
+    { id: 2, text: '理解 Hooks', done: false },
+  ]);
+  const [input, setInput] = useState('');
+
+  function addTodo() {
+    if (!input.trim()) return;
+    setTodos(prev => [
+      ...prev,
+      { id: Date.now(), text: input.trim(), done: false }
+    ]);
+    setInput('');
+  }
+
+  function toggleTodo(id) {
+    setTodos(prev => prev.map(todo =>
+      todo.id === id ? { ...todo, done: !todo.done } : todo
+    ));
+  }
+
+  function deleteTodo(id) {
+    setTodos(prev => prev.filter(todo => todo.id !== id));
+  }
+
+  const completed = todos.filter(t => t.done).length;
+
+  return (
+    <div style={{ maxWidth: 400, margin: '2rem auto', padding: '1rem' }}>
+      <h2>Todo 应用（{completed}/{todos.length} 已完成）</h2>
+
+      {/* 输入区 */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addTodo()}
+          placeholder="添加新任务..."
+          style={{ flex: 1, padding: '0.5rem', border: '2px solid #121212' }}
+        />
+        <button
+          onClick={addTodo}
+          style={{ padding: '0.5rem 1rem', background: '#1040C0', color: 'white', border: '2px solid #121212', cursor: 'pointer' }}
+        >
+          添加
+        </button>
+      </div>
+
+      {/* 列表 */}
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        {todos.map(todo => (
+          <li
+            key={todo.id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.75rem',
+              borderBottom: '1px solid #eee',
+              textDecoration: todo.done ? 'line-through' : 'none',
+              color: todo.done ? '#999' : '#121212',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={todo.done}
+              onChange={() => toggleTodo(todo.id)}
+            />
+            <span style={{ flex: 1 }}>{todo.text}</span>
+            <button
+              onClick={() => deleteTodo(todo.id)}
+              style={{ background: '#D02020', color: 'white', border: 'none', padding: '0.25rem 0.5rem', cursor: 'pointer' }}
+            >
+              删除
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default TodoApp;
+```
+
+## 小结
+
+- **`useState`**：在函数组件中添加状态，返回 `[值, 更新函数]` 数组
+- **异步更新**：`setState` 是异步的，多次调用会被批量处理
+- **函数式更新**：当新状态依赖旧状态时，使用 `setCount(prev => prev + 1)` 而非 `setCount(count + 1)`
+- **不可变性**：状态中的对象/数组必须创建新副本，不能直接修改
+- **状态提升**：多个组件需要共享状态时，提升到公共祖先组件
+- **派生值**：可以从现有状态计算得出的值，不需要存储为独立状态
+
+理解状态管理后，接下来我们将学习 React 的**事件处理系统**，了解如何在组件中响应用户交互。

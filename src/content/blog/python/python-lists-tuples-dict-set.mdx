@@ -1,0 +1,213 @@
+---
+title: 列表、元组、字典与集合
+description: 深入掌握 Python 四大核心容器类型：列表、元组、字典、集合的创建、操作切片、解包以及推导式语法
+pubDate: 2026-04-10
+category: python
+tags: [python, 列表, 元组, 字典, 集合, 推导式]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 7
+planId: python-collections
+---
+
+## 前言
+
+列表、元组、字典、集合是 Python 最常用的四种容器类型。它们各有特点：列表可变、元组不可变、字典键值成对、集合元素唯一。熟练掌握它们，是写出简洁 Python 代码的基础。
+
+## 列表（list）
+
+列表是**可变**的有序序列，可以随时增删改查。
+
+### 创建与基本操作
+
+```python
+# 创建列表
+numbers = [1, 2, 3, 4, 5]
+mixed = [1, "hello", 3.14, True]
+empty = []
+
+# 索引访问（从 0 开始）
+print(numbers[0])   # 1
+print(numbers[-1])  # 5（最后一个元素）
+print(numbers[-2])  # 4（倒数第二个）
+```
+
+### 切片操作
+
+```python
+fruits = ["苹果", "香蕉", "樱桃", "葡萄", "橙子"]
+
+print(fruits[1:4])     # ['香蕉', '樱桃', '葡萄']  切片 [start:end]
+print(fruits[:3])      # ['苹果', '香蕉', '樱桃']  省略 start 从头开始
+print(fruits[2:])       # ['樱桃', '葡萄', '橙子']  省略 end 到末尾
+print(fruits[::2])      # ['苹果', '樱桃', '橙子']  每隔一个取一个
+print(fruits[::-1])     # ['橙子', '葡萄', '樱桃', '香蕉', '苹果']  反转
+```
+
+### 增删改
+
+```python
+colors = ["红", "绿", "蓝"]
+
+colors.append("黄")       # 末尾添加
+colors.insert(1, "粉")    # 指定位置插入
+colors.extend(["紫", "橙"]) # 批量添加另一个列表
+colors[0] = "深红"        # 修改元素
+
+removed = colors.pop()   # 弹出并返回最后一个元素
+colors.remove("绿")       # 移除第一个匹配项
+colors.clear()            # 清空列表
+```
+
+### 列表方法一览
+
+```python
+nums = [3, 1, 4, 1, 5, 9, 2, 6]
+
+nums.sort()           # 原地排序（修改原列表）
+sorted(nums)         # 返回排序后的新列表
+nums.reverse()        # 原地反转
+nums.index(4)         # 查找元素索引（不存在抛 ValueError）
+nums.count(1)         # 计数
+len(nums)             # 列表长度
+```
+
+## 元组（tuple）
+
+元组是**不可变**的有序序列，用小括号表示（括号可省略）：
+
+```python
+point = (3, 4)
+dimensions = 1920, 1080  # 小括号可省略，称为"打包"
+colors = ("红", "绿", "蓝")
+
+# 单元素元组（必须加逗号）
+single = (42,)           # 有逗号才是元组
+not_tuple = (42)         # 这只是整数 42
+
+# 不可变性
+# point[0] = 5  # TypeError: 'tuple' object does not support item assignment
+```
+
+:::tip
+元组不可变，但元组内部如果包含可变对象（如列表），那些可变对象仍然可以被修改：
+```python
+mixed = (1, [2, 3], 4)
+mixed[1].append(5)   # 合法：([2, 3, 5],)
+```
+:::
+
+## 字典（dict）
+
+字典是**键值对**的无序集合，键必须可哈希（不可变），值可以是任意类型：
+
+```python
+person = {
+    "name": "Alice",
+    "age": 25,
+    "city": "北京"
+}
+
+# 访问
+print(person["name"])      # Alice
+print(person.get("age"))   # 25
+print(person.get("job", "未知"))  # 未找到时返回默认值
+
+# 添加 / 修改
+person["email"] = "alice@example.com"
+person["age"] = 26
+
+# 删除
+del person["city"]
+job = person.pop("job")    # 弹出并返回值
+```
+
+### 字典方法
+
+```python
+d = {"a": 1, "b": 2, "c": 3}
+
+d.keys()      # dict_keys(['a', 'b', 'c'])
+d.values()    # dict_values([1, 2, 3])
+d.items()     # dict_items([('a',1), ('b',2), ('c',3)])
+
+d.update({"d": 4, "e": 5})  # 批量更新
+d.setdefault("f", 6)        # 键不存在时设置，存在则不变
+```
+
+## 集合（set）
+
+集合是**无序且不重复**的元素集合，适合做去重和集合运算：
+
+```python
+a = {1, 2, 3, 4, 5}
+b = {4, 5, 6, 7, 8}
+
+# 集合运算
+print(a | b)    # {1, 2, 3, 4, 5, 6, 7, 8}  并集
+print(a & b)    # {4, 5}                    交集
+print(a - b)    # {1, 2, 3}                 差集
+print(a ^ b)    # {1, 2, 3, 6, 7, 8}        对称差集
+
+# 去重
+numbers = [1, 2, 2, 3, 3, 3, 4]
+unique = set(numbers)
+print(unique)  # {1, 2, 3, 4}
+```
+
+## 元组解包
+
+```python
+# 基本解包
+point = (3, 4, 5)
+x, y, z = point
+print(x, y, z)  # 3 4 5
+
+# 交换变量（无需临时变量）
+a, b = 1, 2
+a, b = b, a
+print(a, b)  # 2 1
+
+# 使用 * 解包剩余部分
+first, *middle, last = [1, 2, 3, 4, 5]
+print(first, middle, last)  # 1 [2, 3, 4] 5
+
+# 函数返回值的解包
+def get_stats():
+    return min(data), max(data)
+
+low, high = get_stats()
+```
+
+## 推导式语法
+
+列表/集合/字典推导式是 Python 最具特色的语法之一：
+
+```python
+# 列表推导式
+squares = [x**2 for x in range(10)]
+print(squares)  # [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
+
+# 带条件的列表推导式
+evens = [x for x in range(10) if x % 2 == 0]
+
+# 集合推导式
+squares_set = {x**2 for x in range(10)}
+
+# 字典推导式
+word_lengths = {word: len(word) for word in ["apple", "banana", "cherry"]}
+print(word_lengths)  # {'apple': 5, 'banana': 6, 'cherry': 6}
+```
+
+:::warning
+列表推导式功能强大，但不要嵌套过深——超过 2 层嵌套的推导式会变得难以阅读，此时应使用普通循环。
+:::
+
+## 小结
+
+- **列表**：可变有序序列，支持索引、切片、增删，适合需要频繁修改的数据
+- **元组**：不可变有序序列，用途包括固定记录、多返回值、字典键（可哈希时）
+- **字典**：键值对映射，支持快速按键查找，是 Python 中最常用的数据结构之一
+- **集合**：无序不重复，适合去重和集合运算（交、并、差）
+- **推导式**是 Pythonic 的数据转换语法，应优先于显式循环使用
