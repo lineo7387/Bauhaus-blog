@@ -13,7 +13,7 @@ export async function getStaticPaths() {
     (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
   );
   const categories = [...new Set(sortedPosts.map((post) => post.data.category))];
-  const postsPerPage = 3;
+  const postsPerPage = 6;
 
   const paths = [];
 
@@ -69,16 +69,18 @@ const sortedPosts = allPosts.sort(
 );
 const categories = [...new Set(sortedPosts.map((p) => p.data.category))];
 
-const postsPerPage = 3;
+const postsPerPage = 6;
 let filteredPosts = sortedPosts;
 let currentPage = page || 1;
 let currentCategory = category || "";
 let totalPages = 1;
+let totalFilteredCount = sortedPosts.length;
 
 if (type === "category" && category) {
   filteredPosts = sortedPosts.filter(
     (p) => p.data.category.toLowerCase() === category.toLowerCase()
   );
+  totalFilteredCount = filteredPosts.length;
   totalPages = Math.ceil(filteredPosts.length / postsPerPage);
   const startIndex = ((page || 1) - 1) * postsPerPage;
   filteredPosts = filteredPosts.slice(startIndex, startIndex + postsPerPage);
@@ -130,7 +132,7 @@ const PostContentComponent = PostContent as PostContentType;
           </div>
           <div class="text-white/70">
             <p class="text-lg font-medium">
-              Discover {filteredPosts.length} article{filteredPosts.length !== 1 ? "s" : ""}
+              Discover {totalFilteredCount} article{totalFilteredCount !== 1 ? "s" : ""}
               {category ? ` in ${category}` : ""}.
             </p>
           </div>

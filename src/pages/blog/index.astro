@@ -12,7 +12,7 @@ const sortedPosts = allPosts.sort(
 );
 
 const categories = [...new Set(sortedPosts.map((post) => post.data.category))];
-const postsPerPage = 3;
+const postsPerPage = 6;
 const totalPages = Math.ceil(sortedPosts.length / postsPerPage);
 const paginatedPosts = sortedPosts.slice(0, postsPerPage);
 ---
@@ -42,7 +42,9 @@ const paginatedPosts = sortedPosts.slice(0, postsPerPage);
         </div>
         <div class="text-white/70">
           <p class="text-lg font-medium">
-            Discover {sortedPosts.length} article{sortedPosts.length !== 1 ? "s" : ""}.
+            Discover {sortedPosts.length} article{
+              sortedPosts.length !== 1 ? "s" : ""
+            }.
           </p>
         </div>
       </div>
@@ -64,10 +66,7 @@ const paginatedPosts = sortedPosts.slice(0, postsPerPage);
       <div
         class="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between"
       >
-        <CategoryFilter
-          categories={categories}
-          activeCategory=""
-        />
+        <CategoryFilter categories={categories} activeCategory="" />
         <div class="flex items-center gap-2">
           <input
             type="text"
@@ -106,18 +105,20 @@ const paginatedPosts = sortedPosts.slice(0, postsPerPage);
 </BaseLayout>
 
 <script>
-  const searchBtn = document.getElementById('search-btn');
-  const searchInput = document.getElementById('search-input') as HTMLInputElement;
+  const searchBtn = document.getElementById("search-btn");
+  const searchInput = document.getElementById(
+    "search-input",
+  ) as HTMLInputElement;
 
-  searchBtn?.addEventListener('click', () => {
+  searchBtn?.addEventListener("click", () => {
     const query = searchInput?.value.trim();
     if (query) {
       window.location.href = `${import.meta.env.BASE_URL}blog?q=${encodeURIComponent(query)}`;
     }
   });
 
-  searchInput?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
+  searchInput?.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
       const query = searchInput.value.trim();
       if (query) {
         window.location.href = `${import.meta.env.BASE_URL}blog?q=${encodeURIComponent(query)}`;
