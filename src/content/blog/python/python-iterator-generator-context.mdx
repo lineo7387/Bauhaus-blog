@@ -1,0 +1,283 @@
+---
+title: 迭代器、生成器与上下文管理器
+description: 深入理解 Python 迭代器协议、yield 关键字、生成器表达式、with 语句与 __enter__/__exit__ 协议
+pubDate: 2026-04-10
+category: python
+tags: [python, 迭代器, 生成器, 上下文管理器, yield]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 9
+planId: python-iterator-generator
+---
+
+## 前言
+
+迭代器、生成器和上下文管理器是 Python 最具特色的特性之一。它们都围绕"惰性求值"和"资源管理"这两个主题展开，熟练掌握能写出内存高效且语义清晰的代码。
+
+## 迭代器协议
+
+迭代器是实现了 `__iter__` 和 `__next__` 两个方法的对象：
+
+```python
+class Counter:
+    """一个简单的迭代器，计数到指定上限"""
+
+    def __init__(self, limit: int):
+        self.limit = limit
+        self.current = 0
+
+    def __iter__(self):
+        return self  # 迭代器必须返回自身
+
+    def __next__(self):
+        if self.current >= self.limit:
+            raise StopIteration  # 迭代结束
+        self.current += 1
+        return self.current
+
+
+counter = Counter(3)
+for num in counter:
+    print(num)
+# 输出: 1, 2, 3
+```
+
+### 可迭代对象 vs 迭代器
+
+- **可迭代对象**（Iterable）：实现了 `__iter__`（返回迭代器），如 list、dict、set
+- **迭代器**（Iterator）：实现了 `__iter__` 和 `__next__`，本身也是可迭代对象
+
+```python
+from collections.abc import Iterator, Iterable
+
+numbers = [1, 2, 3]
+
+print(isinstance(numbers, Iterable))  # True —— 列表是可迭代的
+print(isinstance(numbers, Iterator))  # False —— 但它不是迭代器
+
+it = iter(numbers)  # 获取迭代器
+print(isinstance(it, Iterator))       # True
+print(next(it))      # 1
+print(next(it))      # 2
+print(next(it))      # 3
+# print(next(it))   # StopIteration
+```
+
+## 生成器函数
+
+生成器函数使用 `yield` 关键字，每次调用只产生一个值，**惰性求值**——不会一次性将所有数据加载到内存：
+
+```python
+def count_up_to(limit: int):
+    """计数生成器"""
+    current = 0
+    while current < limit:
+        current += 1
+        yield current  # 暂停函数，返回值
+
+
+for num in count_up_to(5):
+    print(num)
+# 1, 2, 3, 4, 5
+```
+
+### 生成器 vs 列表
+
+```python
+# 列表：一次性生成所有数据，占用内存
+def squares_list(n: int):
+    return [x ** 2 for x in range(n)]
+
+# 生成器：惰性求值，按需生成
+def squares_gen(n: int):
+    for x in range(n):
+        yield x ** 2
+
+import sys
+
+list_mem = sum(sys.getsizeof(x) for x in squares_list(1000000))
+# 列表占用大量内存
+
+gen = squares_gen(1000000)
+print(sys.getsizeof(gen))  # 很小的固定开销（生成器对象本身）
+```
+
+### yield from
+
+`yield from` 将控制权委托给另一个可迭代对象：
+
+```python
+def flat(nested):
+    """展平嵌套列表"""
+    for item in nested:
+        if isinstance(item, (list, tuple)):
+            yield from flat(item)  # 递归展平
+        else:
+            yield item
+
+nested = [1, [2, 3], [4, [5, 6]], 7]
+print(list(flat(nested)))  # [1, 2, 3, 4, 5, 6, 7]
+```
+
+### 生成器.send()
+
+生成器可以通过 `send()` 接收外部数据：
+
+```python
+def echo():
+    """回声生成器：接收并返回发送的值"""
+    while True:
+        received = yield  # 暂停，等待外部发送值
+        yield received
+
+
+gen = echo()
+next(gen)              # 启动生成器（到达第一个 yield）
+print(gen.send("Hello"))  # Hello
+next(gen)              # 继续到下一个 yield
+print(gen.send("World"))  # World
+```
+
+## 生成器表达式
+
+生成器表达式类似列表推导式，但用圆括号，返回生成器对象：
+
+```python
+# 列表推导式（立即求值，生成列表）
+squares_list = [x ** 2 for x in range(1000000)]
+
+# 生成器表达式（惰性求值，生成生成器）
+squares_gen = (x ** 2 for x in range(1000000))
+
+print(next(squares_gen))  # 0
+print(next(squares_gen))  # 1
+```
+
+## 上下文管理器
+
+`with` 语句用于自动管理资源（如文件、网络连接、锁），确保资源在使用后正确释放：
+
+```python
+# 正确使用 with 自动关闭文件
+with open("example.txt", "w") as file:
+    file.write("Hello, Python!")
+# 文件在此自动关闭，无论是否发生异常
+```
+
+### 实现上下文管理器
+
+#### 方式一：定义类（`__enter__` 和 `__exit__`）
+
+```python
+class ManagedResource:
+    """资源管理类"""
+
+    def __enter__(self):
+        print("获取资源")
+        self.resource = "已获取的资源"
+        return self.resource  # with 的 as 子句接收此值
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # exc_type/val/tb：异常信息（无异常时为 None）
+        print("释放资源")
+        if exc_type:
+            print(f"发生了异常: {exc_val}")
+            return False  # 重新抛出异常
+        return False  # 不压制异常
+
+
+with ManagedResource() as res:
+    print(f"使用: {res}")
+# 获取资源
+# 使用: 已获取的资源
+# 释放资源
+```
+
+#### 方式二：使用 contextmanager（装饰器）
+
+```python
+from contextlib import contextmanager
+
+@contextmanager
+def managed_resource():
+    """用生成器实现上下文管理器"""
+    resource = "已获取的资源"
+    print("获取资源")
+    try:
+        yield resource  # yield 前的代码在 __enter__ 执行
+    finally:
+        print("释放资源")  # yield 后的代码在 __exit__ 执行
+
+
+with managed_resource() as res:
+    print(f"使用: {res}")
+# 获取资源
+# 使用: 已获取的资源
+# 释放资源
+```
+
+### 异常处理示例
+
+```python
+from contextlib import contextmanager
+
+@contextmanager
+def transaction(db):
+    """数据库事务上下文管理器"""
+    print("开始事务")
+    try:
+        yield db
+        print("提交事务")
+    except Exception as e:
+        print(f"回滚事务: {e}")
+        raise
+
+
+class FakeDB:
+    pass
+
+db = FakeDB()
+
+try:
+    with transaction(db):
+        print("执行 SQL...")
+        raise RuntimeError("SQL 执行失败")
+except RuntimeError as e:
+    print(f"异常被传播: {e}")
+```
+
+### contextlib 其他工具
+
+```python
+# 忽略指定异常
+from contextlib import suppress
+
+with suppress(FileNotFoundError):
+    open("nonexistent.txt").close()
+
+# 相当于:
+try:
+    open("nonexistent.txt").close()
+except FileNotFoundError:
+    pass
+
+
+# 重定向标准输出
+from contextlib import redirect_stdout
+import io
+
+buffer = io.StringIO()
+with redirect_stdout(buffer):
+    print("Hello")
+print(buffer.getvalue())  # "Hello\n"
+```
+
+## 小结
+
+- **迭代器协议**：`__iter__` 返回迭代器，`__next__` 返回下一个值，遇到 `StopIteration` 结束
+- **生成器函数**使用 `yield` 惰性产生值，内存效率高
+- `yield from` 委托迭代，适合展平递归结构
+- **生成器表达式**是惰性版的列表推导式
+- **上下文管理器**通过 `with` 确保资源释放，`__enter__`/`__exit__` 或 `@contextmanager` 实现
+- `contextlib.suppress` 用于静默忽略特定异常

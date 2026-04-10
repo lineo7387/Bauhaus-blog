@@ -1,0 +1,303 @@
+---
+title: 面向对象编程
+description: 深入理解 Python 的类与实例、继承与多态、MRO、特殊方法、属性装饰器与描述符协议，成为面向对象编程的高手
+pubDate: 2026-04-10
+category: python
+tags: [python, 面向对象, OOP, 类, 继承]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 11
+planId: python-oop
+---
+
+## 前言
+
+Python 是一门**多范式**语言，支持过程式、面向对象和函数式编程。其中，面向对象编程（OOP）是构建复杂应用的核心范式。Python 的 OOP 实现简洁而强大，理解其底层机制是进阶的关键。
+
+## 类与实例
+
+### 定义类
+
+```python
+class Person:
+    """人类"""
+
+    # 类属性（所有实例共享）
+    species = "智人"
+
+    # 初始化方法（构造器）
+    def __init__(self, name: str, age: int):
+        self.name = name   # 实例属性
+        self.age = age
+        self._score = 0    # 受保护属性（约定：单下划线）
+
+    # 实例方法
+    def greet(self) -> str:
+        return f"你好，我叫 {self.name}，今年 {self.age} 岁"
+
+    # 实例方法：访问私有属性
+    def get_score(self) -> int:
+        return self._score
+
+    def set_score(self, score: int) -> None:
+        if 0 <= score <= 100:
+            self._score = score
+
+    # __str__：print() 时显示的内容
+    def __str__(self):
+        return f"Person({self.name}, {self.age})"
+
+    # __repr__：调试时显示的内容
+    def __repr__(self):
+        return f"Person(name={self.name!r}, age={self.age!r})"
+```
+
+### 创建实例
+
+```python
+alice = Person("Alice", 25)
+bob = Person("Bob", 30)
+
+print(alice.greet())       # 你好，我叫 Alice，今年 25 岁
+print(alice)                # Person(Alice, 25)
+print(repr(bob))            # Person(name='Bob', age=30)
+
+# 类属性 vs 实例属性
+print(alice.species)        # 智人（类属性）
+print(alice.name)            # Alice（实例属性）
+```
+
+## 继承与多态
+
+### 单继承
+
+```python
+class Student(Person):
+    """学生类，继承自 Person"""
+
+    def __init__(self, name: str, age: int, school: str):
+        # 调用父类构造器
+        super().__init__(name, age)
+        self.school = school
+
+    # 重写父类方法
+    def greet(self) -> str:
+        return f"你好，我叫 {self.name}，在 {self.school} 上学"
+
+    def study(self, subject: str) -> None:
+        print(f"{self.name} 正在学习 {subject}")
+```
+
+### 多继承与 MRO
+
+Python 支持多继承，但要注意方法解析顺序（Method Resolution Order）：
+
+```python
+class Flyer:
+    """会飞的"""
+    def fly(self):
+        print("正在飞行")
+
+class Swimmer:
+    """会游泳的"""
+    def swim(self):
+        print("正在游泳")
+
+class Duck(Flyer, Swimmer):
+    """鸭子：既能飞又能游泳"""
+    pass
+
+duck = Duck()
+duck.fly()   # 正在飞行
+duck.swim()  # 正在游泳
+
+# 查看 MRO
+print(Duck.__mro__)
+# (<class '__main__.Duck'>, <class '__main__.Flyer'>, <class '__main__.Swimmer'>, <class 'object'>)
+```
+
+:::warning
+多继承容易产生菱形继承问题（父类 A 被 B、C 继承，D 同时继承 B 和 C）。Python 的 C3 线性化算法保证了 MRO 的确定性，但仍应谨慎使用多继承，优先考虑组合或接口模式。
+:::
+
+## 特殊方法（魔术方法）
+
+Python 类可以通过实现特殊方法（dunder methods）定制行为：
+
+```python
+class Vector:
+    """二维向量"""
+
+    def __init__(self, x: float, y: float):
+        self.x = x
+        self.y = y
+
+    # 算术运算
+    def __add__(self, other: "Vector") -> "Vector":
+        return Vector(self.x + other.x, self.y + other.y)
+
+    def __sub__(self, other: "Vector") -> "Vector":
+        return Vector(self.x - other.x, self.y - other.y)
+
+    def __mul__(self, scalar: float) -> "Vector":
+        return Vector(self.x * scalar, self.y * scalar)
+
+    # 比较运算
+    def __eq__(self, other: "Vector") -> bool:
+        return self.x == other.x and self.y == other.y
+
+    def __lt__(self, other: "Vector") -> bool:
+        return (self.x, self.y) < (other.x, other.y)
+
+    # 可调用对象
+    def __call__(self):
+        return f"Vector({self.x}, {self.y})"
+
+    # 长度
+    def __len__(self):
+        return 2
+
+    def __repr__(self):
+        return f"Vector({self.x}, {self.y})"
+
+
+v1 = Vector(1, 2)
+v2 = Vector(3, 4)
+print(v1 + v2)     # Vector(4, 6)
+print(v1 * 3)      # Vector(3, 6)
+print(v1 == v2)    # False
+print(v1())        # Vector(1, 2)
+```
+
+### 常用特殊方法一览
+
+| 特殊方法 | 作用 | 触发场景 |
+|---------|------|---------|
+| `__init__` | 构造器 | `obj = Class()` |
+| `__str__` | 字符串表示 | `print(obj)` |
+| `__repr__` | 调试表示 | `repr(obj)` |
+| `__eq__` | 相等比较 | `obj == other` |
+| `__len__` | 长度 | `len(obj)` |
+| `__getitem__` | 索引访问 | `obj[0]` |
+| `__call__` | 可调用 | `obj()` |
+| `__enter__` / `__exit__` | 上下文管理 | `with obj` |
+
+## 属性与描述符
+
+### @property 装饰器
+
+将方法伪装成属性访问：
+
+```python
+class Circle:
+    def __init__(self, radius: float):
+        self._radius = radius
+
+    @property
+    def radius(self) -> float:
+        return self._radius
+
+    @radius.setter
+    def radius(self, value: float):
+        if value < 0:
+            raise ValueError("半径不能为负")
+        self._radius = value
+
+    @property
+    def area(self) -> float:
+        import math
+        return math.pi * self._radius ** 2
+
+c = Circle(5)
+print(c.radius)    # 5 —— 像访问属性一样
+c.radius = 10     # 调用 setter
+print(c.area)     # 314.159...（自动计算）
+# c.radius = -5   # ValueError: 半径不能为负
+```
+
+### 描述符协议
+
+描述符是 Python 实现 `@property` 的底层机制，可以复用属性逻辑：
+
+```python
+class RangeValidator:
+    """范围验证器：限制属性值在指定范围内"""
+
+    def __init__(self, min_val, max_val):
+        self.min_val = min_val
+        self.max_val = max_val
+
+    def __get__(self, obj, objtype=None):
+        return getattr(obj, self.name, None)
+
+    def __set__(self, obj, value):
+        if not (self.min_val <= value <= self.max_val):
+            raise ValueError(f"值必须在 {self.min_val} 和 {self.max_val} 之间")
+        setattr(obj, self.name, value)
+
+    def __set_name__(self, owner, name):
+        self.name = f"_{name}"
+
+
+class Player:
+    health = RangeValidator(0, 100)
+
+    def __init__(self, name: str):
+        self.name = name
+        self.health = 100  # 初始化时调用 __set__
+
+player = Player("Hero")
+player.health = 80
+# player.health = 200  # ValueError
+```
+
+## 抽象基类（ABC）
+
+使用抽象基类定义接口规范：
+
+```python
+from abc import ABC, abstractmethod
+
+class Shape(ABC):
+    """图形抽象基类"""
+
+    @abstractmethod
+    def area(self) -> float:
+        """计算面积"""
+        pass
+
+    @abstractmethod
+    def perimeter(self) -> float:
+        """计算周长"""
+        pass
+
+    def describe(self) -> str:
+        return f"{self.__class__.__name__} 的面积是 {self.area():.2f}"
+
+
+class Rectangle(Shape):
+    def __init__(self, width: float, height: float):
+        self.width = width
+        self.height = height
+
+    def area(self) -> float:
+        return self.width * self.height
+
+    def perimeter(self) -> float:
+        return 2 * (self.width + self.height)
+
+
+# shape = Shape()  # TypeError: 无法实例化抽象类
+rect = Rectangle(3, 4)
+print(rect.describe())  # Rectangle 的面积是 12.00
+```
+
+## 小结
+
+- `__init__` 是实例的构造器，`self` 代表实例本身
+- Python 支持**多继承**，通过 `__mro__` 查看方法解析顺序
+- 特殊方法让类与 Python 内置语法无缝集成
+- `@property` 将方法伪装成属性，避免暴露内部实现
+- **描述符协议**是 `@property` 的底层实现，适合复用属性逻辑
+- **抽象基类**（ABC）用于定义接口规范，子类必须实现抽象方法

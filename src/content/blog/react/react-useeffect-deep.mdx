@@ -1,0 +1,481 @@
+---
+title: useEffect 深度解析
+description: 深入理解 useEffect 的执行时机、依赖数组、清理函数机制，掌握副作用的最佳实践与常见误用场景
+pubDate: 2026-04-10
+category: react
+tags: [react, hooks, useEffect, 进阶]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: react-useeffect-deep
+---
+
+## 前言
+
+**useEffect** 是 React 中处理副作用的核心 Hook。副作用包括数据获取、订阅、手动修改 DOM 等在组件渲染过程中产生的"额外操作"。理解 useEffect 的执行时机和依赖机制，是写出健壮 React 应用的关键。
+
+## useEffect 基础
+
+### 什么是副作用
+
+**副作用（Side Effect）**是指那些影响组件外部世界的操作：
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function UserProfile({ userId }) {
+  const [user, setUser] = useState(null);
+
+  // 这是一个副作用：数据获取
+  useEffect(() => {
+    fetch(`/api/users/${userId}`)
+      .then(res => res.json())
+      .then(data => setUser(data));
+  }, [userId]); // 依赖 userId
+
+  if (!user) return <div>加载中...</div>;
+
+  return (
+    <div>
+      <h1>{user.name}</h1>
+      <p>{user.bio}</p>
+    </div>
+  );
+}
+```
+
+### 基本语法
+
+```jsx
+useEffect(() => {
+  // 副作用逻辑
+  return () => {
+    // 清理函数（可选）
+  };
+}, [依赖数组]);
+```
+
+## 执行时机
+
+### 渲染之后执行
+
+useEffect 在组件渲染并应用到 DOM 之后执行：
+
+```jsx
+function Demo() {
+  useEffect(() => {
+    // 这个代码在组件渲染到 DOM 后执行
+    console.log('组件已挂载到 DOM');
+  });
+
+  return <div>Hello</div>;
+}
+```
+
+:::tip
+与类组件的 `componentDidMount` + `componentDidUpdate` 不同，useEffect 不阻塞浏览器绘制，组件可以更快地呈现到屏幕上。
+:::
+
+### 执行时机对比
+
+```
+组件函数执行
+    ↓
+JSX 生成并渲染到 DOM
+    ↓
+useEffect 回调执行  ← 副作用在这里运行
+```
+
+```jsx
+function TimingDemo() {
+  const [count, setCount] = useState(0);
+
+  console.log('1. 渲染中...');  // 最先执行
+
+  useEffect(() => {
+    console.log('2. useEffect 执行');  // DOM 更新后
+  });
+
+  console.log('3. 渲染完成');  // 紧跟渲染
+
+  return (
+    <div>
+      <p>计数：{count}</p>
+      <button onClick={() => setCount(c => c + 1)}>+1</button>
+    </div>
+  );
+}
+```
+
+## 依赖数组
+
+依赖数组控制 useEffect 何时重新执行，是最核心也最容易出错的部分。
+
+### 不指定依赖（每次渲染都执行）
+
+```jsx
+useEffect(() => {
+  // 没有依赖数组 = 每次渲染后都执行
+  document.title = `计数：${count}`;
+});
+```
+
+:::warning
+没有依赖数组的 useEffect 等价于 `componentDidMount` + `componentDidUpdate`。如果处理不当，容易导致无限循环。
+:::
+
+### 空数组（只执行一次）
+
+```jsx
+useEffect(() => {
+  // 只在首次渲染时执行，类似 componentDidMount
+  const subscription = api.subscribe(handleChange);
+
+  return () => {
+    // 组件卸载时清理，类似 componentWillUnmount
+    subscription.unsubscribe();
+  };
+}, []);  // 空数组 = 只执行一次
+```
+
+### 指定依赖（按需执行）
+
+```jsx
+function SearchResults({ query }) {
+  const [results, setResults] = useState([]);
+
+  useEffect(() => {
+    // 仅当 query 变化时执行
+    const controller = new AbortController();
+
+    fetch(`/api/search?q=${query}`, { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => setResults(data))
+      .catch(err => {
+        if (err.name !== 'AbortError') throw err;
+      });
+
+    return () => controller.abort();
+  }, [query]);  // query 变化时重新执行
+
+  return <ul>{results.map(r => <li key={r.id}>{r.title}</li>)}</ul>;
+}
+```
+
+## 清理函数
+
+清理函数在以下情况执行：
+1. 组件卸载时
+2. useEffect 重新执行前（在下一次 effect 执行前）
+
+### 清理订阅
+
+```jsx
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(roomId);
+    connection.connect();
+
+    // 清理函数：断开连接
+    return () => {
+      connection.disconnect();
+      console.log(`已断开房间 ${roomId}`);
+    };
+  }, [roomId]);
+
+  return <h1>房间 {roomId}</h1>;
+}
+```
+
+### 清理定时器
+
+```jsx
+function Timer() {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setSeconds(s => s + 1);
+    }, 1000);
+
+    // 清理函数：清除定时器
+    return () => clearInterval(intervalId);
+  }, []);  // 只需创建一次定时器
+
+  return <div>已运行 {seconds} 秒</div>;
+}
+```
+
+### 清理副作用请求
+
+```jsx
+function DataFetcher({ url }) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(url)
+      .then(res => res.json())
+      .then(json => {
+        // 检查是否已被取消
+        if (!cancelled) {
+          setData(json);
+        }
+      });
+
+    // 清理：忽略过期请求的结果
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  return <div>{data ? JSON.stringify(data) : '加载中...'}</div>;
+}
+```
+
+## 常见误用场景
+
+### 误用 1：依赖数组遗漏
+
+```jsx
+// ❌ 错误：count 在 effect 中使用但未加入依赖
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    // 这个 effect 依赖 count，但未在依赖数组中声明
+    document.title = `计数：${count}`;
+  }, []);  // 应该是 [count]
+
+  // count 变化时，title 不会更新
+  return <button onClick={() => setCount(c => c + 1)}>{count}</button>;
+}
+
+// ✓ 正确
+useEffect(() => {
+  document.title = `计数：${count}`;
+}, [count]);  // 声明依赖
+```
+
+### 误用 2：过度依赖
+
+```jsx
+// ❌ 错误：创建不必要的依赖
+function Component({ user }) {
+  const [name, setName] = useState(user.name);
+
+  useEffect(() => {
+    setName(user.name);
+    // user 对象每次渲染都是新引用！
+    // 即使 name 相同，也会触发更新
+  }, [user]);  // user 每次渲染都变化
+
+  return <input value={name} onChange={e => setName(e.target.value)} />;
+}
+
+// ✓ 正确：只依赖实际需要的数据
+useEffect(() => {
+  setName(user.name);
+}, [user.name]);  // 只依赖具体的值
+```
+
+### 误用 3：在 Effect 中直接修改 state
+
+```jsx
+// ❌ 错误：可能导致无限循环
+function WrongPattern({ data }) {
+  const [processed, setProcessed] = useState([]);
+
+  useEffect(() => {
+    const result = processData(data);
+    setProcessed(result);  // 这会触发重新渲染
+  });  // 没有依赖数组，每次渲染都执行
+
+  return <List items={processed} />;
+}
+
+// ✓ 正确：使用 useMemo 替代（派生值不需要 Effect）
+function CorrectPattern({ data }) {
+  const processed = useMemo(() => processData(data), [data]);
+  return <List items={processed} />;
+}
+```
+
+### 误用 4：将 props 直接作为初始 state
+
+```jsx
+// ❌ 错误：props 变化时不会同步更新
+function Counter({ initialCount }) {
+  const [count, setCount] = useState(initialCount);  // 只用第一次的值
+
+  return (
+    <div>
+      <p>{count}</p>
+      <button onClick={() => setCount(c => c + 1)}>+1</button>
+      <button onClick={() => setCount(initialCount)}>重置</button>
+    </div>
+  );
+}
+
+// ✓ 正确：如果需要同步 props，使用 key 强制重置
+<Counter key={userId} initialCount={0} />
+
+// 或使用 Effect 同步
+function SyncedCounter({ initialCount }) {
+  const [count, setCount] = useState(initialCount);
+
+  useEffect(() => {
+    setCount(initialCount);
+  }, [initialCount]);
+
+  return <div>{count}</div>;
+}
+```
+
+## 替代方案
+
+### 派生值用 useMemo
+
+```jsx
+// ❌ 不要用 Effect 计算派生值
+function BadExample({ items, filter }) {
+  const [filteredItems, setFilteredItems] = useState(items);
+
+  useEffect(() => {
+    setFilteredItems(items.filter(item => item.includes(filter)));
+  }, [items, filter]);
+
+  return <List items={filteredItems} />;
+}
+
+// ✓ 用 useMemo
+function GoodExample({ items, filter }) {
+  const filteredItems = useMemo(
+    () => items.filter(item => item.includes(filter)),
+    [items, filter]
+  );
+
+  return <List items={filteredItems} />;
+}
+```
+
+### 重置特定 state 用 key
+
+```jsx
+// 当用户切换时，希望表单重置
+function LoginForm({ userId }) {
+  return <Form key={userId} />;  // key 变化时，组件完全重新创建
+}
+```
+
+### 事件逻辑用事件处理函数
+
+```jsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  function handleReset() {
+    setCount(0);  // 同步操作不需要 Effect
+  }
+
+  return (
+    <div>
+      <p>{count}</p>
+      <button onClick={() => setCount(c => c + 1)}>+1</button>
+      <button onClick={handleReset}>重置</button>
+    </div>
+  );
+}
+```
+
+## 完整示例：实时搜索
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function Search({ api }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // 空搜索词时不请求
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    setLoading(true);
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const data = await api.search(query, controller.signal);
+        setResults(data);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('搜索失败', err);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 300);  // 防抖
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [query, api]);
+
+  return (
+    <div>
+      <input
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="搜索..."
+      />
+      {loading && <span>搜索中...</span>}
+      <ul>
+        {results.map(item => (
+          <li key={item.id}>{item.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+## ESLint 规则
+
+React 的 `exhaustive-deps` 规则（来自 `eslint-plugin-react-hooks`）可以帮助检测依赖数组问题：
+
+```json
+{
+  "rules": {
+    "react-hooks/exhaustive-deps": "warn"
+  }
+}
+```
+
+启用后，ESLint 会警告：
+- effect 中使用的变量未在依赖数组中声明
+- 依赖数组中有不必要的依赖
+
+:::tip
+遵循这条规则：**在 effect 中使用的所有变量都必须声明在依赖数组中**。这是 React Hooks 的强制规则，确保代码行为可预测。
+:::
+
+## 小结
+
+- **执行时机**：useEffect 在渲染并应用到 DOM 后执行，不阻塞渲染
+- **依赖数组**：
+  - 无数组：每次渲染后都执行
+  - 空数组：只在首次渲染时执行
+  - 有数组：依赖变化时执行
+- **清理函数**：在组件卸载或 effect 重新执行前运行，用于清理订阅、定时器、中止请求
+- **常见错误**：遗漏依赖、过度依赖、将派生值放入 state
+- **替代方案**：派生值用 `useMemo`，事件逻辑用处理函数，重置用 `key`
+
+掌握了 useEffect 后，下一篇文章我们将学习 **useRef**，了解如何在 React 中直接操作 DOM。

@@ -1,0 +1,721 @@
+---
+title: 表单处理
+description: 掌握 React 中的表单处理模式，包括受控与非受控组件、表单验证，以及 React Hook Form 的使用
+pubDate: 2026-04-10
+category: react
+tags: [react, 表单, 受控组件, React Hook Form, 表单验证, 进阶]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 9
+planId: react-form-handling
+---
+
+## 前言
+
+表单是 Web 应用中最重要的交互元素之一。在 React 中处理表单有两种主要模式：**受控组件（Controlled Components）**和**非受控组件（Uncontrolled Components）**。本篇文章将深入讲解这两种模式，以及现代表单处理库 React Hook Form 的使用。
+
+## 受控组件
+
+**受控组件**：表单数据由 React 组件通过 state 管理。每个表单元素的值都由 React state 控制。
+
+### 基础文本输入
+
+```jsx
+import { useState } from 'react';
+
+function SimpleForm() {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    console.log('提交的数据：', { name, email });
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div>
+        <label>姓名：</label>
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+        />
+      </div>
+      <div>
+        <label>邮箱：</label>
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+        />
+      </div>
+      <button type="submit">提交</button>
+    </form>
+  );
+}
+```
+
+### 多个输入的优化写法
+
+```jsx
+function OptimizedForm() {
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    remember: false
+  });
+
+  function handleChange(e) {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    console.log('提交的数据：', formData);
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        name="username"
+        value={formData.username}
+        onChange={handleChange}
+        placeholder="用户名"
+      />
+      <input
+        name="email"
+        type="email"
+        value={formData.email}
+        onChange={handleChange}
+        placeholder="邮箱"
+      />
+      <input
+        name="password"
+        type="password"
+        value={formData.password}
+        onChange={handleChange}
+        placeholder="密码"
+      />
+      <label>
+        <input
+          name="remember"
+          type="checkbox"
+          checked={formData.remember}
+          onChange={handleChange}
+        />
+        记住我
+      </label>
+      <button type="submit">提交</button>
+    </form>
+  );
+}
+```
+
+### Select 下拉框
+
+```jsx
+function SelectForm() {
+  const [country, setCountry] = useState('china');
+
+  return (
+    <select value={country} onChange={e => setCountry(e.target.value)}>
+      <option value="china">中国</option>
+      <option value="usa">美国</option>
+      <option value="japan">日本</option>
+      <option value="korea">韩国</option>
+    </select>
+  );
+}
+```
+
+### Textarea 多行文本
+
+```jsx
+function TextareaForm() {
+  const [message, setMessage] = useState('');
+
+  return (
+    <textarea
+      value={message}
+      onChange={e => setMessage(e.target.value)}
+      placeholder="请输入留言..."
+      rows={4}
+    />
+  );
+}
+```
+
+## 非受控组件
+
+**非受控组件**：表单数据由 DOM 本身管理，使用 ref 获取表单值。类似于传统的 HTML 表单。
+
+### 使用 ref 获取值
+
+```jsx
+import { useRef } from 'react';
+
+function UncontrolledForm() {
+  const nameRef = useRef();
+  const emailRef = useRef();
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    // 通过 ref 访问 DOM 元素的值
+    console.log('提交的数据：', {
+      name: nameRef.current.value,
+      email: emailRef.current.value
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input ref={nameRef} type="text" placeholder="姓名" />
+      <input ref={emailRef} type="email" placeholder="邮箱" />
+      <button type="submit">提交</button>
+    </form>
+  );
+}
+```
+
+### defaultValue 与默认值
+
+```jsx
+function DefaultValueForm() {
+  const inputRef = useRef();
+
+  function handleSubmit() {
+    console.log(inputRef.current.value);
+  }
+
+  return (
+    <div>
+      {/* 使用 defaultValue 设置初始值 */}
+      <input ref={inputRef} defaultValue="默认值" />
+      <button onClick={handleSubmit}>获取值</button>
+    </div>
+  );
+}
+```
+
+:::tip
+对于**只设置初始值而不需要控制后续值**的场景，使用 `defaultValue` + ref 是更简单的方案。但如果你需要根据条件重置表单或动态设置值，受控组件是更好的选择。
+:::
+
+## 表单验证
+
+### 基础验证
+
+```jsx
+import { useState } from 'react';
+
+function ValidatedForm() {
+  const [values, setValues] = useState({ email: '', password: '' });
+  const [errors, setErrors] = useState({});
+
+  function validate() {
+    const newErrors = {};
+
+    if (!values.email) {
+      newErrors.email = '邮箱不能为空';
+    } else if (!/\S+@\S+\.\S+/.test(values.email)) {
+      newErrors.email = '邮箱格式不正确';
+    }
+
+    if (!values.password) {
+      newErrors.password = '密码不能为空';
+    } else if (values.password.length < 6) {
+      newErrors.password = '密码至少 6 位';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (validate()) {
+      console.log('提交成功：', values);
+    }
+  }
+
+  function handleChange(e) {
+    const { name, value } = e.target;
+    setValues(prev => ({ ...prev, [name]: value }));
+    // 清除对应字段的错误
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div>
+        <input
+          name="email"
+          type="email"
+          value={values.email}
+          onChange={handleChange}
+          placeholder="邮箱"
+        />
+        {errors.email && <span className="error">{errors.email}</span>}
+      </div>
+      <div>
+        <input
+          name="password"
+          type="password"
+          value={values.password}
+          onChange={handleChange}
+          placeholder="密码"
+        />
+        {errors.password && <span className="error">{errors.password}</span>}
+      </div>
+      <button type="submit">提交</button>
+    </form>
+  );
+}
+```
+
+### 实时验证
+
+```jsx
+function RealTimeValidation() {
+  const [email, setEmail] = useState('');
+  const [touched, setTouched] = useState(false);
+
+  const emailError = !email
+    ? ''
+    : /\S+@\S+\.\S+/.test(email)
+    ? ''
+    : '邮箱格式不正确';
+
+  const showError = touched && emailError;
+
+  return (
+    <div>
+      <input
+        type="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+        onBlur={() => setTouched(true)}  // 失去焦点时标记为已触碰
+      />
+      {showError && <span className="error">{emailError}</span>}
+    </div>
+  );
+}
+```
+
+## React Hook Form
+
+[React Hook Form](https://react-hook-form.com/) 是一个高性能、灵活的表单库，兼顾受控与非受控组件的优点。
+
+### 安装
+
+```bash
+npm install react-hook-form
+```
+
+### 基础用法
+
+```jsx
+import { useForm } from 'react-hook-form';
+
+function BasicForm() {
+  const {
+    register,        // 注册表单项
+    handleSubmit,    // 包装 onSubmit
+    formState: { errors, isSubmitting }  // 表单状态
+  } = useForm();
+
+  async function onSubmit(data) {
+    console.log('提交的数据：', data);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <div>
+        <label>姓名</label>
+        <input {...register('name', { required: '姓名不能为空' })} />
+        {errors.name && <span className="error">{errors.name.message}</span>}
+      </div>
+
+      <div>
+        <label>邮箱</label>
+        <input
+          {...register('email', {
+            required: '邮箱不能为空',
+            pattern: {
+              value: /\S+@\S+\.\S+/,
+              message: '邮箱格式不正确'
+            }
+          })}
+        />
+        {errors.email && <span className="error">{errors.email.message}</span>}
+      </div>
+
+      <button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? '提交中...' : '提交'}
+      </button>
+    </form>
+  );
+}
+```
+
+### 注册选项
+
+```jsx
+function RegisterOptions() {
+  const { register } = useForm();
+
+  return (
+    <form>
+      {/* 必填 */}
+      <input {...register('username', { required: true })} />
+
+      {/* 带验证消息 */}
+      <input
+        {...register('password', {
+          required: '密码不能为空',
+          minLength: { value: 6, message: '密码至少 6 位' },
+          maxLength: { value: 20, message: '密码最多 20 位' }
+        })}
+      />
+
+      {/* 正则验证 */}
+      <input
+        {...register('phone', {
+          pattern: { value: /^1[3-9]\d{9}$/, message: '手机号格式不正确' }
+        })}
+      />
+
+      {/* 自定义验证 */}
+      <input
+        {...register('custom', {
+          validate: value => value !== 'admin' || '不能使用 admin 用户名'
+        })}
+      />
+    </form>
+  );
+}
+```
+
+### 默认值与重置
+
+```jsx
+function DefaultValuesForm() {
+  const { register, handleSubmit, reset } = useForm({
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      email: 'default@example.com'
+    }
+  });
+
+  function onSubmit(data) {
+    console.log(data);
+  }
+
+  function handleReset() {
+    reset();  // 重置为 defaultValues
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <input {...register('firstName')} placeholder="名" />
+      <input {...register('lastName')} placeholder="姓" />
+      <input {...register('email')} type="email" />
+      <button type="submit">提交</button>
+      <button type="button" onClick={handleReset}>重置</button>
+    </form>
+  );
+}
+```
+
+### 处理复杂数据
+
+```jsx
+function ComplexForm() {
+  const { register, handleSubmit } = useForm();
+
+  function onSubmit(data) {
+    console.log(data);
+    // 输出：
+    // {
+    //   personal: { firstName: 'John', lastName: 'Doe' },
+    //   account: { email: 'john@example.com', age: '30' },
+    //   preferences: ['news', 'sports']  // checkbox 数组
+    // }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <fieldset>
+        <legend>个人信息</legend>
+        <input {...register('personal.firstName')} placeholder="名" />
+        <input {...register('personal.lastName')} placeholder="姓" />
+      </fieldset>
+
+      <fieldset>
+        <legend>账户信息</legend>
+        <input {...register('account.email')} type="email" placeholder="邮箱" />
+        <input {...register('account.age')} type="number" placeholder="年龄" />
+      </fieldset>
+
+      <fieldset>
+        <legend>偏好设置</legend>
+        <label>
+          <input {...register('preferences')} value="news" type="checkbox" />
+          新闻
+        </label>
+        <label>
+          <input {...register('preferences')} value="sports" type="checkbox" />
+          体育
+        </label>
+      </fieldset>
+
+      <button type="submit">提交</button>
+    </form>
+  );
+}
+```
+
+### Controller 组件
+
+当需要将 React Hook Form 与第三方 UI 组件配合使用时，使用 `Controller` 包装：
+
+```jsx
+import { useForm, Controller } from 'react-hook-form';
+import DatePicker from 'react-datepicker';
+import Select from 'react-select';
+
+function ThirdPartyForm() {
+  const { control, handleSubmit } = useForm({
+    defaultValues: { startDate: new Date(), country: null }
+  });
+
+  return (
+    <form onSubmit={handleSubmit(data => console.log(data))}>
+      <Controller
+        name="startDate"
+        control={control}
+        rules={{ required: '请选择开始日期' }}
+        render={({ field }) => (
+          <DatePicker
+            selected={field.value}
+            onChange={field.onChange}
+            onBlur={field.onBlur}
+          />
+        )}
+      />
+      {errors.startDate && <span>{errors.startDate.message}</span>}
+
+      <Controller
+        name="country"
+        control={control}
+        render={({ field }) => (
+          <Select
+            options={countryOptions}
+            value={field.value}
+            onChange={field.onChange}
+            onBlur={field.onBlur}
+          />
+        )}
+      />
+
+      <button type="submit">提交</button>
+    </form>
+  );
+}
+```
+
+### 表单级别错误
+
+```jsx
+function FormLevelErrors() {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors }
+  } = useForm();
+
+  // 设置表单级别错误
+  const { setError, clearErrors } = useForm();
+
+  async function onSubmit(data) {
+    // 模拟 API 验证
+    const exists = await checkUsername(data.username);
+    if (exists) {
+      setError('username', { message: '用户名已被注册' });
+      return;
+    }
+
+    if (data.password !== data.confirmPassword) {
+      setError('confirmPassword', { message: '两次密码不一致' });
+      return;
+    }
+
+    console.log('提交成功', data);
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <input {...register('username')} />
+      {errors.username && <span>{errors.username.message}</span>}
+
+      <input type="password" {...register('password')} />
+      {errors.password && <span>{errors.password.message}</span>}
+
+      <input type="password" {...register('confirmPassword')} />
+      {errors.confirmPassword && <span>{errors.confirmPassword.message}</span>}
+
+      <button type="submit">提交</button>
+    </form>
+  );
+}
+```
+
+## 完整示例：注册表单
+
+```jsx
+import { useForm } from 'react-hook-form';
+
+function RegistrationForm() {
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting }
+  } = useForm({
+    mode: 'onBlur'  // 失去焦点时触发验证
+  });
+
+  const password = watch('password');
+
+  async function onSubmit(data) {
+    try {
+      const response = await registerUser(data);
+      console.log('注册成功', response);
+      alert('注册成功！');
+    } catch (error) {
+      console.error('注册失败', error);
+      alert('注册失败，请重试');
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} style={{ maxWidth: 400, margin: '2rem auto' }}>
+      <h2>用户注册</h2>
+
+      <div style={{ marginBottom: '1rem' }}>
+        <label style={{ display: 'block', marginBottom: '0.25rem' }}>用户名</label>
+        <input
+          style={{ width: '100%', padding: '0.5rem' }}
+          {...register('username', {
+            required: '用户名不能为空',
+            minLength: { value: 3, message: '用户名至少 3 位' },
+            maxLength: { value: 20, message: '用户名最多 20 位' }
+          })}
+        />
+        {errors.username && (
+          <span style={{ color: '#D02020', fontSize: '0.875rem' }}>
+            {errors.username.message}
+          </span>
+        )}
+      </div>
+
+      <div style={{ marginBottom: '1rem' }}>
+        <label style={{ display: 'block', marginBottom: '0.25rem' }}>邮箱</label>
+        <input
+          style={{ width: '100%', padding: '0.5rem' }}
+          type="email"
+          {...register('email', {
+            required: '邮箱不能为空',
+            pattern: {
+              value: /\S+@\S+\.\S+/,
+              message: '邮箱格式不正确'
+            }
+          })}
+        />
+        {errors.email && (
+          <span style={{ color: '#D02020', fontSize: '0.875rem' }}>
+            {errors.email.message}
+          </span>
+        )}
+      </div>
+
+      <div style={{ marginBottom: '1rem' }}>
+        <label style={{ display: 'block', marginBottom: '0.25rem' }}>密码</label>
+        <input
+          style={{ width: '100%', padding: '0.5rem' }}
+          type="password"
+          {...register('password', {
+            required: '密码不能为空',
+            minLength: { value: 8, message: '密码至少 8 位' },
+            pattern: {
+              value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+              message: '密码必须包含大小写字母和数字'
+            }
+          })}
+        />
+        {errors.password && (
+          <span style={{ color: '#D02020', fontSize: '0.875rem' }}>
+            {errors.password.message}
+          </span>
+        )}
+      </div>
+
+      <div style={{ marginBottom: '1rem' }}>
+        <label style={{ display: 'block', marginBottom: '0.25rem' }}>确认密码</label>
+        <input
+          style={{ width: '100%', padding: '0.5rem' }}
+          type="password"
+          {...register('confirmPassword', {
+            required: '请确认密码',
+            validate: value =>
+              value === password || '两次密码不一致'
+          })}
+        />
+        {errors.confirmPassword && (
+          <span style={{ color: '#D02020', fontSize: '0.875rem' }}>
+            {errors.confirmPassword.message}
+          </span>
+        )}
+      </div>
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        style={{
+          width: '100%',
+          padding: '0.75rem',
+          background: '#1040C0',
+          color: 'white',
+          border: '2px solid #121212',
+          cursor: isSubmitting ? 'not-allowed' : 'pointer',
+          fontSize: '1rem'
+        }}
+      >
+        {isSubmitting ? '注册中...' : '注册'}
+      </button>
+    </form>
+  );
+}
+```
+
+## 小结
+
+- **受控组件**：表单值由 React state 管理，适合需要实时验证、动态控制、复杂表单逻辑的场景
+- **非受控组件**：使用 ref 直接访问 DOM 值，适合简单场景或需要 DOM API 的场景
+- **表单验证**：可以在 onChange（实时）、onBlur（失去焦点）、onSubmit（提交时）进行
+- **React Hook Form**：高性能的表单库，结合了受控与非受控的优点
+- **注册选项**：`required`、`minLength`、`maxLength`、`pattern`、`validate` 等
+- **Controller**：用于包装第三方组件，使其与 React Hook Form 配合使用
+
+完成了表单处理的学习，你就掌握了 React 进阶技能的核心内容。接下来你可以继续学习**路由管理**和**性能优化**等主题。

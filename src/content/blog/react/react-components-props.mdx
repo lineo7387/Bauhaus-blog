@@ -1,0 +1,456 @@
+---
+title: 组件与 Props
+description: 掌握 React 函数组件的定义与使用，理解 Props 的传递机制、children 属性、默认值设置，以及良好的组件设计原则
+pubDate: 2026-04-10
+category: react
+tags: [react, 组件, props, 入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 7
+planId: react-components-props
+---
+
+## 前言
+
+**组件**是 React 的核心构建块。它们让你将 UI 拆分为独立的、可复用的 pieces，每个 piece 可以独立管理自己的状态和展示逻辑。本文聚焦于函数组件与 **Props** 的完整用法，帮助你构建清晰、可维护的组件体系。
+
+## 函数组件基础
+
+### 什么是组件
+
+组件本质上是一个 JavaScript 函数，它的输入是数据（Props），输出是 UI 的描述（JSX）：
+
+```jsx
+// 最简单的组件示例
+function Greeting() {
+  return <h1>Hello, World!</h1>;
+}
+```
+
+组件名称**必须以大写字母开头**。React 根据这个规则来决定某个 JSX 标签是 HTML 元素还是自定义组件。
+
+### 组件的返回值
+
+函数组件只能返回**单一的根元素**（或 Fragment）：
+
+```jsx
+// ❌ 错误：多个同级根元素
+function BadCard() {
+  return (
+    <h2>标题</h2>
+    <p>内容</p>
+  );
+}
+
+// ✓ 正确：单一根元素
+function GoodCard() {
+  return (
+    <div className="card">
+      <h2>标题</h2>
+      <p>内容</p>
+    </div>
+  );
+}
+
+// ✓ 正确：使用 Fragment
+function GoodCardFragment() {
+  return (
+    <>
+      <h2>标题</h2>
+      <p>内容</p>
+    </>
+  );
+}
+```
+
+:::tip
+**组件与元素的区别**：组件是函数的定义，元素是函数的返回值。`<Greeting />` 是一个组件**元素**，它调用了 `Greeting` 函数。
+:::
+
+## Props 详解
+
+### Props 是什么
+
+**Props**（Properties）是组件的输入参数，类似于函数的参数。当父组件渲染子组件时，可以向子组件传递数据：
+
+```jsx
+// 父组件
+function App() {
+  return (
+    <div>
+      {/* 传递 name="Bauhaus" 作为 prop */}
+      <Greeting name="Bauhaus" />
+      <Greeting name="React" />
+    </div>
+  );
+}
+
+// 子组件：通过参数 props 接收
+function Greeting(props) {
+  return <h1>Hello, {props.name}!</h1>;
+}
+```
+
+### Props 的传递方式
+
+Props 可以传递多种类型的数据：
+
+```jsx
+// 父组件
+function Parent() {
+  const user = {
+    id: 1,
+    name: 'Alice',
+    avatar: 'https://picsum.photos/40/40'
+  };
+
+  return (
+    <div>
+      {/* 字符串（不需要花括号） */}
+      <UserCard username="Bob" />
+
+      {/* 数字、布尔、表达式（需要花括号） */}
+      <Badge count={5} active={true} maxScore={100} />
+
+      {/* 数组 */}
+      <TagList tags={['React', 'Vue', 'TypeScript']} />
+
+      {/* 对象 */}
+      <UserCard user={user} />
+
+      {/* JSX 元素作为 prop */}
+      <Card
+        header={<h3>卡片标题</h3>}
+        footer={<button>了解更多</button>}
+      />
+    </div>
+  );
+}
+```
+
+### Props 解构
+
+使用 ES6 解构让组件代码更简洁：
+
+```jsx
+// 传统写法：访问 props.xx
+function UserCard(props) {
+  return (
+    <div className="card">
+      <img src={props.avatar} alt={props.name} />
+      <h3>{props.name}</h3>
+      <p>{props.bio}</p>
+    </div>
+  );
+}
+
+// 解构写法（推荐）
+function UserCard({ name, avatar, bio }) {
+  return (
+    <div className="card">
+      <img src={avatar} alt={name} />
+      <h3>{name}</h3>
+      <p>{bio}</p>
+    </div>
+  );
+}
+```
+
+### Props 默认值
+
+提供默认值有两种方式：
+
+```jsx
+// 方式 1：解构时设置默认值
+function Button({ label = '按钮', variant = 'primary', onClick }) {
+  return (
+    <button
+      className={`btn btn-${variant}`}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+// 方式 2：ES6 默认参数（推荐写法）
+// 参数解构时直接提供默认值，代码更简洁，类型提示也更清晰
+function Button({ label = '按钮', variant = 'primary', onClick }) {
+  return (
+    <button
+      className={`btn btn-${variant}`}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+// 使用示例
+<Button />  {/* label="按钮", variant="primary" */}
+<Button label="提交" variant="danger" onClick={handleSubmit} />
+```
+
+:::tip
+**解构 + 默认值**是现代 React 的推荐写法，比 `defaultProps` 更简洁，且与 TypeScript 类型系统配合更好。
+:::
+
+### Props 的只读性
+
+Props 是**只读的**。组件不能修改自己接收到的 Props：
+
+```jsx
+// ❌ 错误：尝试修改 props
+function BadComponent({ count }) {
+  count = count + 1;  // TypeError！props 不可变
+  return <p>{count}</p>;
+}
+
+// ✓ 正确：派生值用变量而非修改 props
+function GoodComponent({ initialCount }) {
+  const doubled = initialCount * 2;  // 派生值，非修改
+  return <p>两倍：{doubled}</p>;
+}
+```
+
+:::warning
+这条规则被称为**Props 的只读性原则**。如果组件需要管理可变状态，应该使用 `useState`（下篇文章将详细讲解）。
+:::
+
+## children 属性
+
+`children` 是一个特殊的 prop，它包含组件标签之间的内容：
+
+```jsx
+// 父组件传递 children
+function Card({ title, children }) {
+  return (
+    <div className="card">
+      <div className="card-header">
+        <h2>{title}</h2>
+      </div>
+      <div className="card-body">
+        {/* children 是插槽内容，由父组件决定 */}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// 使用时
+function App() {
+  return (
+    <Card title="用户信息">
+      {/* 这段 JSX 会成为 Card 组件的 children */}
+      <p>姓名：Alice</p>
+      <p>年龄：28</p>
+      <button>编辑</button>
+    </Card>
+  );
+}
+```
+
+### 多种 children 用法
+
+```jsx
+// 复合组件：把不同部分组合在一起
+function Alert({ children, type = 'info' }) {
+  const colors = {
+    info: { bg: '#E8F0FE', border: '#1040C0' },
+    success: { bg: '#E8F8E8', border: '#20A020' },
+    warning: { bg: '#FFF8E0', border: '#F0C020' },
+    error: { bg: '#FFE8E8', border: '#D02020' },
+  };
+
+  const style = colors[type];
+
+  return (
+    <div style={{
+      padding: '1rem',
+      borderLeft: `4px solid ${style.border}`,
+      background: style.bg,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+// 使用
+function App() {
+  return (
+    <Alert type="success">
+      <strong>操作成功！</strong> 您的数据已保存。
+    </Alert>
+  );
+}
+```
+
+## 组件设计原则
+
+### 单一职责原则
+
+每个组件应该只负责一个功能：
+
+```jsx
+// ❌ 职责过多：同时负责渲染、状态、布局
+function BadUserProfile({ user }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(user.name);
+
+  return (
+    <div style={{ padding: '2rem' }}>
+      <div style={{ display: 'flex' }}>
+        <img src={user.avatar} alt={name} />
+        <div>
+          {isEditing ? (
+            <input value={name} onChange={e => setName(e.target.value)} />
+          ) : (
+            <h2>{name}</h2>
+          )}
+          <p>{user.bio}</p>
+          <button onClick={() => setIsEditing(!isEditing)}>
+            {isEditing ? '保存' : '编辑'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ✓ 拆分：Avatar、UserInfo、EditButton 各司其职
+function Avatar({ src, name }) {
+  return <img src={src} alt={name} style={{ width: 60, borderRadius: '50%' }} />;
+}
+
+function UserInfo({ name, bio, isEditing, onNameChange }) {
+  return isEditing ? (
+    <input value={name} onChange={e => onNameChange(e.target.value)} />
+  ) : (
+    <h2>{name}</h2>
+  );
+}
+
+function UserProfile({ user }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(user.name);
+
+  return (
+    <div style={{ padding: '2rem', display: 'flex', gap: '1rem' }}>
+      <Avatar src={user.avatar} name={name} />
+      <div>
+        <UserInfo
+          name={name}
+          bio={user.bio}
+          isEditing={isEditing}
+          onNameChange={setName}
+        />
+        <button onClick={() => setIsEditing(!isEditing)}>
+          {isEditing ? '保存' : '编辑'}
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+### Props 层层传递的权衡
+
+Props 适合父子间的直接数据传递，但深层嵌套时会产生"Props 钻探"问题：
+
+```jsx
+// Props 钻探示例：数据从 A → B → C → D 层层传递
+function A({ data }) { return <B data={data} />; }
+function B({ data }) { return <C data={data} />; }
+function C({ data }) { return <D data={data} />; }
+function D({ data }) { return <p>{data}</p>; }
+```
+
+:::tip
+当组件层级较深且需要共享状态时，考虑使用 **Context API** 或状态管理库（如 Zustand、Jotai）来避免 Props 钻探。
+:::
+
+## 完整示例：可复用卡片组件
+
+```jsx
+import React from 'react';
+
+// 可复用的卡片组件
+function Card({ title, subtitle, image, children }) {
+  return (
+    <div style={{
+      border: '2px solid #121212',
+      borderRadius: '4px',
+      overflow: 'hidden',
+      boxShadow: '4px 4px 0 0 #121212',
+      maxWidth: '320px',
+    }}>
+      {image && (
+        <img
+          src={image}
+          alt={title}
+          style={{ width: '100%', height: 180, objectFit: 'cover' }}
+        />
+      )}
+      <div style={{ padding: '1rem' }}>
+        {title && <h3 style={{ margin: '0 0 0.25rem' }}>{title}</h3>}
+        {subtitle && (
+          <p style={{ color: '#666', fontSize: '0.875rem', margin: '0 0 0.75rem' }}>
+            {subtitle}
+          </p>
+        )}
+        <div>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// 使用示例
+function App() {
+  const products = [
+    { id: 1, name: '极简主义设计', price: 199, desc: '探索极简设计的核心原则' },
+    { id: 2, name: '色彩理论基础', price: 299, desc: '从色轮到配色方案的完整指南' },
+    { id: 3, name: '现代字体设计', price: 249, desc: '衬线、无衬线与显示字体的应用' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', gap: '1rem', padding: '2rem', flexWrap: 'wrap' }}>
+      {products.map(product => (
+        <Card
+          key={product.id}
+          title={product.name}
+          subtitle={`¥${product.price}`}
+          image={`https://picsum.photos/seed/${product.id}/320/180`}
+        >
+          <p style={{ margin: '0 0 0.75rem' }}>{product.desc}</p>
+          <button
+            style={{
+              padding: '0.5rem 1rem',
+              background: '#1040C0',
+              color: 'white',
+              border: '2px solid #121212',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+          >
+            查看详情
+          </button>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+export default App;
+```
+
+## 小结
+
+- **函数组件**：JavaScript 函数，接收 `props`，返回 JSX（UI 描述）
+- **Props 传递**：从父到子单向流动，可以是字符串、数字、数组、对象、JSX 元素
+- **Props 解构**：推荐在参数中使用 `{ a, b, c }` 解构，配合默认值语法
+- **children 属性**：组件标签间的 JSX 内容，作为特殊的 `props.children` 传递
+- **只读性原则**：组件不能修改自己的 Props，可变状态使用 `useState`
+- **设计原则**：单一职责、避免过度抽象、合理拆分组件层级
+
+组件与 Props 是 React 数据流的基础。下一篇文章我们将探讨 React 的**状态管理**——`useState` Hook 的完整机制与最佳实践。

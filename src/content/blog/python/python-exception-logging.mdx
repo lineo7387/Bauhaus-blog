@@ -1,0 +1,317 @@
+---
+title: 异常处理与调试
+description: 掌握 Python 的 try-except-else-finally 结构、自定义异常、traceback 分析、logging 模块与断点调试技巧
+pubDate: 2026-04-10
+category: python
+tags: [python, 异常处理, 调试, logging, 断点]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 7
+planId: python-exception
+---
+
+## 前言
+
+程序难免出错，Python 提供了完善的异常处理机制，让程序在遇到错误时不至于崩溃，还能给出有用的调试信息。掌握异常处理是写出健壮代码的必备技能。
+
+## 异常处理基础
+
+### try-except
+
+```python
+try:
+    result = 10 / 0
+except ZeroDivisionError:
+    print("除数不能为零")
+```
+
+### 捕获异常对象
+
+```python
+try:
+    result = 10 / 0
+except ZeroDivisionError as e:
+    print(f"错误类型: {type(e).__name__}")
+    print(f"错误信息: {e}")
+```
+
+### 多个 except
+
+```python
+try:
+    num = int(input("输入一个数字: "))
+    result = 10 / num
+except ValueError:
+    print("请输入有效的整数")
+except ZeroDivisionError:
+    print("除数不能为零")
+```
+
+### 统一处理
+
+```python
+try:
+    num = int("abc")
+    result = 10 / num
+except (ValueError, ZeroDivisionError) as e:
+    print(f"错误: {e}")
+```
+
+### else 子句
+
+`else` 在 try 块**没有异常**时执行：
+
+```python
+try:
+    num = int("42")
+except ValueError:
+    print("转换失败")
+else:
+    print(f"成功转换: {num}")  # 只有没有异常时才执行
+```
+
+### finally 子句
+
+`finally` **无论是否异常**都执行，常用于资源清理：
+
+```python
+try:
+    file = open("data.txt", "r")
+    content = file.read()
+except FileNotFoundError:
+    print("文件不存在")
+else:
+    print(content)
+finally:
+    # 无论成功还是失败，都关闭文件
+    if 'file' in locals() and not file.closed:
+        file.close()
+        print("文件已关闭")
+```
+
+## 异常传播
+
+未捕获的异常会沿调用栈向上传播：
+
+```python
+def inner():
+    raise ValueError("内部错误")
+
+def middle():
+    inner()  # 异常在这里不做处理，继续向上传播
+
+def outer():
+    try:
+        middle()
+    except ValueError as e:
+        print(f"捕获到异常: {e}")
+        raise  # 重新抛出异常
+
+outer()
+# 输出: 捕获到异常: 内部错误
+# 异常继续向上传播（如果 outer 也没有捕获）
+```
+
+## 自定义异常
+
+继承 `Exception` 创建自定义异常：
+
+```python
+class ValidationError(Exception):
+    """验证错误异常"""
+    def __init__(self, field: str, message: str):
+        self.field = field
+        self.message = message
+        super().__init__(f"{field}: {message}")
+
+class PositiveNumberError(ValidationError):
+    """要求正数但传入负数或零时的错误"""
+    pass
+
+
+def divide(a, b):
+    if b <= 0:
+        raise PositiveNumberError("除数", "必须为正数")
+    return a / b
+
+try:
+    result = divide(10, -1)
+except PositiveNumberError as e:
+    print(f"验证失败: {e}")
+    print(f"字段: {e.field}, 原因: {e.message}")
+```
+
+## traceback 分析
+
+### 打印完整堆栈
+
+```python
+import traceback
+
+try:
+    1 / 0
+except Exception:
+    traceback.print_exc()  # 打印到标准错误
+```
+
+### 获取异常信息
+
+```python
+try:
+    1 / 0
+except Exception:
+    import sys
+    exc_type, exc_value, exc_tb = sys.exc_info()
+
+    print("异常类型:", exc_type.__name__)
+    print("异常信息:", exc_value)
+    print("发生位置:", exc_tb.tb_frame.f_code.co_filename, "第", exc_tb.tb_lineno, "行")
+```
+
+### traceback 模块
+
+```python
+import traceback
+
+try:
+    raise ValueError("测试错误")
+except ValueError:
+    tb = traceback.format_exc()
+    print(tb)
+    # Traceback (most recent call last):
+    #   File "...", line X, in <module>
+    #     raise ValueError("测试错误")
+    # ValueError: 测试错误
+
+    # 也可以用 format_exception
+    import sys
+    exc_info = sys.exc_info()
+    formatted = traceback.format_exception(*exc_info)
+    print("".join(formatted))
+```
+
+## logging 模块
+
+`logging` 是标准库中功能最完整的日志工具，比 `print` 更适合生产环境：
+
+### 基本配置
+
+```python
+import logging
+
+# 配置日志
+logging.basicConfig(
+    level=logging.DEBUG,              # 记录级别
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+logger = logging.getLogger(__name__)
+
+logger.debug("调试信息")
+logger.info("普通信息")
+logger.warning("警告信息")
+logger.error("错误信息")
+logger.critical("严重错误")
+```
+
+### 日志级别
+
+| 级别 | 数值 | 用途 |
+|------|------|------|
+| DEBUG | 10 | 详细调试信息 |
+| INFO | 20 | 一般运行信息 |
+| WARNING | 30 | 警告（默认级别） |
+| ERROR | 40 | 错误 |
+| CRITICAL | 50 | 严重错误 |
+
+### 输出到文件
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    filename="app.log",        # 输出到文件
+    filemode="a",              # 追加模式
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+
+logger = logging.getLogger(__name__)
+logger.info("这条消息会写入 app.log")
+```
+
+### 分层 logger
+
+```python
+import logging
+
+# 根 logger
+logging.basicConfig(level=logging.INFO)
+
+# 子 logger（推荐方式）
+app_logger = logging.getLogger("myapp")
+db_logger = logging.getLogger("myapp.database")
+
+app_logger.info("应用启动")
+db_logger.info("连接数据库")
+# 输出时会带上 logger 名称：myapp: 应用启动
+#                   myapp.database: 连接数据库
+```
+
+## 断点调试
+
+### assert 断言
+
+```python
+def factorial(n: int) -> int:
+    assert n >= 0, "n 必须为非负整数"
+    if n == 0:
+        return 1
+    return n * factorial(n - 1)
+
+print(factorial(5))  # 120
+# print(factorial(-1))  # AssertionError: n 必须为非负整数
+```
+
+### pdb 断点
+
+Python 内置调试器：
+
+```python
+import pdb
+
+def divide(a, b):
+    pdb.set_trace()  # 程序在此暂停，进入调试模式
+    return a / b
+
+divide(10, 2)
+```
+
+调试模式常用命令：
+
+| 命令 | 缩写 | 作用 |
+|------|------|------|
+| `n` (next) | `n` | 执行下一行 |
+| `s` (step) | `s` | 进入函数内部 |
+| `c` (continue) | `c` | 继续执行直到断点 |
+| `p expr` | `p` | 打印变量值 |
+| `l` (list) | `l` | 显示当前代码上下文 |
+| `q` (quit) | `q` | 退出调试器 |
+
+### breakpoint()（Python 3.7+）
+
+```python
+def process(data):
+    breakpoint()  # 等价于 pdb.set_trace()
+    return [x * 2 for x in data]
+```
+
+## 小结
+
+- `try-except-else-finally` 结构：异常处理的标准模式
+- 自定义异常继承 `Exception`，添加有意义的错误信息
+- `traceback` 模块用于获取和格式化异常堆栈
+- **logging** 优于 print，适合生产环境；**断点调试**适合交互式排查
+- `assert` 用于开发期间的条件检查，生产环境可用 `-O` 跳过

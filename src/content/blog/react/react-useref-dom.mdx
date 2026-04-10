@@ -1,0 +1,556 @@
+---
+title: useRef 与 DOM 操作
+description: 深入理解 useRef 的工作原理，掌握 Ref 对象操作、可变引用的使用场景，以及 forwardRef 的高级用法
+pubDate: 2026-04-10
+category: react
+tags: [react, hooks, useRef, forwardRef, DOM, 进阶]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: react-useref-dom
+---
+
+## 前言
+
+**useRef** 是 React 中一个强大但容易被误解的 Hook。它最常见的用途是操作 DOM 元素，但它的本质是一个**可变容器**，在整个组件生命周期内保持同一个引用。本篇文章将深入解析 useRef 的工作原理和使用场景。
+
+## useRef 基础
+
+### 创建 Ref
+
+```jsx
+import { useRef } from 'react';
+
+function InputFocus() {
+  const inputRef = useRef(null);
+
+  function handleClick() {
+    // 通过 .current 访问 DOM 元素
+    inputRef.current.focus();
+  }
+
+  return (
+    <div>
+      <input ref={inputRef} type="text" />
+      <button onClick={handleClick}>聚焦输入框</button>
+    </div>
+  );
+}
+```
+
+:::tip
+`useRef` 返回一个 `ref` 对象，其中 `.current` 属性存储值。初始值通过参数传入，通常是 `null`。
+:::
+
+### ref 对象结构
+
+```jsx
+const ref = useRef(initialValue);
+
+// 实际返回的对象结构
+{
+  current: initialValue  // 可读写
+}
+
+// ref 对象本身在组件生命周期内保持稳定
+// 只有 .current 的值会变化
+```
+
+### ref 的特殊性
+
+```jsx
+function Demo() {
+  const counterRef = useRef(0);
+  const [count, setCount] = useState(0);
+
+  console.log('渲染次数:', ++counterRef.current);
+
+  return (
+    <div>
+      <p>状态：{count}</p>
+      <button onClick={() => setCount(c => c + 1)}>+1</button>
+    </div>
+  );
+}
+```
+
+:::warning
+修改 `ref.current` 不会触发组件重新渲染！这是 useRef 最关键的特点——它是一个"旁观者"，不会影响渲染流程。
+:::
+
+## DOM 操作
+
+### 基本 DOM 访问
+
+```jsx
+function TextareaAutoGrow() {
+  const textareaRef = useRef(null);
+
+  function handleInput() {
+    const textarea = textareaRef.current;
+    // 重置高度为 auto，再设置为 scrollHeight（自动适应内容）
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }
+
+  return (
+    <textarea
+      ref={textareaRef}
+      onChange={handleInput}
+      placeholder="自动增长..."
+      style="resize: none; overflow: hidden;"
+    />
+  );
+}
+```
+
+### 聚焦与滚动
+
+```jsx
+function ScrollToTop() {
+  const topRef = useRef(null);
+
+  function scrollToTop() {
+    topRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  return (
+    <div>
+      <div ref={topRef}>页面顶部</div>
+      <button onClick={scrollToTop}>回到顶部</button>
+    </div>
+  );
+}
+```
+
+### 播放视频控制
+
+```jsx
+function VideoPlayer({ src }) {
+  const videoRef = useRef(null);
+
+  function togglePlay() {
+    const video = videoRef.current;
+    if (video.paused) {
+      video.play();
+    } else {
+      video.pause();
+    }
+  }
+
+  return (
+    <div>
+      <video ref={videoRef} src={src} />
+      <button onClick={togglePlay}>播放/暂停</button>
+    </div>
+  );
+}
+```
+
+### 测量元素尺寸
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function MeasureBox() {
+  const boxRef = useRef(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const observer = new ResizeObserver(entries => {
+      const { width, height } = entries[0].contentRect;
+      setSize({ width, height });
+    });
+
+    if (boxRef.current) {
+      observer.observe(boxRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div>
+      <div
+        ref={boxRef}
+        style={{
+          width: '200px',
+          height: '100px',
+          background: '#1040C0',
+          color: 'white'
+        }}
+      >
+        可调整大小的盒子
+      </div>
+      <p>尺寸：{size.width.toFixed(0)} x {size.height.toFixed(0)}</p>
+    </div>
+  );
+}
+```
+
+## 可变引用
+
+useRef 不仅可以存储 DOM 引用，还可以存储任意可变值，用于记录组件生命周期内的状态。
+
+### 记录上一次的 props
+
+```jsx
+import { useRef, useEffect } from 'react';
+
+function PreviousValue({ value }) {
+  const prevRef = useRef();
+
+  useEffect(() => {
+    // 每次渲染后，将当前值存入 ref
+    prevRef.current = value;
+  });
+
+  return (
+    <div>
+      <p>当前值：{value}</p>
+      <p>上一次的值：{prevRef.current}</p>
+    </div>
+  );
+}
+```
+
+### 存储定时器 ID
+
+```jsx
+import { useRef, useState } from 'react';
+
+function Stopwatch() {
+  const [time, setTime] = useState(0);
+  const intervalRef = useRef(null);
+
+  function start() {
+    if (intervalRef.current) return;  // 防止重复启动
+
+    intervalRef.current = setInterval(() => {
+      setTime(t => t + 1);
+    }, 1000);
+  }
+
+  function stop() {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }
+
+  function reset() {
+    stop();
+    setTime(0);
+  }
+
+  return (
+    <div>
+      <p>时间：{time} 秒</p>
+      <button onClick={start}>开始</button>
+      <button onClick={stop}>停止</button>
+      <button onClick={reset}>重置</button>
+    </div>
+  );
+}
+```
+
+:::tip
+定时器 ID 存在 ref 中而不是 state 中，因为定时器 ID 不需要触发重新渲染，存放在 ref 中更高效。
+:::
+
+### 存储上一次的副作用 ID
+
+```jsx
+import { useEffect, useRef } from 'react';
+
+function ChatRoom({ roomId, token }) {
+  const effectRef = useRef(null);
+
+  useEffect(() => {
+    const effectId = createEffect();
+    effectRef.current = effectId;
+
+    return () => {
+      destroyEffect(effectRef.current);
+    };
+  }, [roomId, token]);
+
+  return <div>聊天房间 {roomId}</div>;
+}
+```
+
+### 捕获回调函数（避免闭包问题）
+
+```jsx
+import { useRef, useEffect } from 'react';
+
+function DelayedCounter() {
+  const [count, setCount] = useState(0);
+  const countRef = useRef(count);
+
+  // 同步 ref 与 state
+  useEffect(() => {
+    countRef.current = count;
+  });
+
+  function handleClick() {
+    setCount(c => c + 1);
+
+    // 1 秒后读取最新的 count（不受闭包影响）
+    setTimeout(() => {
+      alert(`延迟 1 秒后的值：${countRef.current}`);
+    }, 1000);
+  }
+
+  return (
+    <div>
+      <p>计数：{count}</p>
+      <button onClick={handleClick}>+1（1秒后弹出值）</button>
+    </div>
+  );
+}
+```
+
+## useRef vs useState
+
+两者都能存储组件数据，但用途不同：
+
+| 特性 | useRef | useState |
+|------|--------|----------|
+| 更新触发渲染 | 否 | 是 |
+| 渲染间保持 | 是 | 是 |
+| 适合存储 | DOM、定时器、计算结果 | UI 状态 |
+| 可变性 | `.current` 可随时修改 | 必须通过 setter |
+
+### 选择原则
+
+```jsx
+function ChoosingExample() {
+  // 用 useState：需要根据值渲染 UI
+  const [name, setName] = useState('');
+
+  // 用 useRef：不需要渲染，但需要在渲染间保持
+  const inputRef = useRef(null);
+  const timerRef = useRef(null);
+  const previousNameRef = useRef('');
+
+  // 如果需要"派生状态"且计算开销大，考虑 useMemo
+  const expensiveValue = useMemo(() => computeExpensive(name), [name]);
+
+  return <input ref={inputRef} value={name} onChange={e => setName(e.target.value)} />;
+}
+```
+
+## forwardRef
+
+`forwardRef` 允许组件将 ref 转发给其内部的 DOM 元素或子组件。
+
+### 基本用法
+
+```jsx
+import { forwardRef } from 'react';
+
+// 使用 forwardRef 包裹组件
+const FancyButton = forwardRef((props, ref) => (
+  <button ref={ref} className="FancyButton">
+    {props.children}
+  </button>
+));
+
+function Parent() {
+  const buttonRef = useRef(null);
+
+  return (
+    <FancyButton ref={buttonRef}>点击我</FancyButton>
+  );
+}
+```
+
+### 为什么需要 forwardRef
+
+没有 `forwardRef` 时，组件无法接收 `ref` prop：
+
+```jsx
+// ❌ 错误：ref 不会传递给 button
+function FancyButton(props) {
+  return <button className="FancyButton">{props.children}</button>;
+}
+
+// ✓ 正确：使用 forwardRef 转发 ref
+const FancyButton = forwardRef((props, ref) => {
+  return <button ref={ref} className="FancyButton">{props.children}</button>;
+});
+```
+
+### 在 forwardRef 中使用多个 ref
+
+```jsx
+const MultiRefInput = forwardRef((props, ref) => {
+  const localRef = useRef(null);
+
+  return (
+    <div>
+      {/* 使用传入的 ref */}
+      <input ref={ref} {...props} />
+      {/* 使用本地 ref */}
+      <button onClick={() => localRef.current?.focus()}>
+        聚焦（使用本地 ref）
+      </button>
+    </div>
+  );
+});
+```
+
+## useImperativeHandle
+
+`useImperativeHandle` 与 `forwardRef` 配合使用，可以自定义暴露给父组件的 ref 内容。
+
+### 基本用法
+
+```jsx
+import { forwardRef, useImperativeHandle, useRef } from 'react';
+
+const CustomInput = forwardRef((props, ref) => {
+  const inputRef = useRef(null);
+
+  // 自定义暴露给父组件的内容
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      inputRef.current.focus();
+    },
+    value: inputRef.current?.value,
+    clear: () => {
+      if (inputRef.current) {
+        inputRef.current.value = '';
+      }
+    }
+  }), []);  // 空数组：只创建一次
+
+  return <input ref={inputRef} {...props} />;
+});
+
+// 父组件
+function Parent() {
+  const inputRef = useRef(null);
+
+  function handleClick() {
+    inputRef.current.focus();  // 只暴露了 focus 方法
+    // inputRef.current.value;  // 可以访问
+    // inputRef.current.clear();  // 可以调用
+  }
+
+  return (
+    <div>
+      <CustomInput ref={inputRef} />
+      <button onClick={handleClick}>聚焦</button>
+    </div>
+  );
+}
+```
+
+:::tip
+`useImperativeHandle` 让父组件只能访问你指定的方法，避免暴露整个 DOM 元素，这是更好的封装方式。
+:::
+
+### 模拟类组件实例
+
+```jsx
+const Counter = forwardRef((props, ref) => {
+  const [count, setCount] = useState(0);
+
+  useImperativeHandle(ref, () => ({
+    increment: () => setCount(c => c + 1),
+    decrement: () => setCount(c => c - 1),
+    reset: () => setCount(0),
+    getValue: () => count
+  }), [count]);
+
+  return <div>{count}</div>;
+});
+
+function Parent() {
+  const counterRef = useRef(null);
+
+  return (
+    <div>
+      <Counter ref={counterRef} />
+      <button onClick={() => counterRef.current.increment()}>+</button>
+      <button onClick={() => counterRef.current.reset()}>重置</button>
+    </div>
+  );
+}
+```
+
+## 完整示例：富文本编辑器
+
+```jsx
+import { useRef, useEffect } from 'react';
+
+function RichTextEditor({ initialContent = '' }) {
+  const editorRef = useRef(null);
+  const lastContentRef = useRef(initialContent);
+
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.innerHTML = initialContent;
+    }
+  }, []);  // 只在挂载时设置初始内容
+
+  function handleBold() {
+    document.execCommand('bold', false);
+  }
+
+  function handleSave() {
+    const content = editorRef.current.innerHTML;
+    console.log('保存内容：', content);
+    lastContentRef.current = content;
+    alert('已保存！');
+  }
+
+  function handleClear() {
+    if (editorRef.current) {
+      editorRef.current.innerHTML = '';
+    }
+  }
+
+  function handleGetSelection() {
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      console.log('选中文本：', selection.toString());
+    }
+  }
+
+  return (
+    <div>
+      <div
+        ref={editorRef}
+        contentEditable
+        onMouseUp={handleGetSelection}
+        style={{
+          minHeight: '200px',
+          border: '2px solid #121212',
+          padding: '1rem',
+          marginBottom: '1rem'
+        }}
+      />
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <button onClick={handleBold} style={{ fontWeight: 'bold' }}>B</button>
+        <button onClick={handleSave}>保存</button>
+        <button onClick={handleClear}>清空</button>
+      </div>
+    </div>
+  );
+}
+```
+
+## 小结
+
+- **useRef 本质**：一个可变的 `.current` 容器，在组件生命周期内保持稳定引用
+- **不触发渲染**：修改 `ref.current` 不会让组件重新渲染，这是与 `useState` 的本质区别
+- **DOM 操作**：通过 `ref={inputRef}` 将 DOM 绑定到 `ref.current`
+- **可变引用**：存储定时器 ID、上一轮 props、避免闭包问题等
+- **forwardRef**：让子组件可以将 ref 转发给内部的 DOM 元素
+- **useImperativeHandle**：自定义暴露给父组件的 ref 内容（方法而不是整个 DOM）
+
+掌握了 useRef 后，下一篇文章我们将学习 **useCallback 与 useMemo**，了解 React 中的性能优化钩子。

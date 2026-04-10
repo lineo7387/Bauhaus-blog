@@ -1,0 +1,231 @@
+---
+title: 函数定义与参数传递
+description: 系统掌握 Python 函数的定义方式、参数类型（默认参数、可变参数、关键字参数）、lambda 表达式以及作用域规则
+pubDate: 2026-04-10
+category: python
+tags: [python, 函数, 参数传递, lambda, 作用域]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 7
+planId: python-functions
+---
+
+## 前言
+
+函数是组织代码的基本单元。Python 的函数非常灵活，支持多种参数形式、嵌套定义、闭包等高级特性。掌握这些，能让你的代码更加模块化和可复用。
+
+## 函数定义
+
+### 基本结构
+
+```python
+def greet(name):
+    """问候函数"""
+    return f"Hello, {name}!"
+
+result = greet("Python")
+print(result)  # Hello, Python!
+```
+
+### 多返回值
+
+Python 函数可以返回多个值（实际上是返回一个元组）：
+
+```python
+def get_stats(numbers):
+    """返回最小值、最大值、平均值"""
+    return min(numbers), max(numbers), sum(numbers) / len(numbers)
+
+low, high, avg = get_stats([1, 2, 3, 4, 5])
+print(low, high, avg)  # 1 5 3.0
+```
+
+### 类型注解
+
+```python
+def add(a: int, b: int) -> int:
+    """两数相加"""
+    return a + b
+
+# 类型注解不影响运行时行为，仅用于文档和 IDE
+print(add(1, 2))  # 3
+print(add("a", "b"))  # "ab" —— 不会报错，仅类型检查工具会警告
+```
+
+## 参数类型详解
+
+### 默认参数
+
+```python
+def power(base, exponent=2):
+    """计算 base 的 exponent 次方，默认平方"""
+    return base ** exponent
+
+print(power(3))      # 9（3 的平方）
+print(power(3, 3))   # 27（3 的立方）
+```
+
+:::warning
+**可变默认参数的陷阱**：不要使用可变对象（如 `[]`、`{}`）作为默认参数，因为默认参数在函数定义时只求值一次，会导致所有调用共享同一对象。
+
+```python
+# 错误写法
+def append_to(item, target=[]):
+    target.append(item)
+    return target
+
+# 正确写法
+def append_to(item, target=None):
+    if target is None:
+        target = []
+    target.append(item)
+    return target
+```
+:::
+
+### 可变参数（*args 和 **kwargs）
+
+```python
+# *args 接收任意数量的位置参数（打包为元组）
+def sum_all(*args):
+    return sum(args)
+
+print(sum_all(1, 2, 3))         # 6
+print(sum_all(10, 20, 30, 40))   # 100
+
+# **kwargs 接收任意数量的关键字参数（打包为字典）
+def print_info(**kwargs):
+    for key, value in kwargs.items():
+        print(f"{key}: {value}")
+
+print_info(name="Alice", age=25, city="北京")
+# name: Alice
+# age: 25
+# city: 北京
+```
+
+### 关键字参数（keyword-only）
+
+```python
+def configure(host, port, *, debug=False, verbose=False):
+    """星号后的参数必须用关键字传参"""
+    print(f"连接 {host}:{port}, debug={debug}, verbose={verbose}")
+
+configure("localhost", 8080, debug=True)   # 合法
+# configure("localhost", 8080, True)       # TypeError: 必须用关键字参数
+```
+
+### 参数解包
+
+```python
+# 将列表或元组解包为位置参数
+args = [1, 2, 3]
+print(sum_all(*args))   # 6，等价于 sum_all(1, 2, 3)
+
+# 将字典解包为关键字参数
+kwargs = {"debug": True, "verbose": False}
+configure("localhost", 8080, **kwargs)
+```
+
+## lambda 表达式
+
+`lambda` 用于创建匿名函数（单表达式函数）：
+
+```python
+# 普通函数
+def square(x):
+    return x ** 2
+
+# 等价的 lambda
+square = lambda x: x ** 2
+
+print(square(5))  # 25
+
+# 配合内置函数使用
+numbers = [5, 2, 8, 1, 9]
+numbers.sort(key=lambda x: -x)   # 按降序排序
+print(numbers)  # [9, 8, 5, 2, 1]
+
+# filter / map / reduce
+from functools import reduce
+nums = [1, 2, 3, 4, 5]
+
+evens = list(filter(lambda x: x % 2 == 0, nums))
+squares = list(map(lambda x: x ** 2, nums))
+total = reduce(lambda a, b: a + b, nums, 0)
+```
+
+## 作用域规则（LEGB）
+
+Python 变量查找顺序：**L → E → G → B**
+
+- **L**ocal：函数内部
+- **E**nclosing：外层函数（嵌套函数场景）
+- **G**lobal：模块级别
+- **B**uilt-in：Python 内置命名空间
+
+```python
+x = "全局变量"
+
+def outer():
+    x = "外层变量"
+
+    def inner():
+        x = "内层变量"   # 新建局部变量
+        print(x)         # 内层变量（L 层）
+
+    inner()
+    print(x)             # 外层变量（E 层）
+
+outer()
+print(x)                 # 全局变量（G 层）
+```
+
+### global 和 nonlocal
+
+```python
+counter = 0
+
+def increment():
+    global counter      # 声明引用全局变量
+    counter += 1
+
+def outer():
+    count = 0
+
+    def inner():
+        nonlocal count  # 声明引用外层函数的变量
+        count += 1
+
+    inner()
+    print(count)  # 1
+```
+
+## 闭包
+
+闭包是嵌套函数引用外层变量（不引用全局）形成的"记忆"机制：
+
+```python
+def make_multiplier(factor):
+    """返回一个乘以指定因子的函数"""
+    def multiplier(number):
+        return number * factor
+    return multiplier
+
+double = make_multiplier(2)
+triple = make_multiplier(3)
+
+print(double(5))   # 10
+print(triple(5))   # 15
+print(double(10))  # 20 —— factor 仍为 2，闭包记住了它
+```
+
+## 小结
+
+- 函数使用 `def` 定义，支持类型注解、多返回值
+- **默认参数**避免重复传参，但禁止使用可变对象作为默认值
+- `*args` 和 `**kwargs` 让函数接受任意数量的参数
+- **lambda** 适合简单的单表达式匿名函数
+- 作用域查找顺序为 **LEGB**，嵌套函数中使用 `global` / `nonlocal` 修改外层变量
+- **闭包**是函数携带"记忆"的能力，常用于函数工厂

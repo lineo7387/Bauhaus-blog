@@ -1,0 +1,192 @@
+---
+title: 数据类型与运算符
+description: 深入理解 Python 内置数据类型（整数、浮点数、布尔值、复数）以及各类运算符的使用方法和注意事项
+pubDate: 2026-04-10
+category: python
+tags: [python, 数据类型, 运算符]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 6
+planId: python-data-types
+---
+
+## 前言
+
+Python 的数据类型体系简洁而强大。内置类型无需导入即可使用，运算符行为也有明确的规范。掌握这些基础，能让你在写代码时对数据的形态了然于胸。
+
+## 内置数据类型一览
+
+| 类型 | 示例 | 说明 |
+|------|------|------|
+| `int` | `42`、`-7`、`0` | 任意精度整数 |
+| `float` | `3.14`、`-0.5`、`1e10` | IEEE 754 双精度浮点 |
+| `bool` | `True`、`False` | 布尔值（int 的子类） |
+| `complex` | `3+4j` | 复数 |
+| `str` | `"hello"`、`'world'` | 不可变 Unicode 字符串 |
+| `list` | `[1, 2, 3]` | 可变序列 |
+| `tuple` | `(1, 2, 3)` | 不可变序列 |
+| `dict` | `{"a": 1}` | 键值对映射 |
+| `set` | `{1, 2, 3}` | 无序不重复集合 |
+
+## 数值类型
+
+### 整数（int）
+
+Python 的整数是**任意精度**的——理论上可以表示任意大的数字，不会像某些语言那样溢出：
+
+```python
+big_num = 10**1000  # 10 的 1000 次方
+print(big_num)       # 一个超长整数，无溢出
+```
+
+常用进制表示：
+
+```python
+0b1010   # 二进制（binary）
+0o755    # 八进制（octal）
+0xFF     # 十六进制（hexadecimal）
+```
+
+### 浮点数（float）
+
+遵循 IEEE 754 标准，存在精度问题，运算时需注意：
+
+```python
+0.1 + 0.2  # 0.30000000000000004 —— 不是 0.3！
+```
+
+:::warning
+浮点数比较不要用 `==`，应使用容差比较：
+```python
+import math
+math.isclose(0.1 + 0.2, 0.3)  # True
+```
+:::
+
+### 布尔值（bool）
+
+`True` 和 `False` 是 `bool` 类型，同时又是 `int` 的子类：
+
+```python
+True + True   # 2 —— True 等价于 1
+False * 10    # 0 —— False 等价于 0
+bool(1)       # True
+bool("")      # False —— 空字符串为假
+bool(0)       # False —— 0 为假
+bool(None)    # False —— None 为假
+```
+
+## 运算符
+
+### 算术运算符
+
+```python
+a, b = 10, 3
+
+print(a + b)   # 13  加
+print(a - b)   # 7   减
+print(a * b)   # 30  乘
+print(a / b)   # 3.333...  除（总是浮点数）
+print(a // b)  # 3   整除（向下取整）
+print(a % b)   # 1   取余
+print(a ** b)  # 1000 幂运算
+```
+
+### 比较运算符
+
+```python
+x = 5
+
+print(x == 5)    # True  相等
+print(x != 3)     # True  不等
+print(x > 3)      # True  大于
+print(x <= 5)     # True  小于等于
+print(x is 5)     # True  is 比较身份（对象同一性）
+```
+
+:::tip
+`==` 比较**值**是否相等，`is` 比较**对象身份**是否相同。整数、字符串等不可变对象在某些情况下会复用对象（interning），但这不能作为可靠的比较方式。
+:::
+
+### 逻辑运算符
+
+```python
+a, b = True, False
+
+print(a and b)   # False
+print(a or b)    # True
+print(not a)     # False
+
+# 短路求值
+def side_effect():
+    print("执行了")
+    return True
+
+True and side_effect()   # 会打印 "执行了"
+False and side_effect()  # 不会打印，短路跳过
+```
+
+### 位运算符
+
+```python
+x = 0b1100  # 12
+y = 0b1010  # 10
+
+print(bin(x & y))   # 0b1000  按位与
+print(bin(x | y))   # 0b1110  按位或
+print(bin(x ^ y))   # 0b0110  按位异或
+print(bin(~x))      # -0b1101  按位取反
+print(bin(x << 2))  # 0b110000  左移
+print(bin(y >> 1))  # 0b0101  右移
+```
+
+### 运算符优先级
+
+从高到低（可使用括号提高可读性）：
+
+```python
+# 等价于 2 * (3 + 4) - 1
+result = 2 * (3 + 4) - 1
+print(result)  # 13
+```
+
+## 类型转换
+
+```python
+# 字符串转数值
+int("42")       # 42
+float("3.14")   # 3.14
+
+# 数值转字符串
+str(42)         # "42"
+str(3.14)       # "3.14"
+
+# 字符串转列表
+list("hello")   # ['h', 'e', 'l', 'l', 'o']
+
+# 类型查询
+type(42)        # <class 'int'>
+isinstance(42, int)  # True
+```
+
+## 类型注解（Type Hints）
+
+Python 3.5+ 支持类型注解，虽然不强制，但能显著提升代码可读性和 IDE 支持：
+
+```python
+def add(a: int, b: int) -> int:
+    return a + b
+
+name: str = "Alice"
+age: int = 25
+score: float = 98.5
+```
+
+## 小结
+
+- Python 整数是**任意精度**的，不存在溢出问题
+- 浮点数运算存在精度误差，避免用 `==` 直接比较
+- `bool` 是 `int` 的子类，`True == 1`、`False == 0`
+- 运算符优先级遵循数学惯例，不确定时加括号
+- 类型注解是 Python 3.5+ 的重要特性，推荐在函数签名中使用

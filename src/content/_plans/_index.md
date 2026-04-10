@@ -6,8 +6,9 @@
 
 | 技能 | 版本 | 状态 | 路线图文件 | 文章数量 |
 |------|------|------|------------|----------|
-| Vue | 3.x | planning | [_plans/vue.md](vue.md) | 1 / 12 |
-| React | 18.x | planning | [_plans/react.md](react.md) | 0 / 14 |
+| Vue | 3.x | in-progress | [_plans/vue.md](vue.md) | 2 / 12 |
+| React | 18.x | in-progress | [_plans/react.md](react.md) | 10 / 14 |
+| Python | 3.13 | completed | [_plans/python.md](python.md) | 16 / 16 |
 
 ## 状态说明
 
