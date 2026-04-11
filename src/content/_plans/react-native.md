@@ -6,12 +6,11 @@ version: "0.76.x"
 status: planning
 createdAt: 2026-04-11
 updatedAt: 2026-04-11
-themeColor:
-  token: "primary-reactnative"
-  hex: "#61DAFB"
-  bgClass: "bg-primary-reactnative"
-  textClass: "text-white"
-  hoverClass: "hover:text-primary-reactnative"
+planOrder:
+  - react-native-intro-environment
+  - react-native-core-components
+  - react-native-flexbox-layout
+  - react-native-props-state
 ---
 
 ## 基础知识

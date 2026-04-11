@@ -6,6 +6,21 @@ version: "18.x"
 status: completed
 createdAt: 2026-04-08
 updatedAt: 2026-04-11
+planOrder:
+  - react-jsx-syntax
+  - react-components-props
+  - react-state-setstate
+  - react-event-handling
+  - react-conditional-list-rendering
+  - react-useeffect-deep
+  - react-useref-dom
+  - react-usecallback-usememo
+  - react-context-state
+  - react-form-handling
+  - react-router
+  - vitest-testing-library
+  - react-performance-optimization
+  - react-server-components-ssr
 ---
 
 ## 基础知识

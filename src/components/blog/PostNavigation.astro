@@ -1,0 +1,98 @@
+---
+import { BASE } from "../../utils/base";
+
+interface Post {
+  id: string;
+  data: {
+    title: string;
+    category: string;
+  };
+}
+
+interface Props {
+  prevPost?: Post;
+  nextPost?: Post;
+  prevIndex?: number;
+  nextIndex?: number;
+}
+
+const { prevPost, nextPost, prevIndex, nextIndex } = Astro.props;
+
+if (!prevPost && !nextPost) {
+  return;
+}
+
+const hasBoth = prevPost && nextPost;
+const prevHref = prevPost ? `${BASE}/blog/${prevPost.id}` : undefined;
+const nextHref = nextPost ? `${BASE}/blog/${nextPost.id}` : undefined;
+---
+
+<nav class="bg-muted border-t-4 border-black" aria-label="Chapter navigation">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div class={`flex gap-4 ${hasBoth ? 'grid grid-cols-2' : 'justify-center'}`}>
+
+      {/* Previous Chapter */}
+      {prevPost && (
+        <a
+          href={prevHref}
+          class:list={[
+            'group flex flex-col gap-2 p-5 bg-white border-4 border-black shadow-hard transition-all hover:shadow-hard-lg',
+            !nextPost && 'mx-auto max-w-xl w-full'
+          ]}
+        >
+          <span class="text-xs font-bold uppercase tracking-widest text-black/50 flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square">
+              <line x1="3" y1="8" x2="13" y2="8" />
+              <line x1="3" y1="8" x2="8" y2="3" />
+              <line x1="3" y1="8" x2="8" y2="13" />
+            </svg>
+            上一章
+            {prevIndex !== undefined && (
+              <span class="ml-1 font-black text-primary-red">#{prevIndex + 1}</span>
+            )}
+          </span>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-black uppercase bg-primary-blue text-white px-2 py-0.5 border border-black shrink-0">
+              {prevPost.data.category}
+            </span>
+            <span class="font-black text-sm leading-tight line-clamp-2 group-hover:text-primary-red transition-colors">
+              {prevIndex !== undefined ? `第${prevIndex + 1}章 · ` : ''}{prevPost.data.title}
+            </span>
+          </div>
+        </a>
+      )}
+
+      {/* Next Chapter */}
+      {nextPost && (
+        <a
+          href={nextHref}
+          class:list={[
+            'group flex flex-col gap-2 p-5 bg-white border-4 border-black shadow-hard transition-all hover:shadow-hard-lg text-right',
+            !prevPost && 'mx-auto max-w-xl w-full'
+          ]}
+        >
+          <span class="text-xs font-bold uppercase tracking-widest text-black/50 flex items-center justify-end gap-2">
+            下一章
+            {nextIndex !== undefined && (
+              <span class="mr-1 font-black text-primary-red">#{nextIndex + 1}</span>
+            )}
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square">
+              <line x1="13" y1="8" x2="3" y2="8" />
+              <line x1="13" y1="8" x2="8" y2="3" />
+              <line x1="13" y1="8" x2="8" y2="13" />
+            </svg>
+          </span>
+          <div class="flex items-center justify-end gap-2">
+            <span class="font-black text-sm leading-tight line-clamp-2 group-hover:text-primary-red transition-colors">
+              {nextIndex !== undefined ? `第${nextIndex + 1}章 · ` : ''}{nextPost.data.title}
+            </span>
+            <span class="text-[10px] font-black uppercase bg-primary-blue text-white px-2 py-0.5 border border-black shrink-0">
+              {nextPost.data.category}
+            </span>
+          </div>
+        </a>
+      )}
+
+    </div>
+  </div>
+</nav>

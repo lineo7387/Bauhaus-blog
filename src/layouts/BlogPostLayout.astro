@@ -2,7 +2,17 @@
 import BaseLayout from './BaseLayout.astro';
 import Button from '../components/ui/Button.astro';
 import RelatedPosts from '../components/blog/RelatedPosts.astro';
+import PostNavigation from '../components/blog/PostNavigation.astro';
+import TableOfContents from '../components/blog/TableOfContents.astro';
 import { BASE } from '../utils/base';
+
+interface PostRef {
+  id: string;
+  data: {
+    title: string;
+    category: string;
+  };
+}
 
 interface Props {
   title: string;
@@ -14,9 +24,15 @@ interface Props {
   tags?: string[];
   author: string;
   readingTime?: number;
+  headings?: { depth: number; slug: string; text: string }[];
+  prevPost?: PostRef;
+  nextPost?: PostRef;
+  prevIndex?: number;
+  nextIndex?: number;
 }
 
-const { title, description, pubDate, updatedDate, heroImage, category, tags, author, readingTime } = Astro.props;
+const { title, description, pubDate, updatedDate, heroImage, category, tags, author, readingTime, headings = [], prevPost, nextPost, prevIndex, nextIndex } = Astro.props;
+const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
 
 const formattedDate = pubDate.toLocaleDateString('en-US', {
   year: 'numeric',
@@ -31,7 +47,7 @@ const updatedFormattedDate = updatedDate?.toLocaleDateString('en-US', {
 });
 ---
 
-<BaseLayout title={title} description={description} ogImage={heroImage || "/og-default.png"}>
+<BaseLayout title={title} description={description} ogImage={heroImage ? `${BASE}/${heroImage}` : `${BASE}/og-default.png`}>
   <article class="blog-post">
     <!-- Hero Section -->
     <header class="relative bg-primary-yellow border-b-4 border-black">
@@ -78,46 +94,62 @@ const updatedFormattedDate = updatedDate?.toLocaleDateString('en-US', {
 
     <!-- Content -->
     <div class="bg-white border-b-4 border-black">
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
-        {updatedDate && (
-          <p class="text-sm text-black/60 mb-8 border-l-4 border-primary-yellow pl-4">
-            Last updated: {updatedFormattedDate}
-          </p>
-        )}
-        <div class="prose prose-lg max-w-none
-          prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tight
-          prose-h1:text-5xl prose-h2:text-3xl prose-h3:text-2xl
-          prose-headings:mb-6
-          prose-h2:border-b-2 prose-h2:border-primary-red prose-h2:pb-3
-          prose-h3:border-l-4 prose-h3:border-primary-blue prose-h3:pl-3
-          prose-p:font-medium prose-p:leading-8 prose-p:mb-6 prose-p:text-base
-          prose-a:text-primary-blue prose-a:underline prose-a:underline-offset-4 prose-a:font-bold
-          prose-strong:font-black
-          prose-blockquote:border-l-4 prose-blockquote:border-primary-red prose-blockquote:bg-muted/50 prose-blockquote:py-4 prose-blockquote:px-5 prose-blockquote:my-6 prose-blockquote:not-italic
-          prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-none prose-code:border prose-code:border-black prose-code:text-sm prose-code:font-medium
-          prose-pre:rounded-none prose-pre:border-2 prose-pre:border-black prose-pre:shadow-hard-sm prose-pre:my-6
-          prose-pre:overflow-x-auto
-          prose-ul:space-y-2 prose-li:font-medium
-          prose-ol:space-y-2 prose-ol:li:font-black
-          prose-table:text-sm prose-th:bg-primary-yellow prose-th:text-black prose-th:font-black prose-th:uppercase prose-th:text-xs prose-th:tracking-wider
-          prose-tr:border-black prose-td:px-4 prose-td:py-3
-          prose-img:border-4 prose-img:border-black prose-img:shadow-hard-md prose-img:my-8 prose-img:rounded-none
-          prose-hr:border-t-2 prose-hr:border-black prose-hr:my-10">
-          <slot />
-        </div>
-
-        <!-- Tags -->
-        {tags && tags.length > 0 && (
-          <div class="mt-12 pt-8 border-t-4 border-black">
-            <div class="flex flex-wrap gap-2">
-              {tags.map(tag => (
-                <span class="bg-muted text-sm font-bold uppercase px-3 py-1 border-2 border-black">
-                  #{tag}
-                </span>
-              ))}
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+        <!-- Desktop: two-column layout with sticky TOC on right -->
+        <div class="lg:grid lg:grid-cols-[1fr_280px] lg:gap-16">
+          <!-- Main Content -->
+          <div>
+            {updatedDate && (
+              <p class="text-sm text-black/60 mb-8 border-l-4 border-primary-yellow pl-4">
+                Last updated: {updatedFormattedDate}
+              </p>
+            )}
+            <div class="prose prose-lg max-w-none
+              prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tight
+              prose-h1:text-5xl prose-h2:text-3xl prose-h3:text-2xl
+              prose-headings:mb-6
+              prose-h2:border-b-2 prose-h2:border-primary-red prose-h2:pb-3
+              prose-h3:border-l-4 prose-h3:border-primary-blue prose-h3:pl-3
+              prose-p:font-medium prose-p:leading-8 prose-p:mb-6 prose-p:text-base
+              prose-a:text-primary-blue prose-a:underline prose-a:underline-offset-4 prose-a:font-bold
+              prose-strong:font-black
+              prose-blockquote:border-l-4 prose-blockquote:border-primary-red prose-blockquote:bg-muted/50 prose-blockquote:py-4 prose-blockquote:px-5 prose-blockquote:my-6 prose-blockquote:not-italic
+              prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-none prose-code:border prose-code:border-black prose-code:text-sm prose-code:font-medium
+              prose-pre:rounded-none prose-pre:border-2 prose-pre:border-black prose-pre:shadow-hard-sm prose-pre:my-6
+              prose-pre:overflow-x-auto
+              prose-ul:space-y-2 prose-li:font-medium
+              prose-ol:space-y-2 prose-ol:li:font-black
+              prose-table:text-sm prose-th:bg-primary-yellow prose-th:text-black prose-th:font-black prose-th:uppercase prose-th:text-xs prose-th:tracking-wider
+              prose-tr:border-black prose-td:px-4 prose-td:py-3
+              prose-img:border-4 prose-img:border-black prose-img:shadow-hard-md prose-img:my-8 prose-img:rounded-none
+              prose-hr:border-t-2 prose-hr:border-black prose-hr:my-10">
+              <slot />
             </div>
+
+            <!-- Chapter Navigation -->
+            <PostNavigation prevPost={prevPost} nextPost={nextPost} prevIndex={prevIndex} nextIndex={nextIndex} />
+
+            <!-- Tags -->
+            {tags && tags.length > 0 && (
+              <div class="mt-12 pt-8 border-t-4 border-black">
+                <div class="flex flex-wrap gap-2">
+                  {tags.map(tag => (
+                    <span class="bg-muted text-sm font-bold uppercase px-3 py-1 border-2 border-black">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )}
+
+          <!-- Desktop TOC: always visible sticky sidebar -->
+          <aside class="hidden lg:block">
+            <div class="sticky top-8">
+              <TableOfContents headings={tocItems} />
+            </div>
+          </aside>
+        </div>
       </div>
     </div>
 
@@ -147,5 +179,91 @@ const updatedFormattedDate = updatedDate?.toLocaleDateString('en-US', {
         </Button>
       </div>
     </div>
+
+    <!-- Mobile TOC Toggle Button (hidden on desktop) -->
+    {tocItems.length > 0 && (
+      <button
+        id="toc-toggle"
+        class="lg:hidden fixed bottom-8 right-8 z-50 w-14 h-14 bg-primary-yellow border-4 border-black shadow-hard-md flex items-center justify-center hover:bg-primary-yellow/90 active:shadow-hard-sm active:translate-x-1 active:translate-y-1 transition-all"
+        aria-label="Toggle table of contents"
+        aria-expanded="false"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#121212" stroke-width="2.5" stroke-linecap="square">
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="18" x2="15" y2="18" />
+        </svg>
+      </button>
+    )}
+
+    <!-- Mobile TOC Panel (hidden on desktop) -->
+    {tocItems.length > 0 && (
+      <div id="toc-panel" class="lg:hidden fixed inset-0 z-50 pointer-events-none" aria-hidden="true">
+        <!-- Backdrop -->
+        <div id="toc-backdrop" class="absolute inset-0 bg-black/40 opacity-0 transition-opacity duration-300"></div>
+        <!-- Panel -->
+        <aside
+          id="toc-sidebar"
+          class="absolute right-0 top-0 h-full w-72 bg-white border-l-4 border-black shadow-hard-lg translate-x-full transition-transform duration-300 ease-out overflow-y-auto"
+        >
+          <div class="sticky top-0 bg-white border-b-4 border-black z-10">
+            <div class="flex items-center justify-between p-4">
+              <span class="text-xs font-black uppercase tracking-widest text-black/60">Contents</span>
+              <button
+                id="toc-close"
+                class="w-8 h-8 flex items-center justify-center border-2 border-black bg-muted hover:bg-primary-red hover:text-white transition-colors"
+                aria-label="Close"
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square">
+                  <line x1="1" y1="1" x2="13" y2="13" />
+                  <line x1="13" y1="1" x2="1" y2="13" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div>
+            <TableOfContents headings={tocItems} />
+          </div>
+        </aside>
+      </div>
+    )}
   </article>
 </BaseLayout>
+
+<script is:inline define:vars={{ hasToc: tocItems.length > 0 }}>
+  if (hasToc) {
+    var toggle = document.getElementById('toc-toggle');
+    var panel = document.getElementById('toc-panel');
+    var backdrop = document.getElementById('toc-backdrop');
+    var sidebar = document.getElementById('toc-sidebar');
+    var closeBtn = document.getElementById('toc-close');
+
+    function openPanel() {
+      panel.classList.remove('pointer-events-none');
+      panel.setAttribute('aria-hidden', 'false');
+      backdrop.style.opacity = '1';
+      sidebar.classList.remove('translate-x-full');
+      toggle.setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closePanel() {
+      backdrop.style.opacity = '0';
+      sidebar.classList.add('translate-x-full');
+      toggle.setAttribute('aria-expanded', 'false');
+      panel.setAttribute('aria-hidden', 'true');
+      panel.classList.add('pointer-events-none');
+      document.body.style.overflow = '';
+    }
+
+    toggle && toggle.addEventListener('click', openPanel);
+    closeBtn && closeBtn.addEventListener('click', closePanel);
+    backdrop && backdrop.addEventListener('click', closePanel);
+  }
+</script>
+
+<style is:global>
+  html.toc-open {
+    overflow: hidden;
+  }
+</style>

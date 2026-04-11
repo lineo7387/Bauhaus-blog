@@ -6,6 +6,11 @@ version: "17+"
 status: in-progress
 createdAt: 2026-04-10
 updatedAt: 2026-04-10
+planOrder:
+  - java-environment-setup
+  - java-basic-syntax
+  - java-oop-basics
+  - java-inheritance-polymorphism
 ---
 
 ## 基础知识

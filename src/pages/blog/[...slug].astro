@@ -4,6 +4,7 @@ import BlogList from "../../components/blog/BlogList.astro";
 import CategoryFilter from "../../components/blog/CategoryFilter.astro";
 import Pagination from "../../components/blog/Pagination.astro";
 import BlogPostLayout from "../../layouts/BlogPostLayout.astro";
+import PostNavigation from "../../components/blog/PostNavigation.astro";
 import { getCollection, render, type CollectionEntry } from "astro:content";
 import { BASE } from "../../utils/base";
 
@@ -90,9 +91,49 @@ if (type === "category" && category) {
   filteredPosts = sortedPosts.slice(startIndex, startIndex + postsPerPage);
 }
 
-const PostContent = type === "post" && post
-  ? (await render(post)).Content
-  : null;
+const rendered = type === "post" && post ? await render(post) : null;
+const PostContent = rendered?.Content;
+const headings = rendered?.headings ?? [];
+
+// Compute prev/next posts using planOrder from the plan file (if available)
+// Falls back to pubDate ascending order within the same category.
+const postCategory = post?.data.category ?? "";
+const catPosts = allPosts
+  .filter((p) => p.data.category === postCategory)
+  .sort((a, b) => a.data.pubDate.valueOf() - b.data.pubDate.valueOf());
+
+let prevPost: typeof post | undefined;
+let nextPost: typeof post | undefined;
+let prevIndex: number | undefined;
+let nextIndex: number | undefined;
+
+const planEntries = await getCollection("plans");
+const plan = planEntries.find((p) => p.data.skill === postCategory);
+const planOrder = plan?.data.planOrder;
+
+if (planOrder && planOrder.length > 0) {
+  // Use planOrder for navigation — map planId to actual post
+  const postByPlanId = Object.fromEntries(allPosts.map((p) => [p.data.planId, p]));
+  const orderedPosts = planOrder
+    .map((id) => postByPlanId[id])
+    .filter(Boolean) as typeof allPosts;
+  const currentIdx = orderedPosts.findIndex((p) => p.id === post?.id);
+  prevPost = currentIdx > 0 ? orderedPosts[currentIdx - 1] : undefined;
+  nextPost = currentIdx >= 0 && currentIdx < orderedPosts.length - 1
+    ? orderedPosts[currentIdx + 1]
+    : undefined;
+  prevIndex = currentIdx > 0 ? currentIdx - 1 : undefined;
+  nextIndex = currentIdx >= 0 && currentIdx < orderedPosts.length - 1
+    ? currentIdx + 1
+    : undefined;
+} else {
+  // Fallback: use pubDate order
+  const currentIndex = post ? catPosts.findIndex((p) => p.id === post.id) : -1;
+  prevPost = currentIndex > 0 ? catPosts[currentIndex - 1] : undefined;
+  nextPost = currentIndex < catPosts.length - 1 && currentIndex !== -1
+    ? catPosts[currentIndex + 1]
+    : undefined;
+}
 
 type PostContentType = (props?: Record<string, unknown>) => unknown;
 const PostContentComponent = PostContent as PostContentType;
@@ -109,6 +150,11 @@ const PostContentComponent = PostContent as PostContentType;
     tags={post!.data.tags}
     author={post!.data.author}
     readingTime={post!.data.readingTime}
+    headings={headings}
+    prevPost={prevPost}
+    nextPost={nextPost}
+    prevIndex={prevIndex}
+    nextIndex={nextIndex}
   >
     <PostContentComponent />
   </BlogPostLayout>

@@ -5,6 +5,23 @@ skill: python
 version: "3.13"
 status: completed
 updatedAt: 2026-04-10
+planOrder:
+  - python-environment-setup
+  - python-data-types
+  - python-control-flow
+  - python-collections
+  - python-functions
+  - python-string
+  - python-oop
+  - python-modules
+  - python-exception
+  - python-iterator-generator
+  - python-decorator
+  - python-pip-venv
+  - python-file-io
+  - python-stdlib
+  - python-async
+  - python-concurrency
 ---
 
 ## 基础知识

@@ -1,0 +1,149 @@
+---
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings: Heading[];
+}
+
+const { headings } = Astro.props;
+
+// Filter to h2 and h3 only
+const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
+---
+
+{tocItems.length > 0 && (
+  <nav class="toc" aria-label="Table of contents">
+    <div class="toc-inner">
+      <div class="toc-header">CONTENTS</div>
+      <ul class="toc-list">
+        {tocItems.map(heading => (
+          <li class={`toc-item toc-depth-${heading.depth}`}>
+            <a href={`#${heading.slug}`} class="toc-link" data-heading={heading.slug}>
+              {heading.text}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </nav>
+)}
+
+<style>
+  .toc {
+    padding: 0;
+  }
+
+  .toc-inner {
+    background: #fff;
+    border: 2px solid #121212;
+    border-left: 4px solid #1040C0;
+    padding: 1rem;
+  }
+
+  .toc-header {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #121212;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #121212;
+  }
+
+  .toc-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .toc-item {
+    margin: 0;
+  }
+
+  .toc-link {
+    display: block;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #121212;
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    transition: all 0.15s ease;
+  }
+
+  .toc-link:hover {
+    background-color: #F0C020;
+    border-left-color: #1040C0;
+  }
+
+  .toc-link.active {
+    background-color: #F0C020;
+    border-left-color: #D02020;
+    font-weight: 800;
+  }
+
+  .toc-depth-3 .toc-link {
+    padding-left: 1.5rem;
+    font-size: 0.8rem;
+    color: #121212cc;
+  }
+
+  .toc-depth-3 .toc-link:hover {
+    color: #121212;
+  }
+</style>
+
+<script>
+  function initTOC() {
+    const links = document.querySelectorAll<HTMLAnchorElement>('.toc-link[data-heading]');
+    if (!links.length) return;
+
+    const headingIds = Array.from(links).map(link => link.dataset.heading!);
+    const headingElements = headingIds
+      .map(id => document.getElementById(id))
+      .filter(Boolean) as HTMLElement[];
+
+    let current = '';
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            current = entry.target.id;
+          }
+        });
+        links.forEach(link => {
+          link.classList.toggle('active', link.dataset.heading === current);
+        });
+      },
+      {
+        rootMargin: '-80px 0px -60% 0px',
+        threshold: 0,
+      }
+    );
+
+    headingElements.forEach(el => observer.observe(el));
+
+    links.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const id = link.dataset.heading!;
+        const target = document.getElementById(id);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Update URL without jump
+          history.pushState(null, '', `#${id}`);
+        }
+      });
+    });
+  }
+
+  initTOC();
+  document.addEventListener('astro:after-swap', initTOC);
+</script>

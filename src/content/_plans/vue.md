@@ -6,12 +6,27 @@ version: "3.x"
 status: completed
 createdAt: 2026-04-08
 updatedAt: 2026-04-11
+planOrder:
+  - vue-instance-template
+  - reactivity-deep-dive
+  - conditional-list-rendering
+  - event-handling
+  - composition-api
+  - vue-lifecycle-hooks
+  - pinia-state-management
+  - vue-router
+  - vue-devtools
+  - vitest-unit-testing
+  - vite-build-optimization
+  - vue-nuxt3-ssr
+---
 
 ## 更新记录
 
 - 2026-04-08：创建路线图
 - 2026-04-11：基础知识 4 篇文章全部完成（实例与模板、响应式原理、条件渲染、事件处理）
 - 2026-04-11：进阶技能、生态与实践、高级主题 8 篇文章全部完成（Composition API、生命周期钩子、Pinia、Vue Router、Vue DevTools、Vitest、Vite 优化、Nuxt 3）
+
 ---
 
 ## 基础知识
@@ -95,8 +110,3 @@ updatedAt: 2026-04-11
 ## 文章路径
 
 所有文章将输出到：`src/content/blog/vue/`
-
-## 更新记录
-
-- 2026-04-08：创建路线图
-- 2026-04-11：基础知识 4 篇文章全部完成（实例与模板、响应式原理、条件渲染、事件处理）
