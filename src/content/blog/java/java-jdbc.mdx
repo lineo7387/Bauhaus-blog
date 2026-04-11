@@ -1,0 +1,330 @@
+---
+title: JDBC 与数据库交互
+description: 详解 JDBC 编程五步曲：加载驱动、建立连接、执行 SQL、处理结果集，以及 PreparedStatement 防注入、事务控制和连接池原理
+pubDate: 2026-04-11
+category: java
+tags: [java, JDBC, 数据库, SQL, PreparedStatement, 连接池, 事务]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 14
+planId: java-jdbc
+---
+
+# JDBC 与数据库交互
+
+**JDBC（Java Database Connectivity）**是 Java 连接数据库的标准 API。通过 JDBC，Java 程序可以向任意支持 SQL 的关系型数据库发送 SQL 语句并处理结果。本文以 MySQL 为例，讲解 JDBC 编程的标准流程、SQL 注入防护、事务控制以及连接池。
+
+## JDBC 编程五步曲
+
+```
+① 加载驱动
+② 建立连接（Connection）
+③ 创建语句对象（Statement）
+④ 执行 SQL 并处理结果
+⑤ 关闭连接（释放资源）
+```
+
+### 第一步：加载驱动
+
+```java
+// 方式一：手动加载（JDBC 4.0 之前必须，显式加载）
+Class.forName("com.mysql.cj.jdbc.Driver");
+
+// 方式二：MySQL Connector/J 8.0+ / JDBC 4.0+（自动加载，推荐）
+// 无需显式 Class.forName()，JDBC 会自动从 classpath 找到驱动
+```
+
+### 第二步：建立连接
+
+```java
+// 数据库连接参数
+String url = "jdbc:mysql://localhost:3306/mydb";
+String user = "root";
+String password = "123456";
+
+// 获取连接（每次操作都需要一个 Connection，用完必须关闭）
+Connection conn = DriverManager.getConnection(url, user, password);
+```
+
+> **JDBC URL 格式**：`jdbc:mysql://主机:端口/数据库名?参数`
+
+### 第三步 & 第四步 & 第五步：完整示例
+
+```java
+public class UserDao {
+    // 完整查询示例
+    public User findById(Long id) {
+        String sql = "SELECT id, name, email, created_at FROM users WHERE id = ?";
+
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setLong(1, id);  // 占位符从1开始
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new User(
+                        rs.getLong("id"),
+                        rs.getString("name"),
+                        rs.getString("email"),
+                        rs.getTimestamp("created_at").toLocalDateTime()
+                    );
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("查询用户失败", e);
+        }
+        return null;
+    }
+
+    // 插入示例
+    public void insert(User user) {
+        String sql = "INSERT INTO users(name, email, created_at) VALUES(?, ?, ?)";
+
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+            ps.setString(1, user.name());
+            ps.setString(2, user.email());
+            ps.setTimestamp(3, Timestamp.valueOf(user.createdAt()));
+
+            int rows = ps.executeUpdate();
+            System.out.println("插入行数：" + rows);
+
+            // 获取自增主键
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) {
+                    long id = rs.getLong(1);
+                    System.out.println("生成主键：" + id);
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("插入用户失败", e);
+        }
+    }
+}
+```
+
+## PreparedStatement：防 SQL 注入
+
+**SQL 注入**是最常见的安全漏洞之一——攻击者通过在输入中注入恶意 SQL 来破坏数据库。`PreparedStatement` 使用**参数占位符**（`?`）代替字符串拼接，从根本上防止 SQL 注入：
+
+```java
+// ❌ 危险：直接字符串拼接，用户输入可能被注入
+// SELECT * FROM users WHERE name = '" + input + "' and password = '" + pwd + "'
+// 如果 input = "' OR '1'='1"，SQL 变成永真式，绕过登录
+
+// ✅ 安全：PreparedStatement 参数绑定
+public User login(String username, String password) {
+    String sql = "SELECT id, name FROM users WHERE name = ? AND password = ?";
+
+    try (Connection conn = getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setString(1, username);   // 自动转义，防止注入
+        ps.setString(2, password);
+
+        try (ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return new User(rs.getLong("id"), rs.getString("name"), null, null);
+            }
+        }
+    } catch (SQLException e) {
+        throw new RuntimeException("登录失败", e);
+    }
+    return null;
+}
+```
+
+> **PreparedStatement 的优势**：1）防 SQL 注入；2）数据库会对预编译 SQL 缓存，提高执行效率；3）代码更清晰。
+
+## 事务控制
+
+默认情况下，每条 SQL 语句都是一个独立的事务（自动提交）。需要手动控制事务时，关闭自动提交：
+
+```java
+public void transfer(Connection conn, long fromId, long toId, double amount)
+        throws SQLException {
+
+    // 关闭自动提交 → 开启手动事务
+    conn.setAutoCommit(false);
+
+    try {
+        // 扣款
+        String debitSql = "UPDATE accounts SET balance = balance - ? WHERE id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(debitSql)) {
+            ps.setDouble(1, amount);
+            ps.setLong(2, fromId);
+            ps.executeUpdate();
+        }
+
+        // 充值
+        String creditSql = "UPDATE accounts SET balance = balance + ? WHERE id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(creditSql)) {
+            ps.setDouble(1, amount);
+            ps.setLong(2, toId);
+            ps.executeUpdate();
+        }
+
+        // 提交事务
+        conn.commit();
+    } catch (Exception e) {
+        // 发生异常，回滚事务
+        conn.rollback();
+        throw new RuntimeException("转账失败，已回滚", e);
+    } finally {
+        // 恢复自动提交状态
+        conn.setAutoCommit(true);
+    }
+}
+```
+
+### Savepoint（保存点）：细粒度回滚
+
+```java
+conn.setAutoCommit(false);
+
+Savepoint sp1 = conn.setSavepoint("after_step1");
+doStep1();
+doStep2();
+
+if (someCondition) {
+    conn.rollback(sp1);  // 回滚到保存点，step1 的变更保留
+    // step2 的变更被撤销
+}
+
+conn.commit();
+conn.setAutoCommit(true);
+```
+
+## ResultSet 处理
+
+`ResultSet` 封装了查询结果集，通过游标遍历：
+
+```java
+String sql = "SELECT id, name, age, email FROM users ORDER BY age";
+
+// 默认 ResultSet 只能向前遍历，不支持更新
+try (PreparedStatement ps = conn.prepareStatement(sql,
+        ResultSet.TYPE_SCROLL_INSENSITIVE,   // 可滚动
+        ResultSet.CONCUR_READ_ONLY)) {       // 只读
+    try (ResultSet rs = ps.executeQuery()) {
+        // 移动到指定行
+        while (rs.next()) {
+            long id = rs.getLong("id");
+            String name = rs.getString("name");
+            int age = rs.getInt("age");
+            String email = rs.getString("email");
+            System.out.printf("%d | %s | %d | %s%n", id, name, age, email);
+        }
+
+        // 将游标移到末尾，rs.afterLast() 后 last() 才有效
+        rs.afterLast();
+        if (rs.previous()) {
+            System.out.println("最后一条：" + rs.getString("name"));
+        }
+    }
+}
+```
+
+## 数据库连接池
+
+每次操作都新建数据库连接开销极大。**连接池**预先创建一批连接，程序用完后归还而非关闭，大幅提升性能：
+
+### Druid 连接池（阿里巴巴）
+
+```java
+import com.alibaba.druid.pool.DruidDataSource;
+import com.alibaba.druid.pool.DruidDataSourceFactory;
+import javax.sql.DataSource;
+
+// 方式一：代码配置
+DruidDataSource ds = new DruidDataSource();
+ds.setDriverClassName("com.mysql.cj.jdbc.Driver");
+ds.setUrl("jdbc:mysql://localhost:3306/mydb");
+ds.setUsername("root");
+ds.setPassword("123456");
+ds.setInitialSize(5);    // 初始连接数
+ds.setMinIdle(5);        // 最小空闲连接数
+ds.setMaxActive(20);     // 最大活跃连接数
+ds.setMaxWait(3000);    // 获取连接最大等待时间(ms)
+
+// 方式二：druid.properties 配置文件
+// ds = DruidDataSourceFactory.createDataSource(props);
+
+// 获取连接（用完必须 close()，归还到池中）
+try (Connection conn = ds.getConnection()) {
+    // 使用连接...
+} // 连接被归还到池中，不会真的关闭
+```
+
+### HikariCP（性能最强）
+
+```java
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
+HikariConfig config = new HikariConfig();
+config.setJdbcUrl("jdbc:mysql://localhost:3306/mydb");
+config.setUsername("root");
+config.setPassword("123456");
+config.setMaximumPoolSize(20);   // 最大连接数
+config.setMinimumIdle(5);        // 最小空闲连接数
+config.setConnectionTimeout(30000);  // 获取连接超时(ms)
+config.setIdleTimeout(600000);   // 空闲超时(ms)
+config.setMaxLifetime(1800000);  // 连接最大生命周期(ms)
+
+try (HikariDataSource ds = new HikariDataSource(config)) {
+    try (Connection conn = ds.getConnection()) {
+        // 使用连接...
+    }
+}
+```
+
+### 连接池工作原理
+
+```
+程序请求连接
+    ↓
+连接池有空闲连接？──是──→ 直接返回（无需新建）
+    ↓否
+创建新连接（或等待）──→ 使用完毕
+    ↓                    ↓
+归还到连接池  ←── close()
+```
+
+## 常见错误与处理
+
+```java
+// 错误1：忘记关闭连接 → 资源泄漏
+Connection conn = null;
+try {
+    conn = DriverManager.getConnection(url, user, password);
+    // ... 操作 ...
+} finally {
+    if (conn != null) {
+        conn.close();  // 必须关闭
+    }
+}
+
+// 错误2：ResultSet/Statement 未关闭 → 资源泄漏
+// 解决：使用 try-with-resources 自动关闭
+
+// 错误3：捕获 SQLException 但不做处理
+// 解决：记录日志或包装成业务异常重新抛出
+catch (SQLException e) {
+    LOGGER.error("数据库操作失败", e);
+    throw new DataAccessException("查询失败", e);
+}
+```
+
+## 小结
+
+- JDBC 五步曲：加载驱动 → 建立连接 → 创建语句 → 执行SQL → 关闭连接
+- **PreparedStatement** 用占位符替代字符串拼接，是防 SQL 注入的标准做法
+- 事务控制：`setAutoCommit(false)` → 业务操作 → `commit()` / `rollback()`
+- 连接池（**Druid** / **HikariCP**）大幅提升数据库访问性能，应始终使用
+- 用 **try-with-resources** 管理所有 JDBC 资源，避免资源泄漏
+
+JDBC 是 Java 后端开发的底层基础，后续学习的 MyBatis / JPA 都是在 JDBC 之上封装的高级框架。下一节我们将学习 Java 中常用的工具类与编码规范。

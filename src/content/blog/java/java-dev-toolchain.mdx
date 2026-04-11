@@ -1,0 +1,484 @@
+---
+title: 后端开发工具链：构建、测试与日志
+description: 快速上手 Maven（pom.xml、依赖管理、生命周期）和 Gradle，构建自动化项目；掌握 JUnit 5 单元测试基础和 SLF4J + Logback 日志框架
+pubDate: 2026-04-11
+category: java
+tags: [java, Maven, Gradle, JUnit, SLF4J, Logback, Git, 单元测试, 日志]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 14
+planId: java-dev-toolchain
+---
+
+# 后端开发工具链：构建、测试与日志
+
+编写代码只是后端开发的一部分。在团队协作中，你需要 **Maven/Gradle** 来管理依赖和构建项目，用 **JUnit** 编写自动化测试保证代码质量，用 **SLF4J + Logback** 记录运行时日志排查问题。这些工具构成了 Java 后端开发的基础设施。
+
+## Maven：依赖管理与构建
+
+**Maven** 是 Java 项目的事实标准构建工具，通过 `pom.xml` 声明项目元信息和依赖。
+
+### 项目结构
+
+```
+my-app/
+├── pom.xml                    Maven 配置文件
+├── src/
+│   ├── main/
+│   │   ├── java/             Java 源代码
+│   │   └── resources/         配置文件（application.properties 等）
+│   └── test/
+│       ├── java/             测试源代码
+│       └── resources/         测试用配置文件
+└── target/                    编译输出目录（Maven 自动生成）
+```
+
+### pom.xml 核心配置
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- 项目坐标（全球唯一标识）-->
+    <groupId>com.example</groupId>        <!-- 组织名（反向域名）-->
+    <artifactId>my-app</artifactId>       <!-- 项目名 -->
+    <version>1.0.0</version>             <!-- 版本号 -->
+    <packaging>jar</packaging>            <!-- 打包方式：jar / war -->
+
+    <!-- 项目属性 -->
+    <properties>
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <!-- 依赖声明 -->
+    <dependencies>
+        <!-- JUnit 5 测试框架 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>           <!-- 仅测试时使用 -->
+        </dependency>
+
+        <!-- MySQL 驱动 -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>8.4.0</version>
+            <scope>runtime</scope>         <!-- 仅运行时需要 -->
+        </dependency>
+
+        <!-- SLF4J 日志门面 -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.16</version>
+        </dependency>
+
+        <!-- Logback 日志实现 -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.5.16</version>
+        </dependency>
+    </dependencies>
+
+    <!-- 构建插件 -->
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                </configuration>
+            </plugin>
+            <!-- 打包可执行 JAR -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.1</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.example.App</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
+
+### 常用 Maven 命令
+
+```bash
+# 编译项目
+mvn compile
+
+# 运行测试
+mvn test
+
+# 打包（生成 target/my-app-1.0.0.jar）
+mvn package
+
+# 跳过测试打包
+mvn package -DskipTests
+
+# 清理并重新构建
+mvn clean package
+
+# 运行程序
+mvn exec:java -Dexec.mainClass="com.example.App"
+
+# 查看依赖树（排查依赖冲突）
+mvn dependency:tree
+
+# 跳过测试并打包
+mvn clean package
+```
+
+### Maven 依赖范围（scope）
+
+| scope | 编译时可见 | 测试时可见 | 运行时可见 | 打包 |
+|-------|-----------|-----------|-----------|------|
+| `compile`（默认）| ✅ | ✅ | ✅ | ✅ |
+| `test` | ❌ | ✅ | ❌ | ❌ |
+| `provided` | ✅ | ✅ | ❌ | ❌（如 servlet-api）|
+| `runtime` | ❌ | ✅ | ✅ | ✅（如 JDBC 驱动）|
+
+## Gradle（备选构建工具）
+
+Gradle 使用 **Groovy DSL** 或 **Kotlin DSL** 替代 XML，语法更简洁现代，是 Spring Boot 3.x 推荐的构建工具：
+
+```groovy
+// build.gradle
+plugins {
+    id 'java'
+    id 'application'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+application {
+    mainClass = 'com.example.App'
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    implementation 'org.slf4j:slf4j-api:2.0.16'
+    runtimeOnly 'ch.qos.logback:logback-classic:1.5.16'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+```
+
+```bash
+# Gradle 命令
+./gradlew build    # 构建
+./gradlew test     # 测试
+./gradlew run      # 运行
+./gradlew deps     # 查看依赖
+```
+
+## JUnit 5 单元测试
+
+**JUnit 5**（Jupiter）是现代 Java 测试框架，支持参数化测试、动态测试、重复测试等高级特性。
+
+### 基本测试结构
+
+```java
+import org.junit.jupiter.api.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+class MathUtilsTest {
+
+    @BeforeAll        // 在所有测试前执行一次（必须是 static）
+    static void setup() {
+        System.out.println("测试类初始化");
+    }
+
+    @AfterAll         // 在所有测试后执行一次
+    static void teardown() {
+        System.out.println("测试类清理");
+    }
+
+    @BeforeEach       // 每个测试方法前执行
+    void beforeEach() {
+        // 初始化测试数据
+    }
+
+    @AfterEach        // 每个测试方法后执行
+    void afterEach() {
+        // 清理
+    }
+
+    @Test
+    @DisplayName("加法测试：2 + 3 = 5")
+    void testAdd() {
+        assertEquals(5, 2 + 3);
+        assertNotEquals(6, 2 + 3);
+    }
+
+    @Test
+    @DisplayName("除法测试：分母为零抛出异常")
+    void testDivideByZero() {
+        assertThrows(ArithmeticException.class, () -> 10 / 0);
+    }
+}
+```
+
+### 常用断言
+
+```java
+import static org.junit.jupiter.api.Assertions.*;
+
+// 基本断言
+assertEquals(expected, actual);        // 值相等
+assertNotEquals(expected, actual);    // 值不相等
+assertTrue(condition);                 // 条件为真
+assertFalse(condition);                // 条件为假
+assertNull(obj);                       // 对象为 null
+assertNotNull(obj);                    // 对象不为 null
+
+// 数组/集合断言
+assertArrayEquals(new int[]{1, 2, 3}, result);
+assertIterableEquals(List.of("a", "b"), result);
+assertLinesMatch(List.of("a", "b"), result);
+
+// 异常断言
+assertThrows(IllegalArgumentException.class, () -> {
+    validateAge(-1);
+});
+
+// 分组断言（一个失败不影响其他检查）
+assertAll("用户信息",
+    () -> assertEquals("Alice", user.getName()),
+    () -> assertEquals(20, user.getAge()),
+    () -> assertNotNull(user.getEmail())
+);
+
+// 超时断言（Java 10+）
+assertTimeout(Duration.ofSeconds(1), () -> {
+    // 如果超过1秒，测试失败
+    slowOperation();
+});
+```
+
+### 参数化测试（减少重复代码）
+
+```java
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+@ParameterizedTest
+@CsvSource({
+    "1, 1, 2",
+    "2, 3, 5",
+    "10, 20, 30"
+})
+void testAdd(int a, int b, int expected) {
+    assertEquals(expected, a + b);
+}
+
+@ParameterizedTest
+@ValueSource(strings = {"racecar", "radar", "level"})
+void testPalindrome(String word) {
+    assertTrue(isPalindrome(word));
+}
+```
+
+### 测试实践原则（AID）
+
+- **A**rrange（准备）：初始化测试数据、创建被测对象
+- **A**ct（执行）：调用被测方法
+- **A**ssert（断言）：验证结果是否符合预期
+
+```java
+@Test
+@DisplayName("UserService.login 返回正确用户")
+void testLogin() {
+    // Arrange
+    UserDao dao = mock(UserDao.class);
+    when(dao.findByNameAndPassword("alice", "123456"))
+        .thenReturn(new User(1L, "Alice"));
+    UserService service = new UserService(dao);
+
+    // Act
+    User result = service.login("alice", "123456");
+
+    // Assert
+    assertNotNull(result);
+    assertEquals("Alice", result.name());
+    assertEquals(1L, result.id());
+}
+```
+
+## SLF4J + Logback 日志框架
+
+**SLF4J** 是日志门面（接口），**Logback** 是日志实现（引擎）。两者配合使用是 Java 后端的标准配置。
+
+### 日志级别
+
+从低到高：`**TRACE** < **DEBUG** < **INFO** < **WARN** < **ERROR**`
+
+生产环境通常设为 `INFO`，开发环境设为 `DEBUG`。
+
+### 基本用法
+
+```java
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class UserService {
+    // 每个类一个 Logger
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
+    public void register(User user) {
+        log.info("注册新用户: {}", user.name());  // {} 是占位符，避免字符串拼接
+
+        try {
+            validate(user);
+            dao.save(user);
+            log.info("用户 {} 注册成功", user.name());
+        } catch (Exception e) {
+            log.error("用户 {} 注册失败: {}", user.name(), e.getMessage(), e);
+            throw e;
+        }
+    }
+}
+```
+
+> **`{}` 占位符的好处**：`log.info("用户: " + name + ", 年龄: " + age)` 会**始终执行字符串拼接**；`log.info("用户: {}, 年龄: {}", name, age)` 只有当日志级别≥INFO 时才拼接，大幅提升性能。
+
+### Logback 配置（src/main/resources/logback.xml）
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- 定义变量 -->
+    <property name="LOG_HOME" value="./logs"/>
+    <property name="APP_NAME" value="my-app"/>
+
+    <!-- Console Appender：输出到控制台 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <!-- %d{yyyy-MM-dd HH:mm:ss} 时间 | %-5level 级别 | %thread 线程 | %logger{36} Logger名 | %msg 消息 -->
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- File Appender：输出到文件 -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/${APP_NAME}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_HOME}/${APP_NAME}.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>  <!-- 保留最近30天的日志 -->
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 开发环境配置：DEBUG 级别 -->
+    <springProfile name="dev">
+        <root level="DEBUG">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- 生产环境配置：INFO 级别 -->
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
+        </root>
+    </springProfile>
+
+</configuration>
+```
+
+### 使用 MDC 记录请求上下文
+
+在 Web 应用中，用 MDC（Mapped Diagnostic Context）为每条日志附加请求 ID，便于追踪：
+
+```java
+// 拦截器/过滤器中设置
+public class RequestLoggingFilter extends OncePerRequestFilter {
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+            HttpServletResponse response, FilterChain chain)
+            throws ServletException, IOException {
+        String requestId = UUID.randomUUID().toString();
+        MDC.put("requestId", requestId);  // 所有后续日志自动带上此 requestId
+
+        try {
+            chain.doFilter(request, response);
+        } finally {
+            MDC.clear();  // 请求结束后清除
+        }
+    }
+}
+```
+
+```xml
+<!-- logback.xml 中加入 %X{requestId} 读取 MDC -->
+<pattern>%d{yyyy-MM-dd HH:mm:ss} [%X{requestId}] %-5level %logger - %msg%n</pattern>
+```
+
+## Git 版本控制基础
+
+```bash
+# 初始化仓库
+git init
+
+# 克隆远程仓库
+git clone https://github.com/user/repo.git
+
+# 基本工作流
+git add .                  # 暂存所有变更
+git commit -m "feat: 添加用户注册功能"
+git push origin main       # 推送到远程
+
+# 分支操作
+git checkout -b feature/login   # 创建并切换到新分支
+git checkout main              # 切换回主分支
+git merge feature/login         # 合并分支
+
+# 查看状态
+git status
+git log --oneline -10      # 最近10条提交记录
+
+# 撤销操作
+git restore file.txt       # 撤销工作区变更
+git reset --soft HEAD~1   # 撤销上一次提交（保留变更）
+```
+
+## 小结
+
+- **Maven** 通过 `pom.xml` 声明式管理依赖，`mvn compile/test/package` 覆盖主要构建场景
+- **Gradle** 使用 DSL 语法，比 Maven 更灵活，是 Spring Boot 3.x 的默认构建工具
+- **JUnit 5**：`@Test`、`@BeforeEach`/`@AfterEach`、`assertEquals`、`assertThrows` 是最常用的 API
+- **SLF4J + Logback**：始终使用 `{}` 占位符，用 `{}` 占位符避免不必要的字符串拼接
+- **Git**：工作流是 `add → commit → push`，用分支隔离不同功能的开发
+
+工具链是后端开发的效率倍增器，熟练使用它们是每个 Java 后端工程师的基本功。接下来我们将挑战高难度主题——**并发编程与 Virtual Threads**。

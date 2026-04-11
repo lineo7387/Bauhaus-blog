@@ -1,0 +1,430 @@
+---
+title: Java 17+ 新特性精讲
+description: 全面讲解 Java 17 LTS 的核心新特性：Records、Sealed Classes、Pattern Matching for instanceof、Text Blocks、Switch Expressions，附详细代码示例
+pubDate: 2026-04-11
+category: java
+tags: [java, java17, 新特性, Records, Sealed Classes, Pattern Matching, Switch Expressions]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 18
+planId: java-17-new-features
+---
+
+# Java 17+ 新特性精讲
+
+Java 17 是继 Java 11 之后的又一个**长期支持版本（LTS）**，带来了大量重磅新特性，大幅提升了代码的表达力、安全性和开发效率。本文选取对日常编码影响最大的五项特性逐一讲解。
+
+## Records：不可变数据类
+
+### 为什么需要 Records
+
+在日常开发中，我们经常需要创建"只存储数据"的类——如 DTO、返回值、配置对象。这类类的典型特征是：**字段不可变**，只有 getter 方法，需要重写 `equals`、`hashCode`、`toString`。手写这些代码既繁琐又容易出错：
+
+```java
+// 传统写法：需要手写大量样板代码
+public class Point {
+    private final int x;
+    private final int y;
+
+    public Point(int x, int y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    public int x() { return x; }
+    public int y() { return y; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Point point = (Point) o;
+        return x == point.x && y == point.y;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(x, y);
+    }
+
+    @Override
+    public String toString() {
+        return "Point{x=" + x + ", y=" + y + '}';
+    }
+}
+```
+
+### Record 的简洁语法
+
+`record` 是 Java 16 正式引入的**透明载体类**（Transparent Carrier），编译器自动生成构造器、getter、equals、hashCode、toString：
+
+```java
+// 一行替代上面的全部代码
+public record Point(int x, int y) {}
+
+// 使用
+Point p = new Point(3, 4);
+System.out.println(p.x());   // 3
+System.out.println(p.y());   // 4
+System.out.println(p);       // Point[x=3, y=4]
+```
+
+```java
+// 自动生成equals和hashCode
+Point p1 = new Point(3, 4);
+Point p2 = new Point(3, 4);
+System.out.println(p1.equals(p2));  // true
+System.out.println(p1.hashCode() == p2.hashCode());  // true
+```
+
+### Record 的高级用法
+
+**带验证逻辑的紧凑构造器**：
+
+```java
+public record Person(String name, int age) {
+    // 紧凑构造器：参数声明部分由编译器处理
+    public Person {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("姓名不能为空");
+        }
+        if (age < 0 || age > 150) {
+            throw new IllegalArgumentException("年龄无效");
+        }
+    }
+}
+```
+
+**添加额外方法和静态字段**：
+
+```java
+public record Range(int min, int max) {
+    // 可以添加额外方法
+    public boolean contains(int value) {
+        return value >= min && value <= max;
+    }
+
+    // 可以添加静态工厂方法
+    public static Range of(int value) {
+        return new Range(value, value);
+    }
+}
+```
+
+> **Record 的限制**：record 是隐式 `final` 的，不能被继承；record 的字段隐式是 `final` 的，创建后不可修改——因此适合作为**不可变数据载体**。
+
+## Sealed Classes：密封类限制继承
+
+### 问题背景
+
+在传统 Java 中，类的继承是**完全开放**的——任何类都可以继承任意类。这在需要限定继承层次结构的场景下（如下文的类型系统）会导致问题：无法穷举所有子类，添加新子类时容易遗漏处理逻辑。
+
+### Sealed Class 基本语法
+
+`sealed` 关键字允许你声明"哪些类可以继承当前类"，形成**受限的继承层次**：
+
+```java
+// sealed 声明 Shape 只能被指定类继承
+public sealed class Shape permits Circle, Rectangle, Triangle {
+    public abstract double area();
+}
+```
+
+```java
+// final 修饰：Circle 不能被进一步继承
+public final class Circle extends Shape {
+    private final double radius;
+    public Circle(double radius) { this.radius = radius; }
+    @Override
+    public double area() { return Math.PI * radius * radius; }
+}
+
+// non-sealed：移除继承限制，可以被任何类继承
+public non-sealed class Rectangle extends Shape {
+    private final double width, height;
+    public Rectangle(double w, double h) { width = w; height = h; }
+    @Override
+    public double area() { return width * height; }
+}
+
+// sealed 嵌套：Triangle 自身也是密封类
+public sealed class Triangle extends Shape permits EquilateralTriangle {
+    // ...
+}
+```
+
+### Sealed Class + Pattern Matching
+
+Sealed Class 与 `instanceof` 模式匹配结合，可以实现**穷举式类型检查**——编译器会检查是否处理了所有子类：
+
+```java
+public sealed interface Expr permits Add, Sub, Mul, Div, Number {
+    // 表达式接口
+}
+
+public record Number(int value) implements Expr {}
+public record Add(Expr left, Expr right) implements Expr {}
+public record Sub(Expr left, Expr right) implements Expr {}
+public record Mul(Expr left, Expr right) implements Expr {}
+public record Div(Expr left, Expr right) implements Expr {}
+
+// 使用 sealed 特性，编译器穷举所有子类
+public static double eval(Expr expr) {
+    return switch (expr) {
+        case Number n -> n.value();
+        case Add a    -> eval(a.left()) + eval(a.right());
+        case Sub s    -> eval(s.left()) - eval(s.right());
+        case Mul m    -> eval(m.left()) * eval(m.right());
+        case Div d    -> eval(d.left()) / eval(d.right());
+        // 编译器保证这里没有遗漏的子类
+    };
+}
+```
+
+> **穷举检查**：如果新增一个 `Mod` 类实现 `Expr` 但忘记在 `switch` 中处理，编译器会报错——这是 Sealed Class 最重要的价值。
+
+## Pattern Matching for instanceof
+
+### 传统写法的问题
+
+`instanceof` 检查类型后，传统的写法需要**强制类型转换**才能使用对象：
+
+```java
+// 传统写法：繁琐且容易写错
+Object obj = getData();
+if (obj instanceof String) {
+    String s = (String) obj;  // 必须手动强制转换
+    System.out.println(s.toUpperCase());
+} else if (obj instanceof Integer) {
+    Integer i = (Integer) obj;  // 又要转换
+    System.out.println(i * 2);
+}
+```
+
+### 模式匹配简化
+
+Java 16 引入的 **Pattern Matching for instanceof** 允许在 `instanceof` 检查时直接声明变量，省去强制转换：
+
+```java
+// Java 16+ 写法：模式变量自动转换
+if (obj instanceof String s) {
+    // s 在这个分支中自动是 String 类型，无需强制转换
+    System.out.println(s.toUpperCase());
+} else if (obj instanceof Integer i) {
+    // i 自动是 Integer 类型
+    System.out.println(i * 2);
+}
+```
+
+### 与 null 检查结合
+
+```java
+public static String describe(Object obj) {
+    return switch (obj) {
+        case null -> "空值";
+        case String s when s.isEmpty() -> "空字符串";
+        case String s -> "字符串，长度=" + s.length();
+        case Integer i -> "整数=" + i;
+        case int[] arr when arr.length == 0 -> "空数组";
+        case int[] arr -> "数组，长度=" + arr.length;
+        default -> "其他类型：" + obj.getClass().getName();
+    };
+}
+```
+
+## Text Blocks：多行字符串
+
+### 传统字符串的痛苦
+
+在 Java 15 之前，写多行字符串只能依赖丑陋的拼接或 `\\n` 转义：
+
+```java
+// 传统写法：可读性极差
+String json = "{\n" +
+    "  \"name\": \"Alice\",\n" +
+    "  \"age\": 20\n" +
+"}";
+```
+
+### Text Block 语法
+
+使用 `"""`（三个双引号）包裹多行字符串，**无需转义**，格式所见即所得：
+
+```java
+// Java 15+ Text Block
+String json = """
+{
+    "name": "Alice",
+    "age": 20
+}
+""";
+```
+
+### SQL 查询字符串的改善
+
+```java
+// 传统写法：SQL 可读性差，容易出错
+String query = "SELECT u.id, u.name, u.email " +
+    "FROM users u " +
+    "WHERE u.status = 'active' " +
+    "ORDER BY u.created_at DESC";
+
+// Text Block 写法：清晰直观
+String query = """
+    SELECT u.id, u.name, u.email
+    FROM users u
+    WHERE u.status = 'active'
+    ORDER BY u.created_at DESC
+    """;
+```
+
+### 格式化控制
+
+`text-block` 默认保留前导缩进（从 `"""` 闭合处对齐），若要去除缩进，使用 `.stripIndent()` 或 `.formatted()`：
+
+```java
+String sql = """
+    SELECT id, name
+    FROM users
+    WHERE id = %d
+    """.formatted(userId);
+```
+
+## Switch Expressions：增强 Switch
+
+### 传统 switch 的问题
+
+传统 switch 语句**不返回值**、容易忘记 `break` 导致贯穿（fall-through）：
+
+```java
+// 传统 switch：容易忘记 break，且不能返回值
+int day = 3;
+switch (day) {
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+        System.out.println("工作日");
+        break;      // 忘了 break 就悲剧了
+    case 6:
+    case 7:
+        System.out.println("周末");
+        break;
+    default:
+        System.out.println("无效日期");
+}
+```
+
+### Switch Expression
+
+Java 14 正式引入 **Switch Expression**，可以用作表达式返回值，且不需要 `break`：
+
+```java
+// Switch Expression：作为表达式返回值，无需 break
+String label = switch (day) {
+    case 1, 2, 3, 4, 5 -> "工作日";    // 箭头语法，自动不贯穿
+    case 6, 7 -> "周末";
+    case 0, 8 -> "日期超出范围";
+    default -> {
+        // 复杂逻辑可以用代码块，返回值用 yield
+        String msg = "不支持的日期值: " + day;
+        yield msg;
+    }
+};
+System.out.println(label);  // 工作日
+```
+
+### 箭头语法与冒号语法混用
+
+```java
+// 箭头 ->：不贯穿，不需要 break
+// 冒号 :  ：仍然支持，但需要在每个分支加 break
+switch (mode) {
+    case "simple" -> System.out.println("简单模式");
+    case "advanced" -> {
+        // 复杂逻辑可以用代码块
+        configureAdvanced();
+        System.out.println("高级模式已启用");
+    }
+    default -> System.out.println("未知模式");
+}
+```
+
+## 综合示例：JSON 序列化器
+
+综合运用 Records、Sealed Classes、Pattern Matching 和 Switch Expression 构建一个类型安全的 JSON 序列化器：
+
+```java
+// 使用 Records 定义数据结构
+public record User(String name, int age) {}
+
+// Sealed Class 限定可序列化类型
+public sealed interface JsonValue permits JsonObject, JsonArray,
+                                           JsonString, JsonNumber, JsonNull {}
+
+// JsonObject 使用 LinkedHashMap 保证顺序
+public record JsonObject(LinkedHashMap<String, JsonValue> fields)
+    implements JsonValue {
+    public JsonObject { fields = new LinkedHashMap<>(fields); }
+    public JsonObject put(String key, JsonValue value) {
+        fields.put(key, value);
+        return this;
+    }
+}
+
+public record JsonString(String value) implements JsonValue {}
+public record JsonNumber(Number value) implements JsonValue {}
+public record JsonArray(List<JsonValue> items) implements JsonValue {}
+public record JsonNull() implements JsonValue {}
+
+// 序列化器：穷举所有 JsonValue 子类
+public static String serialize(JsonValue value) {
+    return switch (value) {
+        case JsonNull() -> "null";
+        case JsonNumber n -> String.valueOf(n.value());
+        case JsonString s -> "\"" + s.value() + "\"";
+        case JsonArray a -> {
+            StringJoiner joiner = new StringJoiner(", ", "[", "]");
+            for (JsonValue item : a.items()) {
+                joiner.add(serialize(item));
+            }
+            yield joiner.toString();
+        }
+        case JsonObject o -> {
+            StringJoiner joiner = new StringJoiner(", ", "{", "}");
+            for (var entry : o.fields().entrySet()) {
+                String pair = "\"" + entry.getKey() + "\": "
+                    + serialize(entry.getValue());
+                joiner.add(pair);
+            }
+            yield joiner.toString();
+        }
+    };
+}
+```
+
+```java
+// 使用
+JsonObject user = new JsonObject(new LinkedHashMap<>())
+    .put("name", new JsonString("Alice"))
+    .put("age", new JsonNumber(20))
+    .put("active", new JsonString(""));
+// ... 省略 put active
+
+System.out.println(serialize(user));
+// {"name": "Alice", "age": 20, "active": ""}
+```
+
+## 小结
+
+| 特性 | 版本 | 主要价值 |
+|------|------|---------|
+| **Records** | Java 16 正式版 | 用简洁语法定义不可变数据类，消除样板代码 |
+| **Sealed Classes** | Java 17 正式版 | 精确控制继承层次，支持穷举式类型检查 |
+| **Pattern Matching for instanceof** | Java 16 正式版 | 消除强制类型转换，让 instanceof 检查更优雅 |
+| **Text Blocks** | Java 15 正式版 | 所见即所得的多行字符串，消除转义噩梦 |
+| **Switch Expressions** | Java 14 正式版 | switch 可作为表达式返回值，箭头语法避免贯穿 |
+
+这些特性相互配合，可以让代码更简洁、更安全、更易读。下一节我们将学习 Java 中最常用的数据结构——**集合框架与 Stream API**。
