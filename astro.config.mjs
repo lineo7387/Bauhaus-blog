@@ -3,6 +3,9 @@ import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
 import mdx from '@astrojs/mdx';
 import rehypePrettyCode from 'rehype-pretty-code';
+import remarkDirective from 'remark-directive';
+import { rehypeCallouts } from './src/plugins/rehype-callouts.js';
+import remarkDirectiveRehype from 'remark-directive-rehype';
 
 // https://astro.build/config
 export default defineConfig({
@@ -11,14 +14,10 @@ export default defineConfig({
   base: '/Bauhaus-blog',
   integrations: [
     mdx({
+      remarkPlugins: [remarkDirective, remarkDirectiveRehype],
       rehypePlugins: [
-        [
-          rehypePrettyCode,
-          {
-            theme: 'github-dark',
-            keepBackground: false,
-          },
-        ],
+        [rehypePrettyCode, { theme: 'github-dark', keepBackground: false }],
+        rehypeCallouts,
       ],
     }),
   ],

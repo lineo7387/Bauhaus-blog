@@ -248,3 +248,101 @@
   font-size: 0.875rem;
   line-height: 1.7;
 }
+
+/* ============================================
+   Callout / Tip / Warning / Note 样式
+   ============================================ */
+
+.callout {
+  margin: 1.5rem 0;
+  padding: 0;
+  border-radius: 0;
+  border: 2px solid #121212;
+  box-shadow: 4px 4px 0px 0px #121212;
+  overflow: hidden;
+  font-family: var(--font-family-outfit);
+}
+
+.callout-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 2px solid #121212;
+  background-color: rgba(18, 18, 18, 0.05);
+}
+
+.callout-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.callout-label {
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #121212;
+}
+
+.callout-content {
+  padding: 1rem 1.25rem;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.callout-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Callout variants */
+.callout-tip    { border-left-color: #3DAA41; }
+.callout-warning{ border-left-color: #E65C00; }
+.callout-note   { border-left-color: #1040C0; }
+.callout-danger { border-left-color: #D02020; }
+
+.callout-tip .callout-header    { background-color: rgba(61, 170, 65, 0.1); }
+.callout-warning .callout-header{ background-color: rgba(230, 92, 0, 0.1); }
+.callout-note .callout-header   { background-color: rgba(16, 64, 192, 0.1); }
+.callout-danger .callout-header { background-color: rgba(208, 32, 32, 0.1); }
+
+.callout-tip    .callout-label { color: #2E7D32; }
+.callout-warning .callout-label{ color: #E65C00; }
+.callout-note   .callout-label { color: #1040C0; }
+.callout-danger .callout-label { color: #D02020; }
+
+/* ============================================
+   表格样式（全局兜底，确保表头样式正确）
+   ============================================ */
+
+/* 确保表头有粗黑边框和黄色背景 */
+.prose table th,
+.prose table thead th {
+  background-color: var(--color-primary-yellow) !important;
+  color: var(--color-foreground) !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  font-size: 0.7rem !important;
+  letter-spacing: 0.1em;
+  padding: 0.6rem 1rem !important;
+  border: 2px solid var(--color-foreground) !important;
+  vertical-align: middle;
+}
+
+/* 表头下方分割线 */
+.prose table thead tr {
+  border-bottom: 3px solid var(--color-foreground) !important;
+}
+
+/* 表格单元格 */
+.prose table td {
+  padding: 0.6rem 1rem !important;
+  border: 1px solid var(--color-foreground) !important;
+  vertical-align: middle;
+}
+
+/* 表格行 hover 效果 */
+.prose table tbody tr:hover {
+  background-color: rgba(240, 192, 32, 0.15) !important;
+}
