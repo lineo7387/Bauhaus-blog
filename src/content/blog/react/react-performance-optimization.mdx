@@ -1,0 +1,658 @@
+---
+title: 性能优化核心策略
+description: 深入讲解 React Profiler 使用、渲染分析与优化、代码分割、懒加载与预加载，构建高性能 React 应用
+pubDate: 2026-04-11
+category: react
+tags: [react, performance, 优化, profiler]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 12
+planId: react-performance-optimization
+---
+
+## 前言
+
+性能优化是 React 开发中的重要课题。本篇文章将系统讲解性能测量工具、渲染优化、代码分割与预加载策略，帮助你构建高性能的 React 应用。
+
+## 性能测量
+
+### React DevTools Profiler
+
+Profiler 是 React 官方提供的性能分析工具：
+
+1. 安装 React DevTools 浏览器扩展
+2. 打开 DevTools → Profiler 标签
+3. 点击 Record 开始录制
+4. 与应用交互
+5. 点击 Stop 查看录制结果
+
+### 读取 Profiler 数据
+
+```
+Root (红色) → 重新渲染的组件
+│
+├── App (渲染耗时: 5ms)
+│   ├── Header (未渲染)
+│   └── ProductList (渲染耗时: 3ms)
+│       ├── ProductItem (渲染耗时: 1ms) × 50
+│       └── ...
+```
+
+### 分析维度
+
+| 指标 | 说明 | 关注点 |
+|------|------|--------|
+| Render duration | 渲染耗时 | 越长越需要优化 |
+| Why did this render? | 渲染原因 | 识别不必要的渲染 |
+| Commit chart | 提交图表 | 观察渲染频率 |
+
+### useWhyDidYouRender
+
+```typescript
+import { useWhyDidYouRender } from '@react-hook/why-render';
+
+function ProductList({ products }) {
+  useWhyDidYouRender('ProductList', { products });
+
+  return (
+    <ul>
+      {products.map(p => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## 不必要的渲染
+
+### React.memo 基础
+
+`React.memo` 包裹组件，防止父组件渲染导致子组件不必要的重新渲染：
+
+```typescript
+import { memo } from 'react';
+
+// 基础用法
+const Button = memo(({ onClick, children }) => {
+  console.log('Button 渲染');
+  return <button onClick={onClick}>{children}</button>;
+});
+
+// 使用
+function Parent() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div>
+      <p>计数: {count}</p>
+      <Button onClick={() => setCount(c => c + 1)}>增加</Button>
+    </div>
+  );
+}
+```
+
+:::tip
+`React.memo` 默认进行浅比较。如果 props 包含对象、数组或函数，需要提供自定义比较函数。
+:::
+
+### 自定义比较函数
+
+```typescript
+// 浅比较无法满足的场景
+const ProductCard = memo(
+  ({ product, onAddToCart }) => {
+    return (
+      <div>
+        <h3>{product.name}</h3>
+        <button onClick={() => onAddToCart(product.id)}>加入购物车</button>
+      </div>
+    );
+  },
+  (prevProps, nextProps) => {
+    // 返回 true 表示不需要重新渲染
+    return (
+      prevProps.product.id === nextProps.product.id &&
+      prevProps.product.name === nextProps.product.name
+    );
+  }
+);
+```
+
+### useCallback 稳定函数引用
+
+```typescript
+import { useState, useCallback, memo } from 'react';
+
+const Button = memo(({ onClick }) => {
+  console.log('Button 渲染');
+  return <button onClick={onClick}>点击</button>;
+});
+
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  // 每次渲染都创建新函数
+  // const handleClick = () => setCount(c => c + 1);
+
+  // 使用 useCallback 保持引用稳定
+  const handleClick = useCallback(() => {
+    setCount(c => c + 1);
+  }, []);
+
+  return (
+    <div>
+      <p>{count}</p>
+      <Button onClick={handleClick} />
+    </div>
+  );
+}
+```
+
+### useMemo 缓存计算结果
+
+```typescript
+import { useMemo } from 'react';
+
+function ProductList({ products, filter }) {
+  // 缓存过滤结果，只在 products 或 filter 变化时重新计算
+  const filteredProducts = useMemo(
+    () => products.filter(p => p.name.includes(filter)),
+    [products, filter]
+  );
+
+  // 缓存 expensiveCalculation 结果
+  const summary = useMemo(
+    () => expensiveCalculation(filteredProducts),
+    [filteredProducts]
+  );
+
+  return (
+    <>
+      <Summary data={summary} />
+      <ul>
+        {filteredProducts.map(p => (
+          <li key={p.id}>{p.name}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+## 状态优化
+
+### 状态粒度
+
+```typescript
+// ❌ 过度集中的状态
+function Form() {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    // ... 20个字段
+  });
+
+  // 任何字段变化都会触发所有使用 formData 的组件重新渲染
+}
+
+// ✓ 细粒度状态
+function Form() {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  // 只有使用 name 的组件会在 name 变化时重新渲染
+}
+```
+
+### 状态提升策略
+
+```typescript
+// 共享状态提升到最近的公共父组件
+function App() {
+  const [user, setUser] = useState(null);
+
+  return (
+    <Layout>
+      <Sidebar user={user} />
+      <Main>
+        <Profile user={user} />
+        <Settings user={user} />
+      </Main>
+    </Layout>
+  );
+}
+
+// 对于深层嵌套，考虑 Context 或状态管理库
+```
+
+### useReducer 集中状态逻辑
+
+```typescript
+import { useReducer } from 'react';
+
+// 将相关状态和操作集中管理
+function cartReducer(state, action) {
+  switch (action.type) {
+    case 'ADD_ITEM':
+      return {
+        ...state,
+        items: [...state.items, action.payload],
+      };
+    case 'REMOVE_ITEM':
+      return {
+        ...state,
+        items: state.items.filter(i => i.id !== action.payload),
+      };
+    case 'UPDATE_QUANTITY':
+      return {
+        ...state,
+        items: state.items.map(item =>
+          item.id === action.payload.id
+            ? { ...item, quantity: action.payload.quantity }
+            : item
+        ),
+      };
+    default:
+      return state;
+  }
+}
+
+function Cart() {
+  const [state, dispatch] = useReducer(cartReducer, { items: [] });
+
+  return (
+    <div>
+      {state.items.map(item => (
+        <CartItem
+          key={item.id}
+          item={item}
+          onUpdate={(qty) => dispatch({
+            type: 'UPDATE_QUANTITY',
+            payload: { id: item.id, quantity: qty }
+          })}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+## 列表优化
+
+### 虚拟列表
+
+对于长列表，使用虚拟化技术只渲染可见项：
+
+```bash
+npm install react-window
+```
+
+```typescript
+import { FixedSizeList } from 'react-window';
+
+function VirtualizedList({ items }) {
+  const Row = ({ index, style }) => (
+    <div style={style}>
+      <ListItem item={items[index]} />
+    </div>
+  );
+
+  return (
+    <FixedSizeList
+      height={400}
+      itemCount={items.length}
+      itemSize={50}
+      width="100%"
+    >
+      {Row}
+    </FixedSizeList>
+  );
+}
+```
+
+### 虚拟列表 + 分页
+
+```typescript
+import { useVirtualizer } from '@tanstack/react-virtual';
+
+function VirtualizedGrid({ items }) {
+  const parentRef = useRef(null);
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 150,
+    overscan: 5,  // 预渲染额外 5 项
+  });
+
+  return (
+    <div ref={parentRef} style={{ height: '100vh', overflow: 'auto' }}>
+      <div style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map(virtualRow => (
+          <div
+            key={virtualRow.index}
+            style={{
+              position: 'absolute',
+              top: virtualRow.start,
+              height: virtualRow.size,
+            }}
+          >
+            <GridItem item={items[virtualRow.index]} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+### 稳定 key
+
+```typescript
+// ❌ 使用索引作为 key
+{items.map((item, index) => (
+  <Item key={index} {...item} />
+))}
+
+// ✓ 使用唯一 ID
+{items.map(item => (
+  <Item key={item.id} {...item} />
+))}
+
+// ✓ 保持 key 稳定
+{items.map(item => (
+  <Item key={item.id || item.tempId} {...item} />
+))}
+```
+
+## 代码分割
+
+### React.lazy 与 Suspense
+
+```typescript
+import { lazy, Suspense } from 'react';
+
+// 动态导入
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+
+function App() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <Routes>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/analytics" element={<Analytics />} />
+      </Routes>
+    </Suspense>
+  );
+}
+
+function Loading() {
+  return <div>加载中...</div>;
+}
+```
+
+### 预加载策略
+
+```typescript
+import { lazy, Suspense, useState } from 'react';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+
+function App() {
+  const [showDashboard, setShowDashboard] = useState(false);
+
+  // 预加载：鼠标悬停时开始加载
+  function handleMouseEnter() {
+    import('./pages/Dashboard');  // 触发预加载
+  }
+
+  return (
+    <div>
+      <Link to="/dashboard" onMouseEnter={handleMouseEnter}>
+        仪表盘
+      </Link>
+
+      <Suspense fallback={<Loading />}>
+        {showDashboard && <Dashboard />}
+      </Suspense>
+    </div>
+  );
+}
+```
+
+### 基于路由的分割
+
+```typescript
+// App.jsx
+import { Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
+
+function App() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/blog/*" element={<Blog />} />
+        <Route path="/dashboard/*" element={<Dashboard />} />
+      </Routes>
+    </Suspense>
+  );
+}
+
+// Dashboard.jsx - 内部进一步分割
+const Revenue = lazy(() => import('./Revenue'));
+const Users = lazy(() => import('./Users'));
+const Settings = lazy(() => import('./Settings'));
+```
+
+### 重型依赖分割
+
+```typescript
+import { lazy, Suspense } from 'react';
+
+// 体积大的库单独分割
+const ChartComponent = lazy(() => import('./components/ChartComponent'));
+const MarkdownEditor = lazy(() => import('./components/MarkdownEditor'));
+const PDFViewer = lazy(() => import('./components/PDFViewer'));
+
+function Dashboard() {
+  const [activeTab, setActiveTab] = useState('chart');
+
+  return (
+    <div>
+      <TabBar active={activeTab} onChange={setActiveTab} />
+
+      <Suspense fallback={<ChartLoading />}>
+        {activeTab === 'chart' && <ChartComponent />}
+        {activeTab === 'editor' && <MarkdownEditor />}
+        {activeTab === 'pdf' && <PDFViewer />}
+      </Suspense>
+    </div>
+  );
+}
+```
+
+## 预加载与预获取
+
+### link 标签预加载
+
+```html
+<!-- 在 index.html 中添加 -->
+<link rel="preload" href="/static/dashboard.js" as="script" />
+```
+
+### 预加载 Hook
+
+```typescript
+import { useEffect } from 'react';
+
+function usePreload(importFn) {
+  useEffect(() => {
+    importFn();
+  }, [importFn]);
+}
+
+// 使用
+function Navigation() {
+  const preloadDashboard = () => import('./pages/Dashboard');
+
+  return (
+    <nav>
+      <Link to="/" onMouseEnter={() => preloadDashboard()}>
+        首页
+      </Link>
+      <Link to="/dashboard" onMouseEnter={() => preloadDashboard()}>
+        仪表盘
+      </Link>
+    </nav>
+  );
+}
+```
+
+### Viewport 预加载
+
+```typescript
+import { lazy, Suspense } from 'react';
+
+// Intersection Observer 检测可见性
+function LazySection({ importFn, children }) {
+  const [shouldLoad, setShouldLoad] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShouldLoad(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '100px' }  // 提前 100px 开始加载
+    );
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  if (!shouldLoad) {
+    return <div ref={ref} style={{ height: '200px' }} />;
+  }
+
+  const Component = lazy(importFn);
+
+  return (
+    <Suspense fallback={<Loading />}>
+      <Component>{children}</Component>
+    </Suspense>
+  );
+}
+```
+
+## Web Vitals 监控
+
+### Core Web Vitals
+
+| 指标 | 说明 | 良好标准 |
+|------|------|----------|
+| LCP | 最大内容绘制 | < 2.5s |
+| FID | 首次输入延迟 | < 100ms |
+| CLS | 累积布局偏移 | < 0.1 |
+
+### 使用 web-vitals 库
+
+```typescript
+import { onLCP, onFID, onCLS } from 'web-vitals';
+
+function sendToAnalytics({ name, value, id }) {
+  // 发送到分析服务
+  console.log(`${name}: ${value} (${id})`);
+}
+
+onLCP(sendToAnalytics);
+onFID(sendToAnalytics);
+onCLS(sendToAnalytics);
+```
+
+### React Profiler 组件
+
+```typescript
+import { Profiler } from 'react';
+
+function onRender(
+  id,
+  phase,
+  actualDuration,
+  baseDuration,
+  startTime,
+  commitTime,
+  interactions
+) {
+  // 记录性能数据
+  console.log({
+    id,
+    phase,
+    actualDuration,
+    baseDuration,
+  });
+
+  // 上报到分析服务
+  sendToAnalytics({ id, duration: actualDuration });
+}
+
+function App() {
+  return (
+    <Profiler id="App" onRender={onRender}>
+      <Router />
+    </Profiler>
+  );
+}
+```
+
+## 优化清单
+
+### 渲染优化
+
+- [ ] 使用 `React.memo` 包裹纯展示组件
+- [ ] 使用 `useCallback` 稳定事件处理器引用
+- [ ] 使用 `useMemo` 缓存昂贵计算
+- [ ] 保持状态粒度适当
+- [ ] 避免在 JSX 中创建新对象/函数
+
+### 列表优化
+
+- [ ] 长列表使用虚拟化（react-window / react-virtual）
+- [ ] 使用稳定的唯一 ID 作为 key
+- [ ] 实现窗口化加载
+
+### 代码分割
+
+- [ ] 路由级别分割（React.lazy + Suspense）
+- [ ] 重型组件按需加载
+- [ ] 第三方库独立 chunk
+
+### 测量验证
+
+- [ ] 使用 React DevTools Profiler 定位瓶颈
+- [ ] 测量 Core Web Vitals
+- [ ] 设置性能预算
+
+## 小结
+
+- **性能测量**：使用 React DevTools Profiler 定位问题，测量后再优化
+- **避免不必要渲染**：`React.memo`、`useCallback`、`useMemo` 三剑客
+- **列表优化**：虚拟化技术处理长列表，保持 key 稳定
+- **代码分割**：`React.lazy` + `Suspense` 按需加载，预加载提升体验
+- **Web Vitals**：监控 LCP、FID、CLS 指标
+
+性能优化需要先测量再优化，避免过早优化和过度优化。下一篇文章我们将学习 **React Server Components 与 SSR**，了解 React 的服务端渲染新范式。

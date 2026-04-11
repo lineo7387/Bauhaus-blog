@@ -3,9 +3,9 @@ title: React 完整学习路线
 description: 从基础到进阶的系统化学习路径，涵盖 React 核心概念、Hooks、生态工具及性能优化
 skill: react
 version: "18.x"
-status: in-progress
+status: completed
 createdAt: 2026-04-08
-updatedAt: 2026-04-10
+updatedAt: 2026-04-11
 ---
 
 ## 基础知识
@@ -64,24 +64,24 @@ updatedAt: 2026-04-10
 
 ## 生态与实践
 
-- [ ] React Router 路由管理
+- [✅] React Router 路由管理
       desc: 路由配置、嵌套路由、动态路由、导航守卫与路由状态管理
       difficulty: medium
       estimatedWords: 2500
 
-- [ ] Vitest + Testing Library 测试
+- [✅] Vitest + Testing Library 测试
       desc: 组件测试、用户交互模拟、Mock 技巧、测试覆盖率实践
       difficulty: medium
       estimatedWords: 2000
 
 ## 高级主题
 
-- [ ] 性能优化核心策略
+- [✅] 性能优化核心策略
       desc: React Profiler 使用、渲染分析与优化、代码分割、懒加载与预加载
       difficulty: hard
       estimatedWords: 3000
 
-- [ ] React Server Components 与 SSR
+- [✅] React Server Components 与 SSR
       desc: RSC 原理、服务端与客户端组件边界、流式渲染、Next.js App Router
       difficulty: hard
       estimatedWords: 3500
@@ -105,3 +105,4 @@ updatedAt: 2026-04-10
 - 2026-04-08：创建路线图
 - 2026-04-10：完成进阶技能章节（useEffect、useRef、useCallback/useMemo、Context、表单处理）
 - 2026-04-10：审核通过，基础知识全部标记为 [✅]
+- 2026-04-11：完成生态与实践、高级主题章节，React 路线图全部完成

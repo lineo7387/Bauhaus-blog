@@ -1,0 +1,592 @@
+---
+title: React Router 路由管理
+description: 掌握 React Router 的路由配置、嵌套路由、动态路由、导航守卫与路由状态管理，构建单页应用的导航系统
+pubDate: 2026-04-11
+category: react
+tags: [react, react-router, spa, 路由]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: react-router
+---
+
+## 前言
+
+**React Router** 是 React 生态中最流行的路由解决方案。本篇文章将系统讲解 React Router 6.x 的核心用法，包括路由配置、嵌套路由、动态路由、导航守卫与路由状态管理，帮助你构建完整的单页应用导航系统。
+
+## 路由基础
+
+### 安装与配置
+
+```bash
+npm install react-router-dom
+```
+
+### BrowserRouter 与 HashRouter
+
+React Router 提供了两种路由器组件：
+
+```jsx
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+// BrowserRouter：使用 HTML5 History API，URL 更美观
+// 需要服务器配置支持直接访问路由路径
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+```
+
+```jsx
+import { HashRouter } from 'react-router-dom';
+
+// HashRouter：使用 URL hash，兼容旧版服务器
+// 不需要服务器配置，适合静态托管
+function App() {
+  return (
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+      </Routes>
+    </HashRouter>
+  );
+}
+```
+
+:::tip
+生产环境推荐使用 `BrowserRouter`，需要确保服务器配置了 fallback（将所有请求重定向到 index.html）。
+:::
+
+## 路由配置
+
+### Routes 与 Route
+
+`Routes` 是路由容器，`Route` 定义具体路由规则：
+
+```jsx
+import { Routes, Route } from 'react-router-dom';
+import Home from './pages/Home';
+import About from './pages/About';
+import User from './pages/User';
+
+function App() {
+  return (
+    <Routes>
+      {/* 基础路由 */}
+      <Route path="/" element={<Home />} />
+
+      {/* 精确匹配 */}
+      <Route path="/about" element={<About />} />
+
+      {/* 404 页面 - 通配符匹配 */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+```
+
+### index 路由
+
+使用 `index` 属性定义父路由的默认子路由：
+
+```jsx
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Home />} />  {/* / 的默认页面 */}
+        <Route path="about" element={<About />} />
+        <Route path="contact" element={<Contact />} />
+      </Route>
+    </Routes>
+  );
+}
+```
+
+## 嵌套路由
+
+### 基础嵌套
+
+嵌套路由是构建复杂应用的关键：
+
+```jsx
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Home />} />
+        <Route path="products" element={<Products />}>
+          <Route index element={<ProductList />} />
+          <Route path=":productId" element={<ProductDetail />} />
+          <Route path=":productId/edit" element={<ProductEdit />} />
+        </Route>
+      </Route>
+    </Routes>
+  );
+}
+```
+
+### Layout 组件
+
+Layout 组件使用 `<Outlet />` 渲染子路由：
+
+```jsx
+// Layout.jsx
+import { Outlet, Link } from 'react-router-dom';
+
+function Layout() {
+  return (
+    <div className="app-layout">
+      <header>
+        <nav>
+          <Link to="/">首页</Link>
+          <Link to="/products">商品</Link>
+        </nav>
+      </header>
+
+      <main>
+        {/* 子路由内容在这里渲染 */}
+        <Outlet />
+      </main>
+
+      <footer>© 2024</footer>
+    </div>
+  );
+}
+```
+
+### 路由级别代码分割
+
+使用 `React.lazy` 实现按需加载：
+
+```jsx
+import { lazy, Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
+
+// 代码分割：只在使用时才加载
+const Products = lazy(() => import('./pages/Products'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+
+function App() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <Routes>
+        <Route path="/products" element={<Products />}>
+          <Route path=":productId" element={<ProductDetail />} />
+        </Route>
+      </Routes>
+    </Suspense>
+  );
+}
+```
+
+## 动态路由
+
+### URL 参数
+
+使用冒号语法定义动态参数：
+
+```jsx
+// 定义动态路由
+<Route path="/users/:userId" element={<UserProfile />} />
+
+// 访问 /users/123
+// userId = "123"
+```
+
+### useParams 获取参数
+
+```jsx
+import { useParams } from 'react-router-dom';
+
+function UserProfile() {
+  const { userId } = useParams();
+
+  return (
+    <div>
+      <h1>用户详情</h1>
+      <p>用户ID: {userId}</p>
+    </div>
+  );
+}
+```
+
+### 多个动态参数
+
+```jsx
+// 路由配置
+<Route path="/blogs/:category/:postId" element={<BlogPost />} />
+
+// 组件中获取
+function BlogPost() {
+  const { category, postId } = useParams();
+
+  return (
+    <article>
+      <span>分类: {category}</span>
+      <h1>文章ID: {postId}</h1>
+    </article>
+  );
+}
+```
+
+## 导航与跳转
+
+### Link 组件
+
+`Link` 组件提供声明式导航，不会触发页面刷新：
+
+```jsx
+import { Link } from 'react-router-dom';
+
+function Navigation() {
+  return (
+    <nav>
+      <Link to="/">首页</Link>
+      <Link to="/products?sort=price">商品（按价格）</Link>
+      <Link to={{
+        pathname: "/search",
+        search: "?q=react",
+        hash: "#results"
+      }}>
+        搜索 React
+      </Link>
+    </nav>
+  );
+}
+```
+
+### useNavigate 编程式导航
+
+```jsx
+import { useNavigate } from 'react-router-dom';
+
+function LoginForm() {
+  const navigate = useNavigate();
+
+  async function handleSubmit(credentials) {
+    const success = await login(credentials);
+    if (success) {
+      // 跳转到首页
+      navigate('/');
+
+      // 或返回上一页
+      navigate(-1);
+
+      // 或跳转到指定页面
+      navigate('/dashboard', { replace: true });
+    }
+  }
+
+  return <form onSubmit={handleSubmit}>...</form>;
+}
+```
+
+### navigate 选项
+
+```jsx
+// replace: true 替换当前历史记录
+navigate('/home', { replace: true });
+
+// state 传递数据（不显示在 URL 中）
+navigate('/user/123', { state: { fromDashboard: true } });
+
+// 等待导航完成
+await navigate('/next-page');
+```
+
+## 查询参数
+
+### useSearchParams
+
+```jsx
+import { useSearchParams } from 'react-router-dom';
+
+function ProductList() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const sort = searchParams.get('sort') || 'name';
+  const category = searchParams.get('category');
+
+  function updateSort(newSort) {
+    setSearchParams({ sort: newSort, category });
+  }
+
+  return (
+    <div>
+      <select value={sort} onChange={e => updateSort(e.target.value)}>
+        <option value="name">名称</option>
+        <option value="price">价格</option>
+      </select>
+
+      <p>当前分类: {category || '全部'}</p>
+    </div>
+  );
+}
+```
+
+## 路由状态管理
+
+### useLocation 传递状态
+
+```jsx
+// 跳转时传递状态
+function UserList() {
+  const navigate = useNavigate();
+
+  function handleSelectUser(user) {
+    navigate(`/user/${user.id}`, {
+      state: { user }  // 传递整个用户对象
+    });
+  }
+
+  return (
+    <ul>
+      {users.map(user => (
+        <li key={user.id} onClick={() => handleSelectUser(user)}>
+          {user.name}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+```jsx
+// 目标页面接收状态
+import { useLocation } from 'react-router-dom';
+
+function UserDetail() {
+  const location = useLocation();
+  const user = location.state?.user;
+
+  // 或者使用 use 的简写
+  // const { state: user } = useLocation();
+
+  if (!user) return <div>用户不存在</div>;
+
+  return <div>{user.name}</div>;
+}
+```
+
+### useRouteLoaderData 共享数据
+
+在路由级别预加载数据：
+
+```jsx
+import { Routes, Route, useRouteLoaderData } from 'react-router-dom';
+
+// 在父路由加载数据
+<Route
+  path="/dashboard"
+  loader={async () => {
+    return await fetchUserData();
+  }}
+  element={<Dashboard />}
+/>
+
+// 子路由访问数据
+function Dashboard() {
+  const data = useRouteLoaderData('parent');
+  // ...
+}
+```
+
+## 导航守卫
+
+### 自定义路由守卫
+
+使用 `<Navigate>` 实现条件渲染：
+
+```jsx
+import { Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+
+function ProtectedRoute() {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!isAuthenticated) {
+    // 重定向到登录页，保存原始路径
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return <Outlet />;
+}
+
+// 使用
+<Route path="/dashboard" element={<ProtectedRoute />}>
+  <Route index element={<Dashboard />} />
+  <Route path="settings" element={<Settings />} />
+</Route>
+```
+
+```jsx
+// 登录页获取原始路径
+import { useLocation, useNavigate } from 'react-router-dom';
+
+function LoginPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const from = location.state?.from?.pathname || '/';
+
+  async function handleLogin() {
+    await login();
+    navigate(from, { replace: true });  // 返回原始页面
+  }
+
+  return <button onClick={handleLogin}>登录</button>;
+}
+```
+
+### 路由懒加载守卫
+
+```jsx
+import { lazy, Suspense } from 'react';
+import { Navigate } from 'react-router-dom';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+
+function ProtectedRoute({ children }) {
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+// 结合 Suspense
+function App() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <ProtectedRoute>
+        <Dashboard />
+      </ProtectedRoute>
+    </Suspense>
+  );
+}
+```
+
+## 404 处理
+
+### 通配符路由
+
+```jsx
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      {/* 其他路由... */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
+function NotFound() {
+  return (
+    <div>
+      <h1>404</h1>
+      <p>页面未找到</p>
+      <Link to="/">返回首页</Link>
+    </div>
+  );
+}
+```
+
+### 基于 loader 的 404
+
+```jsx
+<Route
+  path="/users/:userId"
+  loader={async ({ params }) => {
+    const user = await fetchUser(params.userId);
+    if (!user) {
+      throw new Response("Not Found", { status: 404 });
+    }
+    return user;
+  }}
+  element={<UserProfile />}
+/>
+```
+
+## 路由模块化
+
+### 路由配置文件
+
+将路由配置抽离为独立文件：
+
+```jsx
+// routes/index.js
+export const routes = [
+  {
+    path: '/',
+    element: <Layout />,
+    children: [
+      { index: true, element: <Home /> },
+      { path: 'about', element: <About /> },
+      { path: 'products/*', element: <Products /> },
+    ],
+  },
+  {
+    path: '/admin',
+    element: <AdminLayout />,
+    children: [
+      { path: 'dashboard', element: <Dashboard /> },
+      { path: 'users', element: <UserManagement /> },
+    ],
+  },
+];
+```
+
+```jsx
+// App.jsx - 动态渲染路由
+import { routes } from './routes';
+
+function App() {
+  return (
+    <Routes>
+      {routes.map((route, index) => (
+        <Route
+          key={index}
+          path={route.path}
+          element={route.element}
+        >
+          {route.children?.map((child, childIndex) => (
+            <Route
+              key={childIndex}
+              index={child.index}
+              path={child.path}
+              element={child.element}
+            />
+          ))}
+        </Route>
+      ))}
+    </Routes>
+  );
+}
+```
+
+## 小结
+
+- **BrowserRouter vs HashRouter**：前者使用 History API，后者使用 hash，适用不同部署场景
+- **嵌套路由**：使用 `<Outlet />` 在 Layout 中渲染子路由
+- **动态路由**：`:param` 语法定义参数，`useParams` 获取值
+- **导航**：`Link` 声明式跳转，`useNavigate` 编程式导航
+- **状态传递**：`state` 属性在不改变 URL 的情况下传递数据
+- **守卫**：条件渲染 `<Navigate>` 实现权限控制
+- **代码分割**：`React.lazy` + `Suspense` 按需加载路由组件
+
+掌握 React Router 后，下一篇文章我们将学习 **Vitest + Testing Library 测试**，掌握组件测试的实践方法。

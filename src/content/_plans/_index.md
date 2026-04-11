@@ -7,7 +7,7 @@
 | 技能 | 版本 | 状态 | 路线图文件 | 文章数量 |
 |------|------|------|------------|----------|
 | Vue | 3.x | in-progress | [_plans/vue.md](vue.md) | 2 / 12 |
-| React | 18.x | in-progress | [_plans/react.md](react.md) | 10 / 14 |
+| React | 18.x | completed | [_plans/react.md](react.md) | 14 / 14 |
 | Python | 3.13 | completed | [_plans/python.md](python.md) | 16 / 16 |
 | Java | 17+ | planning | [_plans/java.md](java.md) | 0 / 12 |
 | React Native | 0.76.x | in-progress | [_plans/react-native.md](react-native.md) | 4 / 12 |

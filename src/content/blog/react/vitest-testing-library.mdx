@@ -1,0 +1,555 @@
+---
+title: Vitest + Testing Library 测试
+description: 掌握 Vitest 快速测试运行器和 React Testing Library 的组件测试、用户交互模拟、Mock 技巧与测试覆盖率实践
+pubDate: 2026-04-11
+category: react
+tags: [react, vitest, testing-library, 测试, 质量]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 9
+planId: vitest-testing-library
+---
+
+## 前言
+
+**Vitest** 是 Vite 原生的测试框架，提供极速的测试体验。配合 **React Testing Library**，我们可以写出更贴近用户行为的测试。本篇文章将讲解组件测试、用户交互模拟、Mock 技巧与测试覆盖率实践。
+
+## 环境配置
+
+### 安装依赖
+
+```bash
+npm install -D vitest @vitest/ui jsdom
+npm install -D @testing-library/react @testing-library/jest-dom
+npm install -D @testing-library/user-event
+```
+
+### vite.config.ts 配置
+
+```typescript
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,           // 全局测试 API
+    environment: 'jsdom',   // DOM 环境
+    setupFiles: './src/test/setup.ts',
+    include: ['src/**/*.{test,spec}.{js,ts,jsx,tsx}'],
+  },
+});
+```
+
+### setup.ts 配置
+
+```typescript
+// src/test/setup.ts
+import '@testing-library/jest-dom';
+import { expect, afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
+
+// 每个测试后清理
+afterEach(() => {
+  cleanup();
+});
+```
+
+### package.json 脚本
+
+```json
+{
+  "scripts": {
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  }
+}
+```
+
+## 基础语法
+
+### describe 与 it
+
+```typescript
+import { describe, it, expect } from 'vitest';
+
+describe('Calculator', () => {
+  it('应该正确执行加法', () => {
+    expect(1 + 2).toBe(3);
+  });
+
+  it('应该正确执行减法', () => {
+    expect(5 - 3).toBe(2);
+  });
+});
+```
+
+### describe 嵌套
+
+```typescript
+describe('UserProfile', () => {
+  describe('渲染', () => {
+    it('应该显示用户名', () => {
+      // ...
+    });
+  });
+
+  describe('交互', () => {
+    it('应该响应点击事件', () => {
+      // ...
+    });
+  });
+});
+```
+
+## 组件测试
+
+### render 函数
+
+```typescript
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import LoginForm from './LoginForm';
+
+describe('LoginForm', () => {
+  it('应该渲染表单元素', () => {
+    render(<LoginForm onSubmit={vi.fn()} />);
+
+    expect(screen.getByLabelText(/用户名/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/密码/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /登录/i })).toBeInTheDocument();
+  });
+});
+```
+
+### screen 常用查询
+
+```typescript
+// 按文本内容
+screen.getByText('提交');
+screen.getAllByText(/列表项/);
+
+// 按标签
+screen.getByLabelText('邮箱');
+screen.getByPlaceholderText('请输入');
+
+// 按 role
+screen.getByRole('button', { name: '提交' });
+screen.getByRole('textbox', { name: '搜索' });
+
+// 按 testid（最后选择）
+screen.getByTestId('custom-element');
+```
+
+### 查询优先级
+
+| 优先级 | 查询方式 | 示例 |
+|--------|----------|------|
+| 1 | Accessible | `getByRole`, `getByLabelText` |
+| 2 | Semantic | `getByText`, `getByTitle` |
+| 3 | Test IDs | `getByTestId` |
+
+:::tip
+优先使用无障碍查询（role、label），这确保测试真实反映用户使用方式。
+:::
+
+## 用户交互
+
+### userEvent vs fireEvent
+
+`userEvent` 更贴近真实用户行为，推荐使用：
+
+```typescript
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import SearchInput from './SearchInput';
+
+describe('SearchInput', () => {
+  it('应该处理输入并搜索', async () => {
+    const user = userEvent.setup();  // 异步用户实例
+    const onSearch = vi.fn();
+
+    render(<SearchInput onSearch={onSearch} />);
+
+    const input = screen.getByRole('textbox');
+    await user.type(input, 'React');  // 逐字符输入
+    await user.click(screen.getByRole('button', { name: /搜索/i }));
+
+    expect(onSearch).toHaveBeenCalledWith('React');
+  });
+});
+```
+
+### 常用 userEvent 方法
+
+```typescript
+const user = userEvent.setup();
+
+// 文本输入
+await user.type(input, 'hello');
+
+// 点击
+await user.click(button);
+
+// 悬停/移出
+await user.hover(element);
+await user.unhover(element);
+
+// 聚焦/失焦
+await user.tab();
+
+// 选择
+await user.selectOptions(select, 'optionValue');
+await user.click(dropdown);
+
+// 键盘输入
+await user.keyboard('[Enter]');
+await user.keyboard('{Control>}a{/Control}');
+```
+
+### 表单测试完整示例
+
+```typescript
+describe('RegisterForm', () => {
+  it('应该验证必填字段', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(<RegisterForm onSubmit={onSubmit} />);
+
+    // 不填写直接提交
+    await user.click(screen.getByRole('button', { name: /注册/i }));
+
+    // 验证错误提示
+    expect(screen.getByText('用户名不能为空')).toBeInTheDocument();
+    expect(screen.getByText('邮箱不能为空')).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('应该正确提交表单', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(<RegisterForm onSubmit={onSubmit} />);
+
+    await user.type(screen.getByLabelText(/用户名/i), 'testuser');
+    await user.type(screen.getByLabelText(/邮箱/i), 'test@example.com');
+    await user.type(screen.getByLabelText(/密码/i), 'Password123');
+    await user.click(screen.getByRole('button', { name: /注册/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      username: 'testuser',
+      email: 'test@example.com',
+      password: 'Password123',
+    });
+  });
+});
+```
+
+## 异步测试
+
+### waitFor 与 findBy
+
+处理异步渲染：
+
+```typescript
+import { render, screen, waitFor } from '@testing-library/react';
+
+it('应该显示加载后的数据', async () => {
+  render(<UserList />);
+
+  // 方法 1：findBy 查询（推荐）
+  expect(await screen.findByText('用户列表')).toBeInTheDocument();
+
+  // 方法 2：waitFor 等待条件
+  await waitFor(() => {
+    expect(screen.queryByText('加载中...')).not.toBeInTheDocument();
+  });
+});
+```
+
+### 模拟异步请求
+
+```typescript
+import { render, screen } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import UserProfile from './UserProfile';
+
+// 模拟服务器
+export const server = setupServer(
+  http.get('/api/user/:id', ({ params }) => {
+    return HttpResponse.json({
+      id: params.id,
+      name: '张三',
+      email: 'zhangsan@example.com',
+    });
+  })
+);
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+describe('UserProfile', () => {
+  it('应该显示用户信息', async () => {
+    render(<UserProfile userId="1" />);
+
+    expect(await screen.findByText('张三')).toBeInTheDocument();
+    expect(screen.getByText('zhangsan@example.com')).toBeInTheDocument();
+  });
+});
+```
+
+## Mock 技巧
+
+### vi.fn() 模拟函数
+
+```typescript
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import TodoList from './TodoList';
+
+describe('TodoList', () => {
+  it('应该调用添加回调', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+
+    render(<TodoList onAdd={onAdd} />);
+
+    await user.type(screen.getByPlaceholderText('新任务'), '学习测试');
+    await user.keyboard('{Enter}');
+
+    expect(onAdd).toHaveBeenCalledWith('学习测试');
+    expect(onAdd).toHaveBeenCalledTimes(1);
+  });
+});
+```
+
+### vi.mock() 模拟模块
+
+```typescript
+import { vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+
+// 模拟整个模块
+vi.mock('./api', () => ({
+  fetchUser: vi.fn().mockResolvedValue({
+    id: 1,
+    name: '测试用户',
+  }),
+}));
+
+import { fetchUser } from './api';
+import UserCard from './UserCard';
+
+describe('UserCard', () => {
+  it('应该显示用户信息', async () => {
+    render(<UserCard userId={1} />);
+
+    expect(await screen.findByText('测试用户')).toBeInTheDocument();
+  });
+});
+```
+
+### 模拟计时器
+
+```typescript
+import { vi, it, beforeEach, afterEach } from 'vitest';
+
+describe('DebouncedSearch', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();  // 使用假计时器
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();  // 恢复真实计时器
+  });
+
+  it('应该在 300ms 后执行搜索', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const onSearch = vi.fn();
+
+    render(<DebouncedSearch onSearch={onSearch} />);
+
+    await user.type(screen.getByRole('textbox'), 'test');
+
+    // 快进时间
+    vi.advanceTimersByTime(300);
+
+    expect(onSearch).toHaveBeenCalledWith('test');
+  });
+});
+```
+
+## 测试组件类型
+
+### 按钮测试
+
+```typescript
+describe('Button', () => {
+  it('应该渲染不同变体', () => {
+    render(<Button variant="primary">主要按钮</Button>);
+    render(<Button variant="secondary">次要按钮</Button>);
+    render(<Button disabled>禁用按钮</Button>);
+
+    expect(screen.getByText('主要按钮')).toHaveClass('btn-primary');
+    expect(screen.getByText('次要按钮')).toHaveClass('btn-secondary');
+    expect(screen.getByText('禁用按钮')).toBeDisabled();
+  });
+
+  it('点击应该触发回调', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+
+    render(<Button onClick={onClick}>点击我</Button>);
+
+    await user.click(screen.getByRole('button'));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});
+```
+
+### 列表测试
+
+```typescript
+describe('ItemList', () => {
+  it('应该正确渲染列表项', () => {
+    const items = [
+      { id: 1, text: '项目 1' },
+      { id: 2, text: '项目 2' },
+      { id: 3, text: '项目 3' },
+    ];
+
+    render(<ItemList items={items} />);
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    expect(screen.getByText('项目 2')).toBeInTheDocument();
+  });
+
+  it('空列表应该显示提示', () => {
+    render(<ItemList items={[]} />);
+
+    expect(screen.getByText('暂无数据')).toBeInTheDocument();
+  });
+});
+```
+
+## 覆盖率配置
+
+### vitest.config.ts
+
+```typescript
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: 'v8',  // 或 'istanbul'
+      reporter: ['text', 'json', 'html'],
+      exclude: [
+        'node_modules/',
+        'src/test/',
+        '**/*.d.ts',
+        '**/*.config.*',
+      ],
+    },
+  },
+});
+```
+
+### 覆盖率命令
+
+```bash
+# 生成文本报告
+vitest --coverage
+
+# 生成 HTML 报告（打开 coverage/index.html 查看）
+vitest --coverage.reporter=html
+```
+
+### 覆盖率指标
+
+| 指标 | 说明 | 建议目标 |
+|------|------|----------|
+| Statements | 语句覆盖率 | 70-80% |
+| Branches | 分支覆盖率 | 70-80% |
+| Functions | 函数覆盖率 | 70-80% |
+| Lines | 行覆盖率 | 70-80% |
+
+:::warning
+不要盲目追求 100% 覆盖率。重点测试业务逻辑、边界条件和用户交互路径。
+:::
+
+## 测试最佳实践
+
+### 不要测试实现细节
+
+```typescript
+// ❌ 错误：测试内部状态
+it('应该更新 count 状态', () => {
+  const { container } = render(<Counter />);
+  expect(container.querySelector('.count')).toHaveTextContent('0');
+});
+
+// ✓ 正确：测试用户可见行为
+it('点击按钮应该增加计数', async () => {
+  const user = userEvent.setup();
+  render(<Counter />);
+
+  await user.click(screen.getByRole('button', { name: '+1' }));
+
+  expect(screen.getByText('1')).toBeInTheDocument();
+});
+```
+
+### 保持测试独立
+
+```typescript
+// 每个测试使用 fresh render
+// 不要在测试间共享状态
+
+describe('TodoList', () => {
+  // ✓ 每个测试都是独立的
+  it('添加项目', async () => {
+    const { container } = render(<TodoList />);
+    // ...
+  });
+
+  it('删除项目', async () => {
+    const { container } = render(<TodoList />);
+    // ...
+  });
+});
+```
+
+### 测试文件名
+
+```
+src/
+├── components/
+│   ├── Button/
+│   │   ├── Button.tsx
+│   │   └── Button.test.tsx      # 组件测试
+│   │   └── Button.css
+├── hooks/
+│   ├── useCounter/
+│   │   ├── useCounter.ts
+│   │   └── useCounter.test.ts   # Hook 测试
+└── utils/
+    ├── format/
+    │   ├── formatDate.ts
+    │   └── formatDate.test.ts    # 工具函数测试
+```
+
+## 小结
+
+- **Vitest**：Vite 原生测试框架，配置简单、运行快速
+- **React Testing Library**：以用户为中心的测试理念，优先使用无障碍查询
+- **userEvent**：模拟真实用户交互，比 fireEvent 更准确
+- **Mock 技巧**：`vi.fn()` 模拟函数，`vi.mock()` 模拟模块
+- **异步测试**：`findBy` 查询、`waitFor` 等待、`msw` 模拟 API
+- **覆盖率**：`vitest --coverage` 查看测试覆盖情况
+
+掌握了测试技能后，下一篇文章我们将学习 **性能优化核心策略**，了解如何测量和优化 React 应用性能。
