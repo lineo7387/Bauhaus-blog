@@ -25,3 +25,7 @@ export default defineConfig({
     plugins: [tailwindcss()],
   },
 });
+
+// 服务器配置
+// site: 'http://159.75.132.188/',
+// base: '',
