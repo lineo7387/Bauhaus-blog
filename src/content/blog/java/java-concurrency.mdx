@@ -1,0 +1,395 @@
+---
+title: 并发编程与 Virtual Threads
+description: 讲解线程与进程的概念、三种线程创建方式、线程同步机制（synchronized/Lock）、线程池（ExecutorService），以及 Java 17+ Virtual Threads 虚拟线程入门
+pubDate: 2026-04-11
+category: java
+tags: [java, 并发, Thread, Runnable, Callable, ExecutorService, Virtual Threads, synchronized, JEP 425]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 20
+planId: java-concurrency
+---
+
+# 并发编程与 Virtual Threads
+
+现代服务器通常有 8核、16核甚至更多 CPU 核心。如果程序只用单线程，就浪费了硬件资源。**并发编程**让多个任务"同时"执行，充分利用多核 CPU 的计算能力。本文讲解 Java 并发基础、线程同步、以及 Java 21 正式发布的 **Virtual Threads（虚拟线程）**。
+
+## 线程与进程
+
+- **进程（Process）**：操作系统分配的独立内存空间，是资源分配的最小单位。一个运行中的 Java 应用就是一个进程。
+- **线程（Thread）**：进程内的执行单元，是 CPU 调度的最小单位。一个进程可以包含多个线程，线程共享进程的内存空间。
+
+```
+进程（一个 Java 应用）
+├── 线程1：main 主线程
+├── 线程2：GC 垃圾回收线程
+├── 线程3：用户自定义线程
+└── ...
+```
+
+**单线程 vs 多线程**：
+
+```java
+// 单线程：任务串行执行
+void processOrders() {
+    for (Order order : orders) {
+        process(order);  // 每个订单顺序处理
+    }
+}
+
+// 多线程：多个订单同时处理
+void processOrders() {
+    for (Order order : orders) {
+        new Thread(() -> process(order)).start();  // 并行处理
+    }
+}
+```
+
+## 三种线程创建方式
+
+### 方式一：继承 Thread 类
+
+```java
+class MyThread extends Thread {
+    @Override
+    public void run() {
+        System.out.println("线程执行中: " + Thread.currentThread().getName());
+    }
+}
+
+// 使用
+MyThread t = new MyThread();
+t.start();  // 启动线程（不是 run()！start() 才创建新线程）
+```
+
+### 方式二：实现 Runnable 接口（推荐）
+
+```java
+class MyTask implements Runnable {
+    @Override
+    public void run() {
+        System.out.println("任务执行中");
+    }
+}
+
+// 使用
+Thread t = new Thread(new MyTask(), "my-thread");
+t.start();
+
+// Java 8+ Lambda 简化
+new Thread(() -> {
+    System.out.println("Lambda 写法");
+}, "lambda-thread").start();
+```
+
+### 方式三：实现 Callable + Future（带返回值）
+
+`Runnable` 的 `run()` 不返回值、不抛异常。`Callable<V>` 解决了这个问题：
+
+```java
+import java.util.concurrent.*;
+
+class SumTask implements Callable<Integer> {
+    private final int n;
+
+    public SumTask(int n) { this.n = n; }
+
+    @Override
+    public Integer call() {
+        int sum = 0;
+        for (int i = 1; i <= n; i++) sum += i;
+        return sum;
+    }
+}
+```
+
+```java
+ExecutorService executor = Executors.newSingleThreadExecutor();
+
+Future<Integer> future = executor.submit(new SumTask(100));
+
+try {
+    // get() 阻塞等待结果
+    Integer result = future.get(5, TimeUnit.SECONDS);
+    System.out.println("1+2+...+100 = " + result);
+} catch (TimeoutException e) {
+    System.out.println("计算超时");
+    future.cancel(true);  // 取消任务
+} catch (InterruptedException | ExecutionException e) {
+    e.printStackTrace();
+} finally {
+    executor.shutdown();
+}
+```
+
+## 线程同步：synchronized
+
+多线程访问共享资源时，如果不做同步控制，会产生**数据竞争（Data Race）**：
+
+```java
+// ❌ 问题代码：两个线程同时对 counter++（counter++ 不是原子操作）
+class Counter {
+    private int count = 0;
+
+    public void increment() {
+        count++;  // 读取 → 加1 → 写回，三步操作，非原子
+    }
+}
+
+// 实际执行时序（竞态条件）
+// 线程A: 读count=0 → 线程B: 读count=0 → 线程A: count=1 → 线程B: count=1（应该是2！）
+```
+
+### synchronized 修饰方法
+
+```java
+class SafeCounter {
+    private int count = 0;
+
+    // 整个方法体被锁保护，同一时刻只有一个线程能进入
+    public synchronized void increment() {
+        count++;
+    }
+
+    // synchronized 加在实例方法上 → 锁对象是 this
+    // synchronized 加在 static 方法上 → 锁对象是 Class 对象
+    public static synchronized int getCount() {
+        return 0;  // 锁住的是 SafeCounter.class
+    }
+}
+```
+
+### synchronized 修饰代码块（更精细的控制）
+
+```java
+class SafeBankAccount {
+    private int balance = 1000;
+    private final Object lock = new Object();  // 专用锁对象
+
+    public void withdraw(int amount) {
+        // 只锁定关键代码块，比锁定整个方法性能更好
+        synchronized (lock) {
+            if (balance >= amount) {
+                // 模拟处理延迟，放大竞态条件
+                try { Thread.sleep(100); } catch (InterruptedException ignored) {}
+                balance -= amount;
+                System.out.println("取款成功，余额：" + balance);
+            } else {
+                System.out.println("余额不足");
+            }
+        }
+    }
+}
+```
+
+## Lock：更灵活的锁
+
+`java.util.concurrent.locks.Lock` 提供了比 `synchronized` 更强大的功能：
+
+```java
+import java.util.concurrent.locks.*;
+
+class SafeCounter {
+    private int count = 0;
+    private final ReentrantLock lock = new ReentrantLock();
+
+    public void increment() {
+        lock.lock();
+        try {
+            count++;
+        } finally {
+            lock.unlock();  // 必须在 finally 中释放，确保锁一定会被释放
+        }
+    }
+
+    // 尝试获取锁（非阻塞）
+    public void tryIncrement() {
+        if (lock.tryLock()) {  // 立即返回，获取失败返回 false
+            try {
+                count++;
+            } finally {
+                lock.unlock();
+            }
+        } else {
+            System.out.println("获取锁失败，执行其他逻辑");
+        }
+    }
+
+    // 带超时的尝试获取锁
+    public void incrementWithTimeout() {
+        try {
+            if (lock.tryLock(1, TimeUnit.SECONDS)) {  // 等待1秒
+                try {
+                    count++;
+                } finally {
+                    lock.unlock();
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+```
+
+## 线程池：ExecutorService
+
+每次创建/销毁线程都有开销。**线程池**预先创建线程，复用线程执行多个任务：
+
+```java
+import java.util.concurrent.*;
+
+// 固定大小线程池（适合 CPU 密集型）
+ExecutorService fixedPool = Executors.newFixedThreadPool(4);
+
+// 缓存线程池（适合 IO 密集型，线程数动态增长）
+ExecutorService cachedPool = Executors.newCachedThreadPool();
+
+// 单线程池（保证任务顺序执行）
+ExecutorService singlePool = Executors.newSingleThreadExecutor();
+
+// 工作窃取线程池（Java 8+，适合分割任务并行处理）
+ExecutorService workStealing = Executors.newWorkStealingPool();
+
+// 推荐：手动创建线程池，明确参数
+ExecutorService executor = new ThreadPoolExecutor(
+    4,                      // 核心线程数
+    8,                      // 最大线程数
+    60L, TimeUnit.SECONDS, // 空闲线程存活时间
+    new LinkedBlockingQueue<>(1000), // 任务队列
+    Executors.defaultThreadFactory(),
+    new ThreadPoolExecutor.CallerRunsPolicy() // 拒绝策略：调用方执行
+);
+```
+
+### 提交任务
+
+```java
+ExecutorService executor = Executors.newFixedThreadPool(4);
+
+// 提交 Runnable（无返回值）
+executor.execute(() -> System.out.println("任务1"));
+
+// 提交 Callable（有返回值）
+Future<Integer> f1 = executor.submit(() -> 100 + 200);
+Future<String> f2 = executor.submit(() -> "hello");
+
+System.out.println(f1.get());  // 300
+System.out.println(f2.get()); // hello
+
+// 批量提交
+List<Callable<Integer>> tasks = List.of(
+    () -> 1 + 1,
+    () -> 2 + 2,
+    () -> 3 + 3
+);
+List<Future<Integer>> results = executor.invokeAll(tasks);  // 等待全部完成
+results.forEach(f -> {
+    try { System.out.println(f.get()); } catch (Exception ignored) {}
+});
+
+// 任一任务完成即返回（适合超时控制）
+Future<Integer> fastest = executor.invokeAny(tasks);
+
+// 关闭线程池
+executor.shutdown();       // 等待已提交任务完成，不再接受新任务
+executor.shutdownNow();    // 立即停止，尝试中断运行中任务
+```
+
+## Virtual Threads（虚拟线程）
+
+**Virtual Threads** 是 Java 21 正式发布的重磅特性（JEP 425），目的是用极低的成本支持海量并发任务，从根本上解决传统线程的资源消耗问题。
+
+### 传统线程的问题
+
+传统线程（称为 **Platform Thread**）绑定操作系统线程，创建和上下文切换成本高。在处理大量 IO 操作（如 HTTP 请求）时，大量的线程阻塞造成资源浪费：
+
+```java
+// 传统模式：每个请求一个线程
+// 10000 个并发 HTTP 请求 → 需要 10000 个线程
+// 每个线程占用约 1MB 栈内存 → 10GB 内存！
+
+// Virtual Threads 模式：轻量级虚拟线程
+// 10000 个并发 HTTP 请求 → 可能只需要几百个平台线程
+// 每个虚拟线程仅占用约 200-300 字节 → 大幅节省内存
+```
+
+### 创建 Virtual Threads
+
+```java
+// Java 21+ 创建虚拟线程
+Thread vt = Thread.ofVirtual().name("my-virtual-thread").start(() -> {
+    System.out.println("虚拟线程运行中");
+});
+
+// 使用 ExecutorService 运行虚拟线程
+try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    Future<String> f1 = executor.submit(() -> {
+        Thread.sleep(Duration.ofSeconds(1));
+        return "任务1完成";
+    });
+    Future<String> f2 = executor.submit(() -> {
+        Thread.sleep(Duration.ofSeconds(1));
+        return "任务2完成";
+    });
+
+    System.out.println(f1.get());  // 任务1完成
+    System.out.println(f2.get()); // 任务2完成
+}
+// newVirtualThreadPerTaskExecutor()：每个任务一个虚拟线程
+```
+
+### Virtual Threads vs Platform Threads
+
+```java
+// 性能对比：创建10000个线程
+public class ThreadComparison {
+
+    // Platform Threads：创建慢，资源消耗大
+    public void platformThreads() throws InterruptedException {
+        Thread[] threads = new Thread[10_000];
+        for (int i = 0; i < 10_000; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    Thread.sleep(Duration.ofSeconds(1));
+                } catch (InterruptedException ignored) {}
+            });
+            threads[i].start();
+        }
+        for (Thread t : threads) t.join();
+        // 耗时：约 30-60 秒（受限于平台线程数量）
+    }
+
+    // Virtual Threads：创建极快，资源消耗极小
+    public void virtualThreads() throws InterruptedException {
+        Thread[] threads = new Thread[10_000];
+        for (int i = 0; i < 10_000; i++) {
+            threads[i] = Thread.ofVirtual().start(() -> {
+                try {
+                    Thread.sleep(Duration.ofSeconds(1));
+                } catch (InterruptedException ignored) {}
+            });
+        }
+        for (Thread t : threads) t.join();
+        // 耗时：约 1-2 秒（并发执行，IO 阻塞期间自动切换）
+    }
+}
+```
+
+### Virtual Threads 的注意事项
+
+- **不要池化虚拟线程**：虚拟线程设计为"用完即销毁"，不要用线程池管理它们
+- **不要在线程局部变量（ThreadLocal）中存储大对象**：虚拟线程数量巨大，ThreadLocal 会造成内存压力
+- **synchronized 块中使用 `Thread.yield()` 要小心**：Virtual Threads 的调度由 JVM 决定，`Object.wait()` 会自动暂停虚拟线程
+
+## 小结
+
+- **进程**是资源分配单位，**线程**是 CPU 调度单位；一个进程可有多个线程
+- **Runnable** 适合不需要返回值的任务；**Callable + Future** 适合需要返回值的任务
+- **`synchronized`** 修饰方法或代码块，实现线程同步，避免数据竞争
+- **`Lock`**（ReentrantLock）提供比 synchronized 更灵活的锁操作
+- **线程池（ExecutorService）**复用线程，避免频繁创建/销毁线程的开销
+- **Virtual Threads（Java 21+）**：用几百字节代替几 MB，以极低成本支持百万级并发
+
+并发编程是高难度主题，但也是 Java 后端工程师进阶的核心能力。下一节我们将深入 **JVM 原理与调优**，理解 Java 程序运行时的底层机制。

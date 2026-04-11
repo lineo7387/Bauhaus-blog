@@ -25,5 +25,3 @@ pnpm-debug.log*
 # claude
 .claude/
 
-# content
-src/content/

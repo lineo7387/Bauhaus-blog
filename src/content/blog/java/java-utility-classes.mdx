@@ -1,0 +1,288 @@
+---
+title: 常用工具类与编码实践
+description: 对比 String/StringBuilder/StringBuffer 的性能差异，讲解 Java 17+ 日期时间 API、Objects/Collections 常用工具方法，以及编码规范与避坑指南
+pubDate: 2026-04-11
+category: java
+tags: [java, String, StringBuilder, 日期时间, LocalDateTime, 工具类, 编码规范]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 11
+planId: java-utility-classes
+---
+
+# 常用工具类与编码实践
+
+在实际项目中，字符串拼接、日期处理和集合操作是每天都会遇到的高频场景。掌握 Java 标准库提供的工具类，避免常见的编码陷阱，能让代码更健壮、更高效。
+
+## String、StringBuilder 与 StringBuffer
+
+### 为什么不能随意用 `+` 拼接字符串
+
+在 Java 中，`String` 是**不可变类**——每次对 String 的修改都会创建新的对象。用 `+` 拼接字符串时，编译器会将其转换为 `StringBuilder` 操作，但如果在循环中拼接，性能会严重下降：
+
+```java
+// ❌ 低效：在循环中频繁创建 StringBuilder 对象
+String result = "";
+for (int i = 0; i < 1000; i++) {
+    result += "item" + i;  // 每次循环：new StringBuilder() → append() → toString()
+}
+
+// ✅ 高效：显式使用 StringBuilder
+StringBuilder sb = new StringBuilder();
+for (int i = 0; i < 1000; i++) {
+    sb.append("item").append(i);
+}
+String result = sb.toString();
+```
+
+### StringBuilder vs StringBuffer
+
+| 类 | 线程安全 | 性能 | 适用场景 |
+|----|---------|------|---------|
+| `StringBuilder` | 不安全 | 最高 | 单线程环境（推荐）|
+| `StringBuffer` | 安全（synchronized）| 较低 | 多线程环境（已较少使用）|
+
+```java
+// StringBuilder：单线程首选
+StringBuilder sb = new StringBuilder();
+sb.append("Hello").append(" ").append("World");
+sb.insert(5, ",");    // 在指定位置插入
+sb.delete(5, 6);       // 删除 [5, 6) 区间
+sb.reverse();          // 反转
+String result = sb.toString();
+
+// StringBuffer：多线程安全（但性能低于 StringBuilder）
+StringBuffer sbf = new StringBuffer();
+sbf.append("Thread-safe");
+```
+
+### String 的常用方法
+
+```java
+String s = "  Hello, Java!  ";
+
+s.trim();              // "Hello, Java!"（去除首尾空白）
+s.strip();             // "Hello, Java!"（Java 11+，Unicode 空白字符也去除）
+s.toLowerCase();       // "  hello, java!  "
+s.toUpperCase();       // "  HELLO, JAVA!  "
+s.contains("Java");    // true
+s.startsWith("  H");  // true
+s.endsWith("!  ");    // true
+s.indexOf("Java");     // 9
+s.lastIndexOf("a");    // 12
+s.substring(2, 8);    // "Hello,"
+s.replace("Java", "Kotlin");  // "  Hello, Kotlin!  "
+s.replaceAll("\\s+", "");      // "Hello,Java!"（正则替换）
+
+// split 注意事项
+String path = "a,b,,c";  // 注意中间有两个逗号
+String[] parts = path.split(",");   // ["a", "b", "", "c"]（末尾空字符串不保留）
+String[] parts2 = path.split(",", 2); // ["a", "b,,c"]（限制分割次数）
+
+// isBlank vs isEmpty
+"".isEmpty();      // true
+"   ".isEmpty();   // false
+"   ".isBlank();   // true（Java 11+）
+```
+
+## Java 17+ 日期时间 API
+
+### 为什么废弃旧的 Date 和 Calendar
+
+`java.util.Date` 和 `java.util.Calendar` 存在严重的设计缺陷：可变对象、月份从 0 开始（容易出错）、非线程安全、API 混乱。Java 8 引入的 `java.time` 包从根本上解决了这些问题。
+
+### 核心类
+
+| 类 | 用途 | 示例 |
+|----|------|------|
+| `LocalDate` | 日期（年月日）| 2026-04-11 |
+| `LocalTime` | 时间（时分秒）| 14:30:00 |
+| `LocalDateTime` | 日期时间 | 2026-04-11 14:30:00 |
+| `ZonedDateTime` | 带时区的日期时间 | 2026-04-11T14:30:00+08:00 |
+| `Duration` | 时间段（秒/纳秒）| |
+| `Period` | 日期段（年/月/日）| |
+| `Instant` | 时间戳（UTC）| |
+
+### 基本用法
+
+```java
+import java.time.*;
+
+// 获取当前日期时间
+LocalDate today = LocalDate.now();        // 2026-04-11
+LocalTime now = LocalTime.now();          // 14:30:00.123456789
+LocalDateTime now2 = LocalDateTime.now(); // 2026-04-11T14:30:00
+
+// 构造指定日期
+LocalDate birthday = LocalDate.of(2000, 1, 1);
+LocalDateTime dt = LocalDateTime.of(2026, 4, 11, 20, 0, 0);
+
+// 日期时间计算
+LocalDate tomorrow = today.plusDays(1);
+LocalDate nextMonth = today.plusMonths(1);
+LocalDate lastYear = today.minusYears(1);
+
+// 比较
+boolean isAfter = today.isAfter(birthday);
+boolean isBefore = today.isBefore(birthday);
+long daysBetween = ChronoUnit.DAYS.between(birthday, today);
+
+// 日期格式化
+LocalDateTime dt = LocalDateTime.of(2026, 4, 11, 14, 30);
+DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+String formatted = dt.format(fmt);  // "2026-04-11 14:30:00"
+
+// 解析字符串
+LocalDate parsed = LocalDate.parse("2026-04-11");
+LocalDateTime parsed2 = LocalDateTime.parse("2026-04-11 14:30:00", fmt);
+```
+
+### Duration 与 Period
+
+```java
+LocalDate date1 = LocalDate.of(2026, 1, 1);
+LocalDate date2 = LocalDate.of(2026, 4, 11);
+
+// Period：处理日期差（年/月/日）
+Period period = Period.between(date1, date2);
+System.out.println(period.getDays());      // 10（不是 101 天）
+System.out.println(period.toTotalMonths()); // 3
+
+// Duration：处理时间差（时/分/秒）
+LocalTime t1 = LocalTime.of(10, 0);
+LocalTime t2 = LocalTime.of(12, 30, 15);
+Duration dur = Duration.between(t1, t2);
+System.out.println(dur.toHours());     // 2
+System.out.println(dur.toMinutes());   // 150
+
+// Instant：处理时间戳（适合日志、性能分析）
+Instant start = Instant.now();
+// ... 执行耗时操作 ...
+Instant end = Instant.now();
+long millis = Duration.between(start, end).toMillis();
+```
+
+## Objects 工具类
+
+```java
+import java.util.Objects;
+
+// 安全比较（支持 null）
+String a = null, b = "hello";
+Objects.equals(a, b);         // false（不会 NPE）
+Objects.equals(null, null);   // true
+
+// hash：组合多个字段的 hashCode
+@Override
+public int hashCode() {
+    return Objects.hash(name, age, email);  // 自动处理 null
+}
+
+// requireNonNull：强制非空校验
+public User(String name, String email) {
+    this.name = Objects.requireNonNull(name, "姓名不能为空");
+    this.email = Objects.requireNonNull(email, "邮箱不能为空");
+}
+
+// isNull / nonNull（Predicate）
+List<String> filtered = list.stream()
+    .filter(Objects::nonNull)  // 过滤 null 值
+    .toList();
+
+// compare：安全比较（处理 null）
+int result = Objects.compare(a, b, Comparator.nullsLast(Comparator.naturalOrder()));
+```
+
+## Collections 工具类
+
+```java
+import java.util.Collections;
+
+// 排序
+List<Integer> nums = new ArrayList<>(List.of(3, 1, 4, 1, 5));
+Collections.sort(nums);                    // 自然排序
+Collections.sort(nums, Comparator.reverseOrder());  // 降序
+
+// 查找（二分搜索，前提是已排序）
+int index = Collections.binarySearch(nums, 4);  // 3
+
+// 不可变集合
+List<String> readOnly = Collections.unmodifiableList(list);
+Map<String, Integer> immutable = Map.of("a", 1, "b", 2);  // Java 9+
+
+// 单元素集合
+Set<String> singleton = Collections.singleton("only");
+
+// 批量操作
+List<Integer> target = new ArrayList<>(List.of(1, 2, 3, 4, 5));
+Collections.fill(target, 0);      // 所有元素填充为 0
+Collections.swap(list, 0, 1);     // 交换两个位置的元素
+Collections.shuffle(list);        // 随机打乱
+Collections.reverse(list);        // 反转
+
+// 出现频率
+List<String> words = List.of("a", "b", "a", "c", "a");
+int freq = Collections.frequency(words, "a");  // 3
+```
+
+## 常见编码错误避坑
+
+### 1. 浮点数精度问题
+
+```java
+// ❌ 错误：浮点数直接比较
+System.out.println(0.1 + 0.2 == 0.3);  // false！精度丢失
+
+// ✅ 正确：使用 BigDecimal
+import java.math.BigDecimal;
+BigDecimal a = new BigDecimal("0.1");
+BigDecimal b = new BigDecimal("0.2");
+BigDecimal sum = a.add(b);  // "0.3"，精确计算
+System.out.println(sum.compareTo(new BigDecimal("0.3")) == 0);  // true
+
+// 推荐：使用字符串构造 BigDecimal，避免使用 double
+BigDecimal c = new BigDecimal(0.1);  // ❌ 仍然不精确！
+BigDecimal d = new BigDecimal("0.1"); // ✅ 精确
+```
+
+### 2. 日期格式的线程安全问题
+
+```java
+// ❌ DateTimeFormatter 是线程安全的，但 SimpleDateFormat 不是！
+// ❌ 不要在多线程中共享 SimpleDateFormat
+// ✅ 多线程环境使用 ThreadLocal
+private static final ThreadLocal<DateFormat> df =
+    ThreadLocal.withInitial(() -> new SimpleDateFormat("yyyy-MM-dd"));
+
+// ✅ 或直接使用 DateTimeFormatter（线程安全）
+private static final DateTimeFormatter FMT =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd");
+```
+
+### 3. 字符串常量和空指针
+
+```java
+// ❌ 错误：常量放后面，比较时容易 NPE
+if (user.getName().equals("admin")) { ... }
+// 如果 user.getName() 返回 null，会 NPE
+
+// ✅ 正确：常量放前面
+if ("admin".equals(user.getName())) { ... }
+
+// ✅ 或使用 Objects.equals（更清晰）
+if (Objects.equals(user.getName(), "admin")) { ... }
+
+// ✅ Java 14+ Pattern Matching for instanceof
+if (user.getName() instanceof String name && name.equals("admin")) { ... }
+```
+
+## 小结
+
+- **字符串拼接**：循环内使用 `StringBuilder`，单线程场景默认选它；`String` 的 `+` 只适合少量拼接
+- **日期时间**：始终使用 `java.time` 包（`LocalDate`/`LocalDateTime`/`Instant`），废弃旧的 `Date`/`Calendar`
+- **浮点数比较**：使用 `BigDecimal`，构造时**必须用字符串参数**
+- **线程安全**：`SimpleDateFormat` 线程不安全，`DateTimeFormatter` 线程安全
+- `Objects` 和 `Collections` 提供了大量实用工具方法，善用它们可以大幅简化代码
+
+掌握这些工具类和编码规范后，下一节我们将进入后端开发的工具链世界——**Maven/Gradle 构建、JUnit 测试、SLF4J 日志**。

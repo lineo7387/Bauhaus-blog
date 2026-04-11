@@ -1,0 +1,376 @@
+---
+title: 集合框架与 Stream API
+description: 系统讲解 Java 三大集合体系（List/Set/Map）、核心实现类、Stream API 筛选映射归约操作、Lambda 表达式与方法引用
+pubDate: 2026-04-11
+category: java
+tags: [java, 集合框架, Collection, List, Set, Map, Stream API, Lambda]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 18
+planId: java-collections-stream
+---
+
+# 集合框架与 Stream API
+
+Java 集合框架是后端开发中使用最频繁的 API 之一。`List`、`Set`、`Map` 三大接口构成了几乎所有业务代码的数据结构基础。而 **Stream API**（Java 8 引入）则改变了我们处理数据的方式——从"如何做"（命令式）转向"做什么"（声明式）。本文系统讲解集合核心用法与 Stream API 实践。
+
+## 三大集合体系总览
+
+```
+Collection<E>
+├── List<E>        有序、可重复 → 序列/列表
+├── Set<E>         无序、不重复 → 数学集合概念
+└── Queue<E>       先进先出 → 队列
+
+Map<K, V>          键值对，键不重复
+```
+
+## List：有序列表
+
+### 核心实现类
+
+| 实现类 | 底层结构 | 适用场景 |
+|--------|---------|---------|
+| `ArrayList` | 动态数组 | 随机访问多、插入删除少（最常用）|
+| `LinkedList` | 双向链表 | 频繁头尾操作、需要下标随机访问（慎用）|
+| `Vector` | 动态数组（同步）| 多线程环境（已过时，推荐 CopyOnWriteArrayList）|
+
+```java
+// ArrayList：最常用的 List 实现
+List<String> names = new ArrayList<>();
+names.add("Alice");
+names.add("Bob");
+names.add("Alice");  // 允许重复
+
+System.out.println(names.get(0));  // Alice
+System.out.println(names.size()); // 3
+
+// 初始化快捷方式（Java 9+）
+List<Integer> nums = List.of(1, 2, 3, 4, 5);
+List<String> keywords = List.of("java", "stream", "api");
+```
+
+### 常用操作
+
+```java
+List<String> list = new ArrayList<>(List.of("apple", "banana", "cherry", "date"));
+
+list.remove("banana");           // 删除指定元素
+list.removeIf(s -> s.startsWith("a")); // 删除所有以"a"开头的元素
+
+list.set(0, "apricot");          // 替换指定下标元素
+list.sort(Comparator.comparing(String::length)); // 按长度排序
+
+// 子列表视图（修改会影响原列表）
+List<String> sub = list.subList(1, 3);
+```
+
+## Set：不重复集合
+
+### 核心实现类
+
+| 实现类 | 底层结构 | 保证不重复的方式 |
+|--------|---------|----------------|
+| `HashSet` | 哈希表 | 依赖 hashCode + equals |
+| `LinkedHashSet` | 哈希表 + 链表 | 保留插入顺序 |
+| `TreeSet` | 红黑树 | 依赖 compareTo / Comparator |
+
+```java
+// HashSet：最常用，不保证顺序
+Set<String> fruits = new HashSet<>();
+fruits.add("apple");
+fruits.add("banana");
+fruits.add("apple");  // 重复，无效
+System.out.println(fruits.size());  // 2
+
+// LinkedHashSet：按插入顺序遍历
+Set<String> ordered = new LinkedHashSet<>();
+ordered.add("first");
+ordered.add("second");
+ordered.add("third");
+
+// TreeSet：按自然顺序或自定义顺序排序
+Set<Integer> sortedNums = new TreeSet<>();
+sortedNums.add(3);
+sortedNums.add(1);
+sortedNums.add(2);
+System.out.println(sortedNums);  // [1, 2, 3]
+
+// TreeSet 自定义排序
+Set<String> byLength = new TreeSet<>(Comparator.comparingInt(String::length));
+byLength.add("hello");
+byLength.add("hi");
+byLength.add("world");
+System.out.println(byLength);  // [hi, world, hello] → 按长度排序
+```
+
+### 对象去重：hashCode 与 equals
+
+将自定义对象放入 HashSet，需要正确实现 `hashCode` 和 `equals`：
+
+```java
+public class Student {
+    private String name;
+    private int age;
+
+    // 两个对象若 equals 返回 true，则 hashCode 必须相同
+    // 这是 HashSet/HashMap 正确判断"重复"的必要条件
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Student that = (Student) o;
+        return age == that.age && Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        // 常用技巧：使用 Objects.hash() 组合多个字段
+        return Objects.hash(name, age);
+    }
+}
+```
+
+## Map：键值对映射
+
+### 核心实现类
+
+| 实现类 | 底层结构 | 特点 |
+|--------|---------|------|
+| `HashMap` | 哈希表 | 性能最优，不保证顺序（最常用）|
+| `LinkedHashMap` | 哈希表 + 链表 | 保留插入顺序 |
+| `TreeMap` | 红黑树 | 按 key 自然排序 |
+| `ConcurrentHashMap` | 分段锁哈希表 | 线程安全，高并发首选 |
+
+```java
+// 基本操作
+Map<String, Integer> scores = new HashMap<>();
+scores.put("Alice", 95);
+scores.put("Bob", 88);
+scores.put("Charlie", 92);
+
+System.out.println(scores.get("Alice"));    // 95
+System.out.println(scores.getOrDefault("David", 0)); // 0（不存在时默认值）
+
+// 遍历方式
+for (Map.Entry<String, Integer> entry : scores.entrySet()) {
+    System.out.println(entry.getKey() + " -> " + entry.getValue());
+}
+
+// Java 8+ forEach
+scores.forEach((name, score) ->
+    System.out.println(name + " 的分数是 " + score)
+);
+
+// 统计词频：经典 Map 用法
+String text = "hello java hello world java stream hello";
+Map<String, Integer> wordCount = new HashMap<>();
+for (String word : text.split(" ")) {
+    wordCount.merge(word, 1, Integer::sum);  // 合并计数
+}
+System.out.println(wordCount);
+// {hello=3, java=2, world=1, stream=1}
+```
+
+### compute 系列方法（Java 8+）
+
+```java
+Map<String, Integer> orders = new HashMap<>();
+orders.put("ORDER-001", 100);
+orders.put("ORDER-002", 200);
+
+// computeIfAbsent：key 不存在时才计算并放入
+orders.computeIfAbsent("ORDER-003", k -> fetchFromDB(k));
+
+// computeIfPresent：key 存在时才计算并更新
+orders.computeIfPresent("ORDER-001", (k, v) -> v + 50);  // 100 → 150
+
+// compute：无论 key 是否存在都计算
+orders.compute("ORDER-001", (k, v) -> (v == null) ? 0 : v * 2);  // 150 → 300
+```
+
+## Stream API：声明式数据处理
+
+**Stream** 不是存储结构，而是"数据视图"——它本身不存储数据，只描述"对数据做什么操作"。Stream 分为**中间操作**（返回新的 Stream）和**终端操作**（触发实际计算）。
+
+### 创建 Stream
+
+```java
+// 从集合创建
+List<Integer> nums = List.of(1, 2, 3, 4, 5);
+Stream<Integer> stream = nums.stream();
+
+// 从数组创建
+int[] arr = {3, 1, 4, 1, 5, 9, 2, 6};
+IntStream intStream = Arrays.stream(arr);
+
+// 快捷创建
+Stream<String> words = Stream.of("hello", "world");
+Stream<String> empty = Stream.empty();
+
+// 无限流（配合 limit 使用）
+Stream<Double> randoms = Stream.generate(Math::random).limit(100);
+Stream<Integer> naturals = Stream.iterate(1, n -> n + 1).limit(100);
+```
+
+### 筛选、映射与排序
+
+```java
+List<Student> students = List.of(
+    new Student("Alice", 20, 95),
+    new Student("Bob", 19, 88),
+    new Student("Charlie", 21, 92),
+    new Student("Diana", 20, 95)
+);
+
+// filter：筛选
+List<Student> topStudents = students.stream()
+    .filter(s -> s.score() >= 90)
+    .toList();
+
+// map：转换（提取字段）
+List<String> names = students.stream()
+    .map(Student::name)  // 等价于 s -> s.name()
+    .toList();
+
+// distinct：去重（依赖 equals）
+List<Integer> uniqueScores = students.stream()
+    .map(Student::score)
+    .distinct()
+    .toList();
+
+// sorted：排序
+List<Student> sorted = students.stream()
+    .sorted(Comparator
+        .comparingInt(Student::score).reversed()  // 按分数降序
+        .thenComparing(Student::name)             // 同分按名字升序
+    )
+    .toList();
+```
+
+### 归约与收集
+
+```java
+// collect：收集到集合
+Set<String> nameSet = students.stream()
+    .map(Student::name)
+    .collect(Collectors.toSet());
+
+// joining：拼接字符串
+String allNames = students.stream()
+    .map(Student::name)
+    .collect(Collectors.joining(", ", "[", "]"));
+// [Alice, Bob, Charlie, Diana]
+
+// counting / summingInt：统计
+long count = students.stream().filter(s -> s.score() >= 90).count();
+int totalScore = students.stream().collect(Collectors.summingInt(Student::score));
+
+// summarizingDouble：综合统计
+DoubleSummaryStatistics stats = students.stream()
+    .collect(Collectors.summarizingDouble(Student::score));
+System.out.println("平均分：" + stats.getAverage());
+System.out.println("最高分：" + stats.getMax());
+
+// groupingBy：分组
+Map<String, List<Student>> byName = students.stream()
+    .collect(Collectors.groupingBy(Student::name));
+Map<Integer, Long> byAge = students.stream()
+    .collect(Collectors.groupingBy(Student::age, Collectors.counting()));
+```
+
+### 终端操作
+
+```java
+// forEach：遍历（注意不要在 forEach 中修改外部集合）
+students.stream().forEach(s -> System.out.println(s.name()));
+
+// anyMatch / allMatch / noneMatch：判断
+boolean hasExcellent = students.stream()
+    .anyMatch(s -> s.score() >= 90);  // 是否有至少一个优秀
+
+boolean allAdults = students.stream()
+    .allMatch(s -> s.age() >= 18);   // 是否全部成年
+
+// findFirst / findAny：查找
+Optional<Student> first = students.stream()
+    .filter(s -> s.score() >= 90)
+    .findFirst();
+
+// reduce：归约（将多个元素合并为一个）
+int sum = students.stream()
+    .map(Student::score)
+    .reduce(0, Integer::sum);  // 初始值0，求和
+
+// max / min
+Optional<Student> maxScore = students.stream()
+    .max(Comparator.comparingInt(Student::score));
+```
+
+## Optional：优雅避免空指针
+
+`Optional<T>` 是"可能为空的值"的容器，用它替代 `null` 可以让代码意图更清晰：
+
+```java
+// 传统写法：容易忘记判空
+String name = getUser() != null ? getUser().getName() : "匿名";
+
+// Optional 写法：链式调用，意图清晰
+String name = Optional.ofNullable(getUser())
+    .map(User::getName)
+    .orElse("匿名");
+
+// isPresent + get（尽量避免）
+Optional<User> user = findUser(id);
+if (user.isPresent()) {
+    System.out.println(user.get().getName());
+}
+
+// ifPresentOrElse（推荐）
+user.ifPresentOrElse(
+    u -> System.out.println(u.getName()),
+    () -> System.out.println("用户不存在")
+);
+
+// orElseThrow
+User u = findUser(id)
+    .orElseThrow(() -> new UserNotFoundException("ID: " + id));
+```
+
+## 方法引用
+
+方法引用是 Lambda 表达式的简化写法，当 Lambda 体只是调用一个已有方法时，用方法引用替代：
+
+```java
+List<String> names = List.of("alice", "bob", "charlie");
+
+// Lambda 表达式
+names.stream().map(s -> s.toUpperCase()).toList();
+
+// 方法引用（更简洁）
+names.stream().map(String::toUpperCase).toList();
+
+// 静态方法引用
+List<Integer> lengths = names.stream().map(String::length).toList();
+
+// 实例方法引用（每个元素调用）
+List<Integer> nums = List.of(3, 1, 4, 1, 5, 9);
+System.out.println(nums.stream().reduce(Integer::sum).orElse(0));
+
+// 构造函数引用
+Stream<String> stream = Stream.of("a", "bb", "ccc");
+List<StringBuilder> builders = stream
+    .map(StringBuilder::new)  // 调用 new StringBuilder(String)
+    .toList();
+```
+
+## 小结
+
+- **List**：`ArrayList` 最常用，按下标随机访问；`LinkedList` 适合频繁头尾操作
+- **Set**：`HashSet` 性能最优，`LinkedHashSet` 保留插入顺序，`TreeSet` 支持排序
+- **Map**：`HashMap` 最常用；`computeIfAbsent` 是 Java 8+ 的高效缓存写法
+- **Stream API**：中间操作（filter/map/sorted）惰性执行，终端操作触发计算
+- **方法引用**：`ClassName::method` 或 `object::method` 是 Lambda 的语法糖
+
+下一节我们将学习如何用 **JDBC** 与数据库交互，这是后端开发的核心技能。
