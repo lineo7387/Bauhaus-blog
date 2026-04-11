@@ -1,0 +1,746 @@
+---
+title: 事件处理与绑定
+description: 系统讲解 Vue 3 中事件绑定的完整语法，包括事件修饰符、按键修饰符、鼠标按钮修饰符及组合式事件处理的最佳实践
+pubDate: 2026-04-11
+category: vue
+tags: [vue, vue3, event, 事件处理, 修饰符]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 6
+planId: event-handling
+---
+
+# 事件处理与绑定
+
+事件处理是 Vue 应用中交互逻辑的核心。无论是点击按钮、提交表单，还是监听键盘输入，Vue 3 都提供了一套优雅且强大的事件处理机制。本篇文章将系统讲解事件绑定的完整语法和修饰符的使用方法。
+
+## 基本事件绑定
+
+### v-on 指令基础
+
+Vue 中使用 `v-on` 指令绑定事件，简写形式为 `@`：
+
+```vue
+<template>
+  <div>
+    <button v-on:click="handleClick">完整写法</button>
+    <button @click="handleClick">简写形式（推荐）</button>
+    <p>点击次数：{{ clickCount }}</p>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const clickCount = ref(0)
+
+function handleClick() {
+  clickCount.value++
+  console.log('按钮被点击了')
+}
+</script>
+```
+
+### 传递参数与方法引用
+
+```vue
+<template>
+  <div>
+    <!-- 直接传递参数 -->
+    <button @click="greet('Alice')">问候 Alice</button>
+    <button @click="greet('Bob')">问候 Bob</button>
+
+    <!-- 使用 $event 访问原生事件对象 -->
+    <button @click="showEvent">显示事件</button>
+
+    <!-- 同时传递参数和事件对象 -->
+    <button @click="handleAction('save', $event)">
+      保存并记录
+    </button>
+  </div>
+</template>
+
+<script setup>
+function greet(name) {
+  console.log(`你好，${name}！`)
+}
+
+function showEvent(event) {
+  console.log('事件类型：', event.type)
+  console.log('触发元素：', event.target.tagName)
+}
+
+function handleAction(action, event) {
+  console.log(`执行操作：${action}`)
+  console.log('坐标：', event.clientX, event.clientY)
+}
+</script>
+```
+
+## 事件修饰符
+
+Vue 提供了多个事件修饰符，以 `.` 语法在指令值中使用。这些修饰符大大简化了常见的 DOM 事件操作。
+
+### .stop：阻止事件冒泡
+
+```vue
+<template>
+  <!-- 外层 div -->
+  <div class="outer" @click="handleOuter">
+    <!-- 内层按钮 -->
+    <button @click.stop="handleInner">
+      点击我（不会触发外层的点击）
+    </button>
+  </div>
+</template>
+
+<script setup>
+function handleOuter() {
+  console.log('外层 div 被点击')
+}
+
+function handleInner() {
+  console.log('内层按钮被点击')
+}
+</script>
+
+<style scoped>
+.outer {
+  padding: 2rem;
+  background: #1040C0;
+  color: white;
+  cursor: pointer;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  border: 2px solid #121212;
+  cursor: pointer;
+}
+</style>
+```
+
+> **对比**：原生 JavaScript 需要调用 `event.stopPropagation()`，而 Vue 修饰符在语法上更简洁、更具声明性。
+
+### .prevent：阻止默认行为
+
+```vue
+<template>
+  <form @submit.prevent="handleSubmit">
+    <input v-model="email" type="email" placeholder="输入邮箱" />
+    <button type="submit">提交</button>
+  </form>
+
+  <a href="https://vuejs.org" @click.prevent="handleLinkClick">
+    点击链接（不跳转）
+  </a>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const email = ref('')
+
+function handleSubmit() {
+  console.log('表单已提交，邮箱：', email.value)
+  // 这里可以发送 API 请求
+}
+
+function handleLinkClick() {
+  console.log('链接被点击，但不会跳转')
+}
+</script>
+```
+
+### .capture：使用捕获模式
+
+```vue
+<template>
+  <!-- capture：在捕获阶段触发事件（从外到内） -->
+  <div class="level-1" @click.capture="log(1)">
+    Level 1
+    <div class="level-2" @click.capture="log(2)">
+      Level 2
+      <div class="level-3" @click.capture="log(3)">
+        Level 3（点击这里，观察触发顺序）
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+function log(level) {
+  console.log(`捕获阶段 - Level ${level}`)
+}
+</script>
+
+<style scoped>
+.level-1, .level-2, .level-3 {
+  padding: 1rem;
+  cursor: pointer;
+  border: 2px solid #121212;
+}
+.level-1 { background: #D02020; color: white; }
+.level-2 { background: #F0C020; }
+.level-3 { background: #1040C0; color: white; }
+</style>
+```
+
+> **触发顺序**：默认的冒泡是从内到外（Level 3 → 2 → 1），而 `.capture` 修饰符让事件从外到内触发（Level 1 → 2 → 3）。
+
+### .self：仅当事件从自身触发时响应
+
+```vue
+<template>
+  <!-- 只有点击 div 自身（而非子元素）时才触发 -->
+  <div class="box" @click.self="handleBoxClick">
+    <button>内部按钮（点击这里不会触发）</button>
+    <p>点击这个 div 的空白区域才会触发</p>
+  </div>
+</template>
+
+<script setup>
+function handleBoxClick() {
+  console.log('仅当点击 div 自身时触发')
+}
+</script>
+
+<style scoped>
+.box {
+  padding: 2rem;
+  background: #F0C020;
+  border: 3px solid #121212;
+}
+</style>
+```
+
+### .once：事件只触发一次
+
+```vue
+<template>
+  <button @click.once="handleOnce">
+    只触发一次（点击多次试试）
+  </button>
+  <p>触发次数：{{ count }}</p>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const count = ref(0)
+
+function handleOnce() {
+  count.value++
+  console.log('只触发一次的点击')
+}
+</script>
+```
+
+### .passive：提升滚动性能
+
+```vue
+<template>
+  <!-- passive 修饰符：告诉浏览器事件处理函数不会调用 preventDefault -->
+  <!-- 大幅提升滚动性能，浏览器可以提前进行滚动优化 -->
+  <div
+    class="scroll-container"
+    @scroll.passive="handleScroll"
+  >
+    <div class="content">
+      <p v-for="n in 50" :key="n">内容行 {{ n }}</p>
+    </div>
+  </div>
+</template>
+
+<script setup>
+function handleScroll(event) {
+  // passive 修饰符下，这里不能调用 event.preventDefault()
+  console.log('滚动位置：', event.target.scrollTop)
+}
+</script>
+
+<style scoped>
+.scroll-container {
+  height: 300px;
+  overflow-y: auto;
+  border: 3px solid #121212;
+}
+
+.content {
+  padding: 1rem;
+}
+</style>
+```
+
+## 按键修饰符
+
+Vue 为常见的键盘按键提供了专门的修饰符。
+
+### 常用按键修饰符
+
+```vue
+<template>
+  <div>
+    <!-- 回车键 -->
+    <input
+      @keyup.enter="handleEnter"
+      v-model="searchQuery"
+      placeholder="按回车搜索..."
+    />
+
+    <!-- Esc 键 -->
+    <input
+      @keyup.esc="clearSearch"
+      v-model="searchQuery"
+      placeholder="按 Esc 清空..."
+    />
+
+    <!-- Tab 键 -->
+    <input
+      @keyup.tab="handleTab"
+      placeholder="按 Tab 切换焦点..."
+    />
+
+    <!-- Space 键（需要加引号，且按钮需先获得焦点） -->
+    <button tabindex="0" @keyup.space="handleSpace">按空格</button>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const searchQuery = ref('')
+
+function handleEnter() {
+  console.log('搜索：', searchQuery.value)
+}
+
+function clearSearch() {
+  searchQuery.value = ''
+  console.log('搜索已清空')
+}
+
+function handleTab() {
+  console.log('Tab 被按下')
+}
+
+function handleSpace() {
+  console.log('空格键被按下')
+}
+</script>
+```
+
+### 系统修饰键
+
+```vue
+<template>
+  <div>
+    <!-- Ctrl + Enter -->
+    <textarea
+      @keyup.ctrl.enter="submitWithShortcut"
+      placeholder="按 Ctrl+Enter 提交..."
+    ></textarea>
+
+    <!-- Shift + Click -->
+    <button @click.shift="handleShiftClick">
+      Shift+点击（多选操作）
+    </button>
+
+    <!-- Alt + 任意键 -->
+    <button @click.alt="handleAltClick">
+      Alt+点击
+    </button>
+
+    <!-- 组合：Ctrl + C -->
+    <input
+      @keyup.ctrl.c="handleCopy"
+      placeholder="按 Ctrl+C 复制..."
+    />
+  </div>
+</template>
+
+<script setup>
+function submitWithShortcut() {
+  console.log('快捷键提交：Ctrl + Enter')
+}
+
+function handleShiftClick() {
+  console.log('Shift + 点击')
+}
+
+function handleAltClick() {
+  console.log('Alt + 点击')
+}
+
+function handleCopy() {
+  console.log('Ctrl + C 复制操作')
+}
+</script>
+```
+
+> **注意**：系统修饰键在 Mac 上对应 `meta` 键（Command 键）和 `ctrl` 键。如果需要兼容不同平台，使用 `.meta` 和 `.ctrl` 的组合。
+
+### 别名按键修饰符
+
+Vue 提供了常用按键的别名：
+
+| 修饰符 | 对应键位 |
+|--------|----------|
+| `.enter` | Enter |
+| `.tab` | Tab |
+| `.delete` | Delete / Backspace |
+| `.esc` | Escape |
+| `.space` | Space |
+| `.up` / `.down` / `.left` / `.right` | 方向键 |
+| `.ctrl` | Ctrl |
+| `.alt` | Alt |
+| `.shift` | Shift |
+| `.meta` | Command / Windows |
+
+### 自定义按键修饰符
+
+```vue
+<template>
+  <!-- 使用 KeyboardEvent.key 的任意值作为修饰符 -->
+  <input
+    @keyup.a="handleKeyA"
+    placeholder="按 'a' 键触发..."
+  />
+
+  <!-- 组合键：Ctrl + q -->
+  <button @click.ctrl.q="handleCtrlQ">
+    Ctrl + Q
+  </button>
+</template>
+
+<script setup>
+function handleKeyA() {
+  console.log('按下了 a 键')
+}
+
+function handleCtrlQ() {
+  console.log('按下了 Ctrl + Q')
+}
+</script>
+```
+
+## 鼠标按钮修饰符
+
+```vue
+<template>
+  <div class="mouse-area">
+    <!-- 仅左键 -->
+    <button @click.left="handleLeftClick">
+      只能在左键点击时触发
+    </button>
+
+    <!-- 仅右键（需要配合 contextmenu） -->
+    <div class="box" @contextmenu.prevent="handleRightClick">
+      右键点击这里
+    </div>
+
+    <!-- 仅中键 -->
+    <button @click.middle="handleMiddleClick">
+      只能在中键点击时触发
+    </button>
+  </div>
+</template>
+
+<script setup>
+function handleLeftClick() {
+  console.log('左键点击')
+}
+
+function handleRightClick() {
+  console.log('右键点击（默认菜单已阻止）')
+}
+
+function handleMiddleClick() {
+  console.log('中键点击')
+}
+</script>
+
+<style scoped>
+.mouse-area {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  border: 2px solid #121212;
+  cursor: pointer;
+}
+
+.box {
+  padding: 2rem;
+  background: #1040C0;
+  color: white;
+  cursor: context-menu;
+}
+</style>
+```
+
+## 修饰符链式使用
+
+多个修饰符可以链式使用，按从左到右的顺序依次生效：
+
+```vue
+<template>
+  <!-- 阻止冒泡 + 阻止默认行为 + 只触发一次 -->
+  <form @submit.stop.prevent.once="handleFormSubmit">
+    <button type="submit">提交（只生效一次）</button>
+  </form>
+
+  <!-- 组合键 + 阻止默认 -->
+  <input
+    @keyup.ctrl.s.prevent="handleSave"
+    placeholder="按 Ctrl+S 保存..."
+  />
+</template>
+
+<script setup>
+function handleFormSubmit() {
+  console.log('表单提交（仅一次，冒泡和默认行为均被阻止）')
+}
+
+function handleSave() {
+  console.log('快捷保存（已阻止默认行为）')
+}
+</script>
+```
+
+## 组合式事件处理
+
+在 `<script setup>` 中，可以将相关的事件处理逻辑集中管理：
+
+```vue
+<template>
+  <div class="form">
+    <h2>用户注册</h2>
+
+    <div class="field">
+      <label>用户名</label>
+      <input
+        v-model="form.username"
+        @blur="validateUsername"
+        @input="clearError('username')"
+        :class="{ error: errors.username }"
+        placeholder="3-12个字符"
+      />
+      <span v-if="errors.username" class="error-msg">
+        {{ errors.username }}
+      </span>
+    </div>
+
+    <div class="field">
+      <label>邮箱</label>
+      <input
+        v-model="form.email"
+        @blur="validateEmail"
+        @input="clearError('email')"
+        :class="{ error: errors.email }"
+        placeholder="输入有效邮箱"
+      />
+      <span v-if="errors.email" class="error-msg">
+        {{ errors.email }}
+      </span>
+    </div>
+
+    <button
+      @click="handleSubmit"
+      :disabled="hasErrors || isSubmitting"
+    >
+      {{ isSubmitting ? '提交中...' : '注册' }}
+    </button>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, computed } from 'vue'
+
+const form = reactive({
+  username: '',
+  email: ''
+})
+
+const errors = reactive({
+  username: '',
+  email: ''
+})
+
+const isSubmitting = ref(false)
+
+// 表单验证
+function validateUsername() {
+  const { username } = form
+  if (!username) {
+    errors.username = '用户名不能为空'
+  } else if (username.length < 3 || username.length > 12) {
+    errors.username = '用户名长度为 3-12 个字符'
+  } else {
+    errors.username = ''
+  }
+}
+
+function validateEmail() {
+  const { email } = form
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!email) {
+    errors.email = '邮箱不能为空'
+  } else if (!emailRegex.test(email)) {
+    errors.email = '请输入有效的邮箱地址'
+  } else {
+    errors.email = ''
+  }
+}
+
+function clearError(field) {
+  errors[field] = ''
+}
+
+// 计算属性：是否有错误
+const hasErrors = computed(() => {
+  return !!(errors.username || errors.email)
+})
+
+// 提交处理
+async function handleSubmit() {
+  validateUsername()
+  validateEmail()
+
+  if (hasErrors.value) return
+
+  isSubmitting.value = true
+  try {
+    // 模拟 API 请求
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    console.log('注册成功：', form)
+    // 重置表单
+    form.username = ''
+    form.email = ''
+  } catch (error) {
+    console.error('注册失败：', error)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+</script>
+
+<style scoped>
+.form {
+  max-width: 400px;
+  padding: 2rem;
+  border: 3px solid #121212;
+  box-shadow: 6px 6px 0 0 #121212;
+}
+
+.field {
+  margin-bottom: 1rem;
+}
+
+label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 0.3rem;
+}
+
+input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 2px solid #121212;
+  box-sizing: border-box;
+}
+
+input.error {
+  border-color: #D02020;
+  background: #fff0f0;
+}
+
+.error-msg {
+  color: #D02020;
+  font-size: 0.85rem;
+  margin-top: 0.3rem;
+}
+
+button {
+  width: 100%;
+  padding: 0.8rem;
+  background: #1040C0;
+  color: white;
+  border: 2px solid #121212;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 0 #121212;
+}
+
+button:disabled {
+  background: #999;
+  cursor: not-allowed;
+}
+</style>
+```
+
+## 事件处理最佳实践
+
+### 避免过度使用修饰符
+
+```vue
+<script setup>
+// ❌ 不推荐：将大量逻辑写在模板中
+<button @click="() => { count++; if (count > 10) reset(); save(); }">
+
+// ✅ 推荐：提取为方法，保持模板简洁
+<button @click="handleIncrement"></button>
+</script>
+
+<script setup>
+function handleIncrement() {
+  count.value++
+  if (count.value > 10) {
+    reset()
+    save()
+  }
+}
+</script>
+```
+
+### 使用 composition API 管理事件监听
+
+```vue
+<script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
+
+const key = ref('')
+
+// 窗口级别的键盘监听
+function handleKeyDown(event) {
+  key.value = event.key
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+// 组件卸载时自动清理
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+})
+</script>
+
+<template>
+  <p>按下任意键：{{ key }}</p>
+</template>
+```
+
+## 总结
+
+- **事件绑定**：`v-on`（简写 `@`）是 Vue 事件绑定的核心语法
+- **事件修饰符**：`.stop`（阻止冒泡）、`.prevent`（阻止默认）、`.capture`（捕获阶段）、`.self`（自身触发）、`.once`（一次）、`.passive`（滚动优化）
+- **按键修饰符**：`.enter`、`.esc`、`.tab`、`.space`、方向键及系统键（`.ctrl`、`.alt`、`.shift`、`.meta`）
+- **鼠标修饰符**：`.left`、`.right`、`.middle` 控制不同鼠标按钮
+- **修饰符链式**：多个修饰符可以组合使用，顺序从左到右依次生效
+- **最佳实践**：复杂逻辑提取为方法，使用 `onUnmounted` 清理手动添加的事件监听器
+
+掌握 Vue 3 的事件处理机制，能让你的应用交互逻辑更加清晰和可维护。基础部分到此结束，接下来我们将进入 **进阶技能** 的学习，首篇将深入探讨 **Composition API 完全指南**。

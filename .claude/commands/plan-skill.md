@@ -14,7 +14,9 @@
 4. 将路线图写入 `src/content/_plans/{skill}.md`
 5. 更新 `src/content/_plans/_index.md`，添加该技能到清单
 
-## 输出格式
+## 颜色配置
+
+在规划前，先查询该技能的**官方 logo 或品牌色**，优先使用官网相近颜色。将颜色配置写入 frontmatter：
 
 ```yaml
 ---
@@ -25,6 +27,12 @@ version: "{最新稳定版本}"
 status: planning
 createdAt: {当前日期}
 updatedAt: {当前日期}
+themeColor:
+  token: "{颜色 token 名，如 primary-{skill}}"
+  hex: "{官网 logo 色 hex 值，如 #XXXXXX}"
+  bgClass: "bg-primary-{skill}"
+  textClass: "text-white 或 text-foreground"
+  hoverClass: "hover:text-primary-{skill}"
 ---
 
 ## 基础知识
@@ -50,10 +58,13 @@ updatedAt: {当前日期}
 - 每个技能规划 8-15 个知识点
 - 优先选择该技能最核心、最常用的知识点
 - difficulty 分布建议：easy 40%、medium 40%、hard 20%
+- **颜色配置**：通过 WebSearch 查找该语言/框架的官方 logo 色，取 hex 值，token 命名格式统一为 `primary-{skill}`（全小写）
+- **知识点状态格式**：用前导复选框 `- [ ]`（待写）或 `- [✅]`（已完成），不要在标题后再追加 ✅，参考 `vue.md` 的格式
 
 ## 完成后
 
 告诉用户：
 1. 路线图已创建，文件位置：`src/content/_plans/{skill}.md`
 2. 共规划了 N 个知识点（easy M 个，medium N 个，hard K 个）
-3. 确认无误后说「开始写」即可启动写作角色
+3. 主题色已配置：{hex 色值}，token 名 `primary-{skill}`
+4. 确认无误后说「开始写」即可启动写作角色

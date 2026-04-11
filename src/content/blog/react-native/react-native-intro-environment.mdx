@@ -1,0 +1,232 @@
+---
+title: React Native 简介与环境搭建
+description: 了解 React Native 的发展历史与核心原理，对比 Flutter、Web 等跨平台方案，并完成 macOS/Windows 开发环境的完整配置
+pubDate: 2026-04-11
+category: react-native
+tags: [react-native, 环境搭建, 跨平台, 入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: react-native-intro-environment
+---
+
+## 前言
+
+**React Native** 是 Facebook（现 Meta）于 2015 年开源的跨平台移动应用开发框架。与传统 Hybrid App 或 Web App 不同，React Native 并不使用 WebView 渲染页面，而是通过 **JavaScript 引擎**驱动原生 UI 组件，真正实现「写一套代码，跑在 iOS 和 Android 两端」的目标。本文将介绍 React Native 的核心原理、与竞品的对比，以及完整的开发环境搭建步骤。
+
+## React Native 的核心原理
+
+### 从 Web 到 Native 的跨越
+
+传统 Web 开发中，浏览器通过 DOM 渲染 UI。React Native 则用一套完全不同的架构来实现原生体验：
+
+```
+┌─────────────────────────────────────────────────┐
+│                   JavaScript 层                  │
+│         (React 组件 + 业务逻辑代码)               │
+└──────────────────────┬──────────────────────────┘
+                       │ Bridge（异步序列化通信）
+┌──────────────────────▼──────────────────────────┐
+│               Native 层（平台特定）               │
+│   ┌─────────────┐         ┌─────────────┐        │
+│   │  iOS (Swift │         │Android(Kotlin│       │
+│   │  / ObjC)    │         │ / Java)     │        │
+│   └─────────────┘         └─────────────┘        │
+└──────────────────────────────────────────────────┘
+```
+
+**关键点**：JavaScript 层与 Native 层运行在不同的线程中，通过 Bridge 异步传递 JSON 消息。这意味着 UI 交互是原生的，而业务逻辑在 JavaScript 中执行。
+
+### New Architecture（0.76+）
+
+React Native 0.76 起默认启用 **New Architecture**，引入了三大核心改进：
+
+- **JSI（JavaScript Interface）**：替代 Bridge，直接用 C++ 共享指针通信，消除序列化开销
+- **Fabric Renderer**：新的渲染器，支持**同步**渲染和并发模式
+- **TurboModules**：原生模块懒加载机制，提升启动速度
+
+New Architecture 让 RN 的性能接近原生应用，是目前的主流选择。
+
+## 与其他跨平台方案对比
+
+| 特性 | React Native | Flutter | PWA / Hybrid |
+|------|-------------|---------|-------------|
+| 渲染方式 | 原生组件 | Skia 自绘引擎 | WebView |
+| 性能 | 高（原生渲染） | 最高（自绘） | 中等 |
+| 上手难度 | 低（React 开发者） | 中（Dart 语言） | 低（Web 技术） |
+| 生态成熟度 | 成熟 | 成熟 | 一般 |
+| 第三方库 | 非常丰富 | 较丰富 | 依赖 Web 生态 |
+| 团队要求 | JS + 平台原生开发 | 需学 Dart | 纯 Web |
+
+如果你已经熟悉 **React**，React Native 是最容易切入移动开发的路径——相同的组件模型、相似的 Hooks 语法，大幅降低学习成本。
+
+## 开发环境准备
+
+### 基础工具
+
+无论目标是 iOS 还是 Android，都需要安装以下基础工具：
+
+```bash
+# Node.js（建议使用 nvm 管理多版本）
+# Node.js >= 18.0
+node -v   # 至少 18.0
+
+# 包管理器（选其一）
+npm -v
+pnpm -v   # 推荐，更快更省空间
+
+# Watchman（macOS 文件监听工具，React Native 必须）
+brew install watchman
+
+# Xcode Command Line Tools（macOS 必需）
+xcode-select --install
+```
+
+### iOS 开发环境（macOS only）
+
+开发 iOS 应用只能在 **macOS** 上进行：
+
+```bash
+# 1. 安装 Xcode（App Store 下载，或用 xip 命令解压）
+# 需要 Xcode >= 15.0
+
+# 2. 在 Xcode 中配置 iOS Simulator
+# Xcode → Settings → Platforms → 添加 iOS Simulator
+
+# 3. 确认模拟器可用
+xcrun simctl list devices available
+```
+
+### Android 开发环境
+
+```bash
+# 1. 安装 JDK（建议 JDK 17 LTS）
+# macOS 可以用 brew：
+brew install openjdk@17
+
+# 2. 安装 Android Studio
+# https://developer.android.com/studio
+
+# 3. 配置 ANDROID_HOME 环境变量
+# 在 ~/.zshrc 或 ~/.bashrc 中添加：
+export ANDROID_HOME=$HOME/Library/Android/sdk
+export PATH=$PATH:$ANDROID_HOME/emulator
+export PATH=$PATH:$ANDROID_HOME/platform-tools
+
+# 4. 创建并启动模拟器（通过 Android Studio AVD Manager）
+```
+
+### Windows 特殊说明
+
+Windows + Android 是可行的组合（React Native CLI 支持），但无法直接开发 iOS 应用，只能打包 Android APK。若需要真机调试或模拟器测试 iOS，建议使用云服务（如 Expo EAS Build）或虚拟机。
+
+## 创建第一个 React Native 项目
+
+### 使用 Expo（推荐新手）
+
+**Expo** 是 React Native 官方推荐的开发方式，提供了一套开箱即用的工具链：
+
+```bash
+# 创建新项目（交互式向导）
+npx create-expo-app MyFirstApp
+
+# 进入项目目录
+cd MyFirstApp
+
+# 启动开发服务器
+npx expo start
+
+# 在模拟器/真机上运行
+npx expo run:ios      # macOS，需要 Xcode
+npx expo run:android  # Android，需要 Android SDK
+```
+
+Expo 的优势在于**无需配置原生环境**即可预览应用，通过 Expo Go App 扫描二维码即可在真机上运行。
+
+### 使用 React Native CLI
+
+如需完全掌控原生项目结构：
+
+```bash
+# 创建项目（0.76+ 默认启用 New Architecture）
+npx @react-native-community/cli init MyRNApp
+
+cd MyRNApp
+
+# iOS 依赖安装（macOS only）
+cd ios && pod install && cd ..
+
+# 启动 Metro 打包服务器
+npm start
+# 或
+npx react-native start
+
+# 在新终端窗口运行
+npx react-native run:ios        # iOS
+npx react-native run:android    # Android
+```
+
+### 项目目录结构
+
+```bash
+MyRNApp/
+├── App.tsx               # 应用入口组件
+├── index.js              # JS 入口，注册 App 组件
+├── app.json              # 应用配置
+├── package.json
+├── tsconfig.json         # TypeScript 配置
+├── ios/                  # iOS 原生项目
+│   ├── MyRNApp.xcworkspace  # 用 Xcode 打开此文件
+│   └── Podfile
+├── android/              # Android 原生项目
+│   ├── app/
+│   └── build.gradle
+└── src/                  # 业务代码（可自建）
+```
+
+## 开发工具与调试
+
+### Metro Bundler
+
+Metro 是 React Native 的 JavaScript 打包服务器，负责将 React 代码编译为可执行的 JS Bundle：
+
+```bash
+# 启动 Metro（默认端口 8081）
+npm start
+
+# 清除 Metro 缓存（解决奇怪的构建问题）
+npx react-native start --reset-cache
+
+# 指定端口
+npx react-native start --port 9090
+```
+
+### React Native DevTools
+
+安装 React DevTools 扩展来检查组件树和 Props：
+
+```bash
+# 安装（项目内）
+npm install --save-dev react-devtools
+
+# 启动独立窗口版 DevTools
+npx react-devtools
+```
+
+### 热重载与实时重载
+
+- **热重载（Hot Reloading）**：修改 JS 代码后自动刷新对应模块，保留应用状态
+- **实时重载（Live Reloading）**：修改代码后重新加载整个应用
+
+在模拟器中快捷键：`Cmd + R`（iOS）或 `R + R`（Android）。
+
+## 小结
+
+- React Native 通过 **JavaScript 引擎 + 原生组件** 实现跨平台，兼顾开发效率与原生性能
+- **New Architecture**（JSI + Fabric + TurboModules）大幅提升了 RN 0.76+ 的性能和启动速度
+- 有 React 基础即可快速上手，核心概念（组件、Props、Hooks）在 RN 中完全通用
+- 开发环境：Node.js + Watchman + Xcode（iOS）+ Android Studio（Android）
+- 新手推荐从 **Expo** 开始，需要完全掌控原生项目时切换到 **React Native CLI**
+
+下一篇文章我们将介绍 React Native 的**核心组件**，掌握 View、Text、FlatList 等构建 UI 的基本积木。

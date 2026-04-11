@@ -1,0 +1,548 @@
+---
+title: Vue Router 路由管理
+description: 深入讲解 Vue Router 4 的路由配置、动态路由、嵌套路由、导航守卫、路由元信息以及懒加载等核心功能
+pubDate: 2026-04-11
+category: vue
+tags: [vue, vue3, vue-router, routing]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 12
+planId: vue-router
+---
+
+# Vue Router 路由管理
+
+Vue Router 是 Vue.js 官方路由管理器，用于构建单页面应用（SPA）。它与 Vue 3 深度集成，提供了声明式路由、嵌套路由、路由参数、导航守卫等功能。
+
+## 安装与基础配置
+
+```bash
+npm install vue-router
+```
+
+```javascript
+// src/router/index.js
+import { createRouter, createWebHistory } from 'vue-router'
+
+const routes = [
+  {
+    path: '/',
+    name: 'Home',
+    component: () => import('@/views/Home.vue')
+  },
+  {
+    path: '/about',
+    name: 'About',
+    component: () => import('@/views/About.vue')
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes
+})
+
+export default router
+```
+
+```javascript
+// main.js
+import { createApp } from 'vue'
+import App from './App.vue'
+import router from './router'
+
+createApp(App).use(router).mount('#app')
+```
+
+### 路由模式
+
+```javascript
+// 历史模式（HTML5 History API）- 推荐
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+})
+
+// 哈希模式（兼容性好，但 URL 带有 #）
+const router = createRouter({
+  history: createWebHashHistory(),
+  routes
+})
+
+// 静态模式（SSR 使用）
+import { createMemoryHistory } from 'vue-router'
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes
+})
+```
+
+## 基础路由使用
+
+### 声明式导航
+
+```vue
+<script setup>
+import { RouterLink, RouterView } from 'vue-router'
+</script>
+
+<template>
+  <nav>
+    <RouterLink to="/">首页</RouterLink>
+    <RouterLink to="/about">关于</RouterLink>
+    <RouterLink to="/user/123">用户 123</RouterLink>
+  </nav>
+
+  <RouterView />
+</template>
+
+<style>
+/* RouterLink 的激活状态 */
+.router-link-active {
+  color: #1040C0;
+  font-weight: bold;
+}
+
+.router-link-exact-active {
+  border-bottom: 2px solid currentColor;
+}
+</style>
+```
+
+### 编程式导航
+
+```vue
+<script setup>
+import { useRouter, useRoute } from 'vue-router'
+
+const router = useRouter()
+const route = useRoute()
+
+function navigateToAbout() {
+  router.push('/about')
+}
+
+function navigateWithQuery() {
+  router.push({
+    path: '/search',
+    query: { q: 'vue', page: 1 }
+  })
+}
+
+function replaceAndNavigate() {
+  // replace 不记录历史，无法后退
+  router.replace('/home')
+}
+
+function goBack() {
+  router.back()
+}
+
+function goForward() {
+  router.forward()
+}
+
+// 访问当前路由信息
+console.log(route.path)
+console.log(route.params)
+console.log(route.query)
+console.log(route.name)
+</script>
+```
+
+## 动态路由与参数
+
+### 路由参数
+
+```javascript
+const routes = [
+  // 动态路由参数以冒号开头
+  {
+    path: '/user/:id',
+    name: 'UserProfile',
+    component: () => import('@/views/UserProfile.vue')
+  },
+
+  // 多个参数
+  {
+    path: '/post/:year/:month/:day',
+    name: 'Archive',
+    component: () => import('@/views/Archive.vue')
+  },
+
+  // 可选参数
+  {
+    path: '/product/:id?',
+    name: 'Product',
+    component: () => import('@/views/Product.vue')
+  }
+]
+```
+
+### 访问路由参数
+
+```vue
+<script setup>
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+
+// 访问参数
+console.log(route.params.id)
+
+// 计算属性
+const userId = computed(() => route.params.id)
+
+// 监听参数变化
+watch(
+  () => route.params.id,
+  (newId, oldId) => {
+    console.log(`User changed: ${oldId} -> ${newId}`)
+    fetchUserData(newId)
+  }
+)
+</script>
+```
+
+### 查询参数与哈希
+
+```javascript
+// URL: /search?q=vue&category=tutorial#top
+
+route.query.q        // 'vue'
+route.query.category // 'tutorial'
+route.hash           // '#top'
+```
+
+## 嵌套路由
+
+```javascript
+const routes = [
+  {
+    path: '/user/:id',
+    component: () => import('@/views/User.vue'),
+    children: [
+      // 相对路径，无需 / 前缀
+      {
+        path: '',  // /user/123 -> 显示 UserOverview
+        name: 'UserOverview',
+        component: () => import('@/views/user/Overview.vue')
+      },
+      {
+        path: 'posts',    // /user/123/posts
+        name: 'UserPosts',
+        component: () => import('@/views/user/Posts.vue')
+      },
+      {
+        path: 'settings', // /user/123/settings
+        name: 'UserSettings',
+        component: () => import('@/views/user/Settings.vue')
+      }
+    ]
+  }
+]
+```
+
+```vue
+<!-- User.vue (父路由组件) -->
+<script setup>
+import { RouterView } from 'vue-router'
+</script>
+
+<template>
+  <div class="user-layout">
+    <div class="user-header">
+      <h1>用户资料</h1>
+      <nav>
+        <RouterLink :to="{ name: 'UserOverview', params: { id: $route.params.id }}">
+          概览
+        </RouterLink>
+        <RouterLink :to="{ name: 'UserPosts', params: { id: $route.params.id }}">
+          帖子
+        </RouterLink>
+        <RouterLink :to="{ name: 'UserSettings', params: { id: $route.params.id }}">
+          设置
+        </RouterLink>
+      </nav>
+    </div>
+
+    <!-- 子路由视图 -->
+    <RouterView />
+  </div>
+</template>
+```
+
+## 命名路由与编程式导航
+
+```javascript
+// 命名路由简化路径维护
+router.push({ name: 'UserProfile', params: { id: 123 } })
+router.push({ name: 'Search', query: { q: 'vue' } })
+
+// 完整路径写法容易出错
+router.push('/user/123')
+```
+
+## 导航守卫
+
+导航守卫用于控制路由访问权限、页面标题设置、数据预加载等场景。
+
+### 全局前置守卫
+
+```javascript
+// 在路由配置中使用
+router.beforeEach((to, from, next) => {
+  // to: 目标路由
+  // from: 当前路由
+  // next: 继续导航的函数
+
+  // 设置页面标题
+  document.title = to.meta.title || '默认标题'
+
+  // 检查是否需要登录
+  if (to.meta.requiresAuth && !isLoggedIn()) {
+    next({ name: 'Login', query: { redirect: to.fullPath } })
+  } else {
+    next()
+  }
+})
+
+function isLoggedIn() {
+  return localStorage.getItem('token') !== null
+}
+```
+
+### 路由独享守卫
+
+```javascript
+const routes = [
+  {
+    path: '/admin',
+    component: () => import('@/views/Admin.vue'),
+    beforeEnter: (to, from, next) => {
+      // 只在进入此路由时触发
+      if (hasAdminPermission()) {
+        next()
+      } else {
+        next({ name: 'Forbidden' })
+      }
+    }
+  }
+]
+```
+
+### 组件内守卫
+
+```vue
+<script setup>
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
+
+// 离开组件前触发
+onBeforeRouteLeave((to, from) => {
+  const answer = window.confirm('还有未保存的更改，确定离开吗？')
+  if (!answer) return false
+})
+
+// 路由参数变化时触发（如 /user/1 -> /user/2）
+onBeforeRouteUpdate(async (to, from) => {
+  await fetchUser(to.params.id)
+})
+</script>
+```
+
+### 完整的认证流程示例
+
+```javascript
+// src/router/guards.js
+export function setupRouterGuards(router) {
+  // 全局前置守卫
+  router.beforeEach(async (to, from, next) => {
+    // 显示加载指示器
+    NProgress.start()
+
+    // 获取 token
+    const token = localStorage.getItem('token')
+
+    // 如果目标路由需要认证
+    if (to.meta.requiresAuth) {
+      if (!token) {
+        return next({ name: 'Login', query: { redirect: to.fullPath } })
+      }
+
+      // 验证 token 有效性
+      try {
+        await validateToken(token)
+        next()
+      } catch (error) {
+        localStorage.removeItem('token')
+        next({ name: 'Login', query: { redirect: to.fullPath } })
+      }
+    } else {
+      next()
+    }
+  })
+
+  // 全局后置守卫
+  router.afterEach((to, from) => {
+    NProgress.done()
+    console.log(`导航到: ${to.path}`)
+  })
+}
+```
+
+## 路由元信息
+
+```javascript
+const routes = [
+  {
+    path: '/admin',
+    component: () => import('@/views/Admin.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: '管理后台',
+      roles: ['admin', 'editor'],
+      keepAlive: true
+    }
+  },
+  {
+    path: '/article/:id',
+    component: () => () => import('@/views/Article.vue'),
+    meta: {
+      title: '文章详情',
+      keepAlive: true
+    }
+  }
+]
+
+// 访问 meta 信息
+router.beforeEach((to, from, next) => {
+  if (to.meta.title) {
+    document.title = to.meta.title
+  }
+  next()
+})
+```
+
+## 懒加载与代码分割
+
+```javascript
+// 直接 import（同步加载，会打包到主包）
+import Home from '@/views/Home.vue'
+
+// 懒加载（异步加载，会单独打包）
+const Home = () => import('@/views/Home.vue')
+
+// 带命名 chunk 的懒加载
+const UserList = () => import(/* webpackChunkName: "user" */ '@/views/UserList.vue')
+
+// 批量懒加载同一组的路由
+const UserRoutes = {
+  path: '/user',
+  component: () => import(/* webpackChunkName: "user" */ '@/views/UserLayout.vue'),
+  children: [
+    { path: '', component: () => import(/* webpackChunkName: "user" */ '@/views/user/Index.vue') },
+    { path: 'profile', component: () => import(/* webpackChunkName: "user" */ '@/views/user/Profile.vue') },
+    { path: 'settings', component: () => import(/* webpackChunkName: "user" */ '@/views/user/Settings.vue') }
+  ]
+}
+```
+
+## 路由的高级特性
+
+### 重定向与别名
+
+```javascript
+const routes = [
+  // 重定向
+  { path: '/', redirect: '/home' },
+  { path: '/home', redirect: { name: 'Home' } },
+
+  // 别名（访问 /alias 和访问 /target 效果相同）
+  {
+    path: '/target',
+    component: () => import('@/views/Target.vue'),
+    alias: ['/alias', '/also-alias']
+  }
+]
+```
+
+### 404 页面
+
+```javascript
+const routes = [
+  // 放在最后，匹配所有未匹配的路由
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('@/views/NotFound.vue')
+  },
+
+  // 可选参数版本
+  {
+    path: '/:pathMatch(.*)?',
+    name: 'NotFound',
+    component: () => import('@/views/NotFound.vue')
+  }
+]
+```
+
+### 路由动画
+
+```vue
+<script setup>
+import { RouterView, useRoute } from 'vue-router'
+import { ref, watch } from 'vue'
+
+const route = useRoute()
+const transitionName = ref('slide')
+
+watch(
+  () => route.path,
+  (newPath, oldPath) => {
+    // 根据路由方向决定动画
+    const newDepth = newPath.split('/').length
+    const oldDepth = oldPath.split('/').length
+    transitionName.value = newDepth >= oldDepth ? 'slide-left' : 'slide-right'
+  }
+)
+</script>
+
+<template>
+  <RouterView v-slot="{ Component }">
+    <Transition :name="transitionName">
+      <component :is="Component" :key="route.path" />
+    </Transition>
+  </RouterView>
+</template>
+
+<style>
+.slide-left-enter-active,
+.slide-left-leave-active,
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.3s, opacity 0.3s;
+}
+
+.slide-left-enter-from { transform: translateX(100%); opacity: 0; }
+.slide-left-leave-to  { transform: translateX(-100%); opacity: 0; }
+.slide-right-enter-from { transform: translateX(-100%); opacity: 0; }
+.slide-right-leave-to  { transform: translateX(100%); opacity: 0; }
+</style>
+```
+
+## 总结
+
+Vue Router 提供了完整的路由管理能力：
+
+- **路由模式**：`createWebHistory`（推荐）和 `createWebHashHistory`
+- **声明式导航**：`<RouterLink>` 和 `<RouterView>`
+- **编程式导航**：`router.push()`、`router.replace()`、`router.back()`
+- **动态路由**：`:id` 形式声明参数
+- **嵌套路由**：`children` 配置，支持多层视图
+- **导航守卫**：`beforeEach`、`beforeEnter`、组件内守卫
+- **路由元信息**：`meta` 配置任意自定义数据
+- **懒加载**：`() => import()` 实现代码分割
+
+掌握这些内容，你就能构建出功能完善的 Vue SPA 应用。

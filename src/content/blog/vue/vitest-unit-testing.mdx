@@ -1,0 +1,477 @@
+---
+title: Vitest 单元测试
+description: 使用 Vitest 和 Vue Test Utils 进行 Vue 3 组件单元测试，包括测试配置、组件测试、Composables 测试以及模拟异步数据等实战技巧
+pubDate: 2026-04-11
+category: vue
+tags: [vue, vue3, vitest, testing, 单元测试]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: vitest-unit-testing
+---
+
+# Vitest 单元测试
+
+Vitest 是一个基于 Vite 的测试框架，与 Vue 3 配合使用非常顺畅。本文介绍如何使用 Vitest + Vue Test Utils 编写 Vue 组件的单元测试。
+
+## 安装与配置
+
+```bash
+npm install -D vitest @vue/test-utils happy-dom
+```
+
+```javascript
+// vite.config.js 或 vite.config.ts
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+export default defineConfig({
+  plugins: [vue()],
+  test: {
+    environment: 'happy-dom', // 使用 DOM 环境
+    globals: true,            // 全局注入 test、describe、it 等
+    setupFiles: ['./src/test/setup.js'] // 测试配置文件
+  }
+})
+```
+
+```json
+// package.json
+{
+  "scripts": {
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
+  }
+}
+```
+
+## 基础测试语法
+
+```javascript
+// src/test/counter.spec.js
+import { describe, it, expect, beforeEach } from 'vitest'
+import { mount } from '@vue/test-utils'
+import Counter from '@/components/Counter.vue'
+
+describe('Counter', () => {
+  let wrapper
+
+  // 每个测试前创建新实例
+  beforeEach(() => {
+    wrapper = mount(Counter, {
+      props: { initialCount: 0 }
+    })
+  })
+
+  it('renders initial count', () => {
+    expect(wrapper.text()).toContain('0')
+  })
+
+  it('increments when button clicked', async () => {
+    await wrapper.find('button.increment').trigger('click')
+    expect(wrapper.text()).toContain('1')
+  })
+
+  it('decrements when decrement button clicked', async () => {
+    await wrapper.find('button.decrement').trigger('click')
+    expect(wrapper.text()).toContain('-1')
+  })
+})
+```
+
+## 组件测试
+
+### 测试 Props
+
+```javascript
+import { mount } from '@vue/test-utils'
+import UserCard from '@/components/UserCard.vue'
+
+describe('UserCard', () => {
+  it('displays user information', () => {
+    const wrapper = mount(UserCard, {
+      props: {
+        user: {
+          name: 'Alice',
+          email: 'alice@example.com',
+          avatar: '/avatar.png'
+        }
+      }
+    })
+
+    expect(wrapper.find('.user-name').text()).toBe('Alice')
+    expect(wrapper.find('.user-email').text()).toBe('alice@example.com')
+    expect(wrapper.find('img').attributes('src')).toBe('/avatar.png')
+  })
+
+  it('emits select event when clicked', async () => {
+    const wrapper = mount(UserCard, {
+      props: { user: { id: 1, name: 'Bob' } }
+    })
+
+    await wrapper.trigger('click')
+
+    expect(wrapper.emitted()).toHaveProperty('select')
+    expect(wrapper.emitted('select')[0]).toEqual([{ id: 1, name: 'Bob' }])
+  })
+
+  it('handles missing avatar', () => {
+    const wrapper = mount(UserCard, {
+      props: { user: { name: 'Test', email: 'test@test.com' } }
+    })
+
+    const img = wrapper.find('img')
+    expect(img.exists()).toBe(false)
+    expect(wrapper.find('.avatar-placeholder').exists()).toBe(true)
+  })
+})
+```
+
+### 测试事件
+
+```javascript
+// TodoItem.vue
+describe('TodoItem', () => {
+  it('emits toggle event with correct payload', async () => {
+    const wrapper = mount(TodoItem, {
+      props: {
+        todo: { id: 1, text: 'Buy milk', done: false }
+      }
+    })
+
+    await wrapper.find('.toggle-checkbox').trigger('change')
+
+    const emitted = wrapper.emitted('toggle')
+    expect(emitted).toBeTruthy()
+    expect(emitted[0][0]).toEqual({ id: 1, done: true })
+  })
+
+  it('emits delete event when delete button clicked', async () => {
+    const wrapper = mount(TodoItem, {
+      props: { todo: { id: 1, text: 'Test' } }
+    })
+
+    await wrapper.find('.delete-btn').trigger('click')
+
+    expect(wrapper.emitted('delete')).toBeTruthy()
+    expect(wrapper.emitted('delete')[0][0]).toBe(1)
+  })
+
+  it('calls preventDefault on form submit', async () => {
+    const wrapper = mount({
+      template: `
+        <form @submit.prevent="handleSubmit">
+          <button type="submit">Submit</button>
+        </form>
+      `,
+      methods: {
+        handleSubmit(e) {
+          this.submitted = true
+        }
+      },
+      data() { return { submitted: false } }
+    })
+
+    await wrapper.find('form').trigger('submit')
+
+    expect(wrapper.vm.submitted).toBe(true)
+  })
+})
+```
+
+### 测试 Slots
+
+```javascript
+import { mount } from '@vue/test-utils'
+import BaseCard from '@/components/BaseCard.vue'
+
+describe('BaseCard', () => {
+  it('renders default slot content', () => {
+    const wrapper = mount(BaseCard, {
+      slots: {
+        default: '<p>Custom content</p>'
+      }
+    })
+
+    expect(wrapper.find('p').text()).toBe('Custom content')
+  })
+
+  it('renders header and footer slots', () => {
+    const wrapper = mount(BaseCard, {
+      slots: {
+        header: '<h1>Title</h1>',
+        default: '<p>Content</p>',
+        footer: '<button>Action</button>'
+      }
+    })
+
+    expect(wrapper.find('h1').text()).toBe('Title')
+    expect(wrapper.find('p').text()).toBe('Content')
+    expect(wrapper.find('button').text()).toBe('Action')
+  })
+})
+```
+
+## Composables 测试
+
+```javascript
+// src/composables/useCounter.js
+import { ref, computed } from 'vue'
+
+export function useCounter(initialValue = 0) {
+  const count = ref(initialValue)
+
+  const doubled = computed(() => count.value * 2)
+  const isPositive = computed(() => count.value > 0)
+
+  function increment() {
+    count.value++
+  }
+
+  function decrement() {
+    count.value--
+  }
+
+  function reset() {
+    count.value = initialValue
+  }
+
+  return {
+    count,
+    doubled,
+    isPositive,
+    increment,
+    decrement,
+    reset
+  }
+}
+```
+
+```javascript
+// src/composables/useCounter.spec.js
+import { describe, it, expect } from 'vitest'
+import { useCounter } from './useCounter'
+
+describe('useCounter', () => {
+  it('initializes with default value', () => {
+    const { count } = useCounter()
+    expect(count.value).toBe(0)
+  })
+
+  it('initializes with custom value', () => {
+    const { count } = useCounter(10)
+    expect(count.value).toBe(10)
+  })
+
+  it('increments count', () => {
+    const { count, increment } = useCounter()
+    increment()
+    expect(count.value).toBe(1)
+    increment()
+    expect(count.value).toBe(2)
+  })
+
+  it('decrements count', () => {
+    const { count, decrement } = useCounter(5)
+    decrement()
+    expect(count.value).toBe(4)
+  })
+
+  it('resets to initial value', () => {
+    const { count, increment, reset } = useCounter(3)
+    increment()
+    increment()
+    reset()
+    expect(count.value).toBe(3)
+  })
+
+  it('computes doubled value', () => {
+    const { count, doubled, increment } = useCounter(2)
+    expect(doubled.value).toBe(4)
+    increment()
+    expect(doubled.value).toBe(6)
+  })
+
+  it('computes isPositive correctly', () => {
+    const { count, isPositive, increment, decrement } = useCounter(0)
+    expect(isPositive.value).toBe(false)
+    increment()
+    expect(isPositive.value).toBe(true)
+    decrement()
+    decrement()
+    expect(isPositive.value).toBe(false)
+  })
+})
+```
+
+## 异步测试
+
+```javascript
+import { mount } from '@vue/test-utils'
+import { ref } from 'vue'
+import UserList from '@/components/UserList.vue'
+
+// 模拟 fetch
+global.fetch = vi.fn()
+
+describe('UserList - Async', () => {
+  beforeEach(() => {
+    fetch.mockClear()
+  })
+
+  it('loads users on mount', async () => {
+    const mockUsers = [
+      { id: 1, name: 'Alice' },
+      { id: 2, name: 'Bob' }
+    ]
+
+    fetch.mockResolvedValueOnce({
+      json: () => Promise.resolve(mockUsers)
+    })
+
+    const wrapper = mount(UserList)
+
+    // 初始状态
+    expect(wrapper.find('.loading').exists()).toBe(true)
+
+    // 等待数据加载
+    await wrapper.vm.$nextTick()
+    await flushPromises()
+
+    // 验证结果
+    expect(wrapper.find('.loading').exists()).toBe(false)
+    expect(wrapper.findAll('.user-item')).toHaveLength(2)
+  })
+
+  it('handles fetch error', async () => {
+    fetch.mockRejectedValueOnce(new Error('Network error'))
+
+    const wrapper = mount(UserList)
+
+    await flushPromises()
+
+    expect(wrapper.find('.error').text()).toBe('Network error')
+  })
+
+  it('refreshes data', async () => {
+    const mockUsers = [{ id: 1, name: 'Alice' }]
+    fetch.mockResolvedValueOnce({ json: () => Promise.resolve(mockUsers) })
+
+    const wrapper = mount(UserList)
+    await flushPromises()
+
+    // 新的用户数据
+    fetch.mockResolvedValueOnce({
+      json: () => Promise.resolve([{ id: 2, name: 'Bob' }])
+    })
+
+    await wrapper.find('.refresh-btn').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('.user-item')).toHaveLength(1)
+    expect(wrapper.find('.user-item').text()).toBe('Bob')
+  })
+})
+```
+
+## Mock 与 Spy
+
+```javascript
+import { vi, describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import UserSearch from '@/components/UserSearch.vue'
+
+// Mock 模块
+vi.mock('@/services/userApi', () => ({
+  searchUsers: vi.fn()
+}))
+
+import { searchUsers } from '@/services/userApi'
+
+describe('UserSearch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('searches users with debounce', async () => {
+    searchUsers.mockResolvedValue([{ id: 1, name: 'Test' }])
+
+    const wrapper = mount(UserSearch)
+    const input = wrapper.find('input')
+
+    await input.setValue('test')
+    // 快速输入不会立即触发搜索
+    expect(searchUsers).not.toHaveBeenCalled()
+
+    // 等待 debounce
+    await new Promise(r => setTimeout(r, 300))
+    expect(searchUsers).toHaveBeenCalledWith('test')
+  })
+
+  it('shows results', async () => {
+    const mockResults = [{ id: 1, name: 'Alice' }]
+    searchUsers.mockResolvedValue(mockResults)
+
+    const wrapper = mount(UserSearch)
+    await wrapper.find('input').setValue('alice')
+    await new Promise(r => setTimeout(r, 300))
+
+    expect(wrapper.find('.results').exists()).toBe(true)
+    expect(wrapper.find('.no-results').exists()).toBe(false)
+  })
+
+  it('shows empty state when no results', async () => {
+    searchUsers.mockResolvedValue([])
+
+    const wrapper = mount(UserSearch)
+    await wrapper.find('input').setValue('xyz')
+    await new Promise(r => setTimeout(r, 300))
+
+    expect(wrapper.find('.results').exists()).toBe(false)
+    expect(wrapper.find('.no-results').exists()).toBe(true)
+  })
+})
+```
+
+## 测试最佳实践
+
+```javascript
+describe('BestPractices', () => {
+  // 1. 测试文件与源文件同名同位置
+  // src/components/Form.vue -> src/components/Form.spec.js
+
+  // 2. 使用 describe 组织和分组测试
+  describe('Component Behavior', () => {
+    it('...')
+  })
+
+  describe('Edge Cases', () => {
+    it('handles empty input')
+    it('handles invalid data')
+  })
+
+  // 3. 测试名称清晰描述预期行为
+  it('increments counter when + button is clicked')
+  it('does not emit submit when form is invalid')
+  it('displays error message when API fails')
+
+  // 4. 每个测试只验证一个行为
+  // 好：一个测试一个 it
+  // 不好：一个 it 中测试多个不相关的行为
+})
+```
+
+## 总结
+
+Vitest 为 Vue 3 项目提供了高效的测试方案：
+
+- **环境配置**：`happy-dom` 提供轻量 DOM 环境
+- **组件测试**：使用 `@vue/test-utils` 挂载和操作组件
+- **Composables 测试**：直接调用函数，验证返回值
+- **异步测试**：使用 `flushPromises` 处理异步操作
+- **Mock**：使用 `vi.fn()` 和 `vi.mock()` 模拟依赖
+- **最佳实践**：分组测试、清晰命名、单一职责
+
+通过编写测试，你可以确保代码质量，减少回归错误，更自信地进行重构。

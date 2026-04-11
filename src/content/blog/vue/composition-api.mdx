@@ -1,0 +1,487 @@
+---
+title: Composition API 完全指南
+description: 深入讲解 Vue 3 Composition API 的核心语法糖（setup）、响应式工具（ref、reactive）、计算属性与监听器（computed、watch）的使用方法与最佳实践
+pubDate: 2026-04-11
+category: vue
+tags: [vue, vue3, composition-api, setup]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 15
+planId: composition-api
+---
+
+# Composition API 完全指南
+
+Vue 3 引入的 **Composition API** 是一种全新的组件逻辑组织方式，它允许你使用导入的函数来构建组件逻辑，而非依赖选项式 API（data、methods、computed 等）。本文将全面解析 Composition API 的核心语法和使用场景。
+
+## 为什么需要 Composition API
+
+在 Vue 2 中，当组件逻辑变得复杂时，相关的代码往往被分散在不同的选项中。例如，一个搜索功能的相关代码可能涉及：
+
+- `data`：搜索关键词、搜索结果、加载状态
+- `methods`：搜索方法、防抖处理
+- `computed`：格式化结果
+- `watch`：监听关键词变化
+
+这被称为「逻辑关注点分散」问题。Composition API 允许我们将这些相关逻辑集中在一起，形成可复用的「组合式函数」（Composables）。
+
+## setup 组件选项
+
+`setup` 是 Composition API 的入口点，它在组件实例创建之前执行，此时无法访问 `this`。
+
+### 基本语法
+
+```vue
+<script>
+import { ref, computed, onMounted } from 'vue'
+
+export default {
+  setup() {
+    // 响应式数据
+    const count = ref(0)
+    const doubled = computed(() => count.value * 2)
+
+    // 方法
+    function increment() {
+      count.value++
+    }
+
+    // 生命周期钩子
+    onMounted(() => {
+      console.log('组件已挂载')
+    })
+
+    // 返回供模板使用的属性和方法
+    return {
+      count,
+      doubled,
+      increment
+    }
+  }
+}
+</script>
+
+<template>
+  <div>
+    <p>计数：{{ count }}</p>
+    <p>加倍：{{ doubled }}</p>
+    <button @click="increment">+1</button>
+  </div>
+</template>
+```
+
+### `<script setup>` 语法糖
+
+`<script setup>` 是 `setup` 函数的编译时语法糖，使用它可以让代码更加简洁：
+
+```vue
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+
+// 直接定义的变量和方法在模板中自动可用
+const count = ref(0)
+const doubled = computed(() => count.value * 2)
+
+function increment() {
+  count.value++
+}
+
+onMounted(() => {
+  console.log('组件已挂载')
+})
+</script>
+
+<template>
+  <button @click="increment">{{ count }} × 2 = {{ doubled }}</button>
+</template>
+```
+
+> **优势**：`<script setup>` 中的顶层变量和函数自动暴露给模板，无需手动 `return`。这是目前推荐的使用方式。
+
+## 响应式系统详解
+
+### ref 与 reactive
+
+Vue 3 提供了两种创建响应式数据的方式：
+
+```vue
+<script setup>
+import { ref, reactive, isRef, toRef, toRefs } from 'vue'
+
+// ref：包装基本类型为响应式引用
+const name = ref('Alice')
+const age = ref(28)
+const isActive = ref(true)
+
+// reactive：直接创建响应式对象
+const user = reactive({
+  name: 'Bob',
+  age: 30,
+  address: {
+    city: 'Beijing',
+    district: 'Chaoyang'
+  }
+})
+
+// 访问 ref 的值需要 .value（模板中自动解包）
+console.log(name.value) // 'Alice'
+
+// 修改 reactive 对象直接通过属性
+user.age = 31
+
+// 工具函数
+console.log(isRef(name)) // true - 检查是否为 ref
+const ageRef = toRef(user, 'age') // 将响应式对象的属性转为 ref
+const { name: userName, age: userAge } = toRefs(user) // 将整个对象转为 refs
+</script>
+```
+
+### ref vs reactive 如何选择
+
+```vue
+<script setup>
+import { ref, reactive } from 'vue'
+
+// 推荐：ref 用于基本类型和需要替换整个值的场景
+const message = ref('Hello')
+const list = ref([]) // 数组也推荐用 ref
+const user = ref(null) // 异步数据初始值
+
+// 推荐：reactive 用于关联紧密的对象
+const form = reactive({
+  username: '',
+  password: '',
+  remember: false
+})
+
+// reactive 的限制：不能替换整个对象
+// 这样会破坏响应式！
+// form = reactive({ username: 'new', password: '123' })
+
+// 正确做法：修改属性
+Object.assign(form, { username: 'new', password: '123' })
+</script>
+```
+
+> **经验法则**：基本类型和需要重新赋值的场景用 `ref`；对象属性自然变化的场景用 `reactive`。
+
+### 响应式原理
+
+Vue 3 的响应式基于 JavaScript 的 `Proxy`。当你访问或修改响应式数据时，Proxy 会拦截这些操作并通知依赖收集的系统。
+
+```javascript
+import { reactive, effect } from 'vue'
+
+const state = reactive({ count: 0 })
+
+// effect 自动追踪依赖
+effect(() => {
+  console.log('count changed:', state.count)
+})
+
+state.count++ // 触发上面 effect，执行打印
+```
+
+## computed 计算属性
+
+`computed` 用来创建基于响应式数据的派生值，与选项式 API 中的 computed 选项功能相同：
+
+```vue
+<script setup>
+import { ref, computed } from 'vue'
+
+const firstName = ref('张')
+const lastName = ref('三')
+const items = ref([
+  { id: 1, name: 'Apple', price: 5, category: 'fruit' },
+  { id: 2, name: 'Carrot', price: 3, category: 'vegetable' },
+  { id: 3, name: 'Banana', price: 4, category: 'fruit' }
+])
+
+// 只读的 computd
+const fullName = computed(() => `${firstName.value} ${lastName.value}`)
+
+// 带 getter/setter 的 computed
+const reversedName = computed({
+  get: () => fullName.value.split('').reverse().join(''),
+  set: (value) => {
+    const parts = value.split(' ')
+    lastName.value = parts[0] || ''
+    firstName.value = parts.slice(1).join(' ') || ''
+  }
+})
+
+// 过滤和计算
+const fruits = computed(() =>
+  items.value.filter(item => item.category === 'fruit')
+)
+
+const totalPrice = computed(() =>
+  items.value.reduce((sum, item) => sum + item.price, 0)
+)
+</script>
+```
+
+> **重要**：`computed` 是惰性求值的，只有当依赖变化时才会重新计算，并且会自动缓存结果。
+
+## watch 监听器
+
+`watch` 用来响应数据变化执行特定操作，类似于选项式 API 中的 watch 选项：
+
+### 基本用法
+
+```vue
+<script setup>
+import { ref, watch } from 'vue'
+
+const question = ref('')
+const answer = ref('')
+
+// 监听单个 ref
+watch(question, async (newValue, oldValue) => {
+  if (newValue.includes('?')) {
+    answer.value = 'Thinking...'
+    // 模拟 API 调用
+    answer.value = 'Yes!'
+  }
+})
+
+// 监听 reactive 对象的属性
+const user = reactive({ name: 'Alice', age: 28 })
+watch(() => user.name, (newName, oldName) => {
+  console.log(`Name changed from ${oldName} to ${newName}`)
+})
+
+// 监听多个数据源
+watch([question, () => user.name], ([q, name], [prevQ, prevName]) => {
+  console.log(`Q: ${prevQ} -> ${q}, Name: ${prevName} -> ${name}`)
+})
+</script>
+```
+
+### watchEffect 立即执行
+
+`watchEffect` 会立即执行传入的函数，并自动追踪其依赖：
+
+```vue
+<script setup>
+import { ref, watchEffect } from 'vue'
+
+const url = ref('https://api.example.com/data')
+const data = ref(null)
+
+// 立即执行，且自动追踪 url 变化
+watchEffect(async () => {
+  try {
+    const response = await fetch(url.value)
+    data.value = await response.json()
+  } catch (error) {
+    console.error('Fetch failed:', error)
+  }
+})
+
+// 返回停止函数
+const stop = watchEffect(() => {
+  // ...
+})
+
+// 需要时停止监听
+// stop()
+</script>
+```
+
+### watch vs watchEffect 对比
+
+```vue
+<script setup>
+import { ref, watch, watchEffect } from 'vue'
+
+const a = ref(1)
+const b = ref(2)
+
+// watchEffect：立即执行，依赖自动追踪
+watchEffect(() => {
+  console.log(`watchEffect: a=${a.value}, b=${b.value}`)
+})
+
+// watch：默认不立即执行，需要指定要监听的值
+watch(a, (newA) => {
+  console.log(`watch: a changed to ${newA}`)
+}, { immediate: true }) // 添加 immediate 立即执行
+
+// watch 可以访问旧值，watchEffect 不能
+watch([a, b], ([newA, newB], [oldA, oldB]) => {
+  console.log(`watch: ${oldA},${oldB} -> ${newA},${newB}`)
+})
+</script>
+```
+
+## 组合式函数（Composables）
+
+组合式函数是 Composition API 最重要的应用——将可复用的逻辑提取为独立函数：
+
+### 提取一个 Composable
+
+```javascript
+// src/composables/useCounter.js
+import { ref, computed } from 'vue'
+
+export function useCounter(initialValue = 0) {
+  const count = ref(initialValue)
+
+  const double = computed(() => count.value * 2)
+  const isPositive = computed(() => count.value > 0)
+
+  function increment() {
+    count.value++
+  }
+
+  function decrement() {
+    count.value--
+  }
+
+  function reset() {
+    count.value = initialValue
+  }
+
+  return {
+    count,
+    double,
+    isPositive,
+    increment,
+    decrement,
+    reset
+  }
+}
+```
+
+### 使用 Composable
+
+```vue
+<script setup>
+import { useCounter } from '@/composables/useCounter'
+
+// 组件 A 中使用
+const { count, increment } = useCounter(10)
+
+// 组件 B 中独立使用
+const { count: cartCount, increment: addToCart } = useCounter(0)
+</script>
+```
+
+### 异步数据加载示例
+
+```javascript
+// src/composables/useFetch.js
+import { ref, watchEffect, toValue } from 'vue'
+
+export function useFetch(url) {
+  const data = ref(null)
+  const error = ref(null)
+  const isLoading = ref(false)
+
+  async function fetchData() {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      // 支持传入 ref 或直接的值
+      const resolvedUrl = toValue(url)
+      const response = await fetch(resolvedUrl)
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      data.value = await response.json()
+    } catch (e) {
+      error.value = e.message
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // 支持传入 ref，自动追踪变化
+  watchEffect(() => {
+    fetchData()
+  })
+
+  return { data, error, isLoading, refetch: fetchData }
+}
+```
+
+```vue
+<script setup>
+import { ref } from 'vue'
+import { useFetch } from '@/composables/useFetch'
+
+const postId = ref(1)
+const { data, error, isLoading, refetch } = useFetch(
+  computed(() => `https://jsonplaceholder.typicode.com/posts/${postId.value}`)
+)
+</script>
+```
+
+## 依赖注入（Provide / Inject）
+
+对于深层嵌套的组件，props 逐层传递会变得繁琐。`provide` 和 `inject` 允许祖先组件向后代组件传递数据：
+
+```vue
+<!-- 祖先组件 -->
+<script setup>
+import { provide, reactive } from 'vue'
+
+const theme = reactive({
+  primaryColor: '#1040C0',
+  fontSize: 16
+})
+
+// 提供给所有后代
+provide('theme', theme)
+
+// 提供静态值
+provide('appName', 'My Vue App')
+
+// 提供带 key 的值
+provide('user', {
+  name: 'Alice',
+  email: 'alice@example.com'
+})
+</script>
+```
+
+```vue
+<!-- 后代组件 -->
+<script setup>
+import { inject, computed } from 'vue'
+
+// 注入
+const theme = inject('theme')
+const appName = inject('appName')
+
+// 带默认值的注入
+const user = inject('user', { name: 'Guest' })
+
+// 注入并转换为 ref（需要祖先组件提供的是 ref）
+const count = inject('count') // 自动保持响应性
+
+// 只读注入（不允许修改）
+const readOnlyTheme = inject('theme')
+</script>
+```
+
+> **注意**：inject 的值不是响应式的（除非提供的是响应式对象），但响应式对象的属性变化会自动同步。
+
+## 总结
+
+Composition API 是 Vue 3 最重要的新特性：
+
+- **setup / script setup**：组合式逻辑的入口，支持 `<script setup>` 语法糖
+- **ref 与 reactive**：两种创建响应式数据的方式，根据场景选择
+- **computed**：派生值的自动缓存
+- **watch / watchEffect**：响应数据变化的处理
+- **Composables**：逻辑复用的核心模式，将相关逻辑集中管理
+- **provide / inject**：跨层级数据传递
+
+掌握这些核心概念后，你将能够编写出结构清晰、易于维护的 Vue 3 组件。

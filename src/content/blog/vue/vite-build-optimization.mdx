@@ -1,0 +1,470 @@
+---
+title: Vite 构建优化
+description: 深入讲解 Vite 构建配置优化、代码分割策略、路由懒加载、图片优化以及 CDN 加速部署等前端性能优化实战技巧
+pubDate: 2026-04-11
+category: vue
+tags: [vue, vite, build, optimization, performance]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: vite-build-optimization
+---
+
+# Vite 构建优化
+
+Vite 是 Vue 3 的默认构建工具，以其极快的冷启动和热更新著称。但在大规模应用中，仍需要针对构建产物和运行时性能进行优化。本文介绍实用的 Vite 构建优化技巧。
+
+## 构建配置基础
+
+```javascript
+// vite.config.js
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import { resolve } from 'path'
+
+export default defineConfig({
+  plugins: [vue()],
+
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src')
+    }
+  },
+
+  build: {
+    // 目标浏览器
+    target: 'es2015',
+    // 输出目录
+    outDir: 'dist',
+    // 生成 source map（生产建议关闭或用 hidden-source-map）
+    sourcemap: false,
+    // 打包文件大小限制警告（KB）
+    chunkSizeWarningLimit: 500
+  }
+})
+```
+
+## 代码分割策略
+
+### 路由级别分割
+
+这是最常用的分割策略，按路由拆分代码：
+
+```javascript
+// vite.config.js
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        // 手动指定分割的 chunk
+        manualChunks: {
+          // 将 Vue 核心库分离
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          // 将大型第三方库分离
+          'echarts': ['echarts'],
+          'lodash': ['lodash-es']
+        }
+      }
+    }
+  }
+})
+```
+
+```javascript
+// 按路由自动分割（推荐）
+// router/index.js
+const routes = [
+  {
+    path: '/',
+    component: () => import('@/views/Home.vue')  // 自动代码分割
+  },
+  {
+    path: '/dashboard',
+    component: () => import('@/views/Dashboard.vue')
+  }
+]
+```
+
+### 动态导入与预加载
+
+```javascript
+// 基础动态导入
+const module = await import('./module.js')
+
+// 预加载关键模块
+const routes = [
+  {
+    path: '/admin',
+    component: () => import(/* webpackPrefetch: true */ '@/views/Admin.vue')
+  }
+]
+
+// Vue Router 中的预加载
+import { RouterView } from 'vue-router'
+
+// 使用 vite-plugin-pwa 可以实现 Service Worker 预缓存
+```
+
+### CSS 代码分割
+
+```javascript
+export default defineConfig({
+  build: {
+    cssCodeSplit: true, // 默认为 true，按路由分割 CSS
+    // 或者手动指定 CSS 提取
+    cssCodeSplit: false // 合并所有 CSS
+  }
+})
+```
+
+## 路由懒加载
+
+### 基本懒加载
+
+```javascript
+// src/router/index.js
+import { createRouter, createWebHistory } from 'vue-router'
+
+const routes = [
+  // 方式一：动态 import（推荐）
+  {
+    path: '/',
+    component: () => import('@/views/Home.vue')
+  },
+
+  // 方式二：使用 defineAsyncComponent
+  {
+    path: '/about',
+    component: defineAsyncComponent(() => import('@/views/About.vue'))
+  },
+
+  // 方式三：带加载组件
+  {
+    path: '/list',
+    component: defineAsyncComponent({
+      loader: () => import('@/views/List.vue'),
+      loadingComponent: LoadingSpinner,
+      delay: 200
+    })
+  },
+
+  // 方式四：带错误处理
+  {
+    path: '/detail/:id',
+    component: defineAsyncComponent({
+      loader: () => import('@/views/Detail.vue'),
+      errorComponent: ErrorBoundary,
+      delay: 200,
+      timeout: 10000
+    })
+  }
+]
+```
+
+### 组件级别的懒加载
+
+```vue
+<!-- 使用 defineAsyncComponent -->
+<script setup>
+import { defineAsyncComponent, ref } from 'vue'
+
+const HeavyChart = defineAsyncComponent(() => import('./HeavyChart.vue'))
+const DataTable = defineAsyncComponent(() => import('./DataTable.vue'))
+
+const showChart = ref(false)
+</script>
+
+<template>
+  <div>
+    <button @click="showChart = true">显示图表</button>
+    <HeavyChart v-if="showChart" />
+  </div>
+</template>
+```
+
+## 图片与资源优化
+
+### 图片优化配置
+
+```javascript
+import { defineConfig } from 'vite'
+import viteImagemin from 'vite-plugin-imagemin'
+
+export default defineConfig({
+  plugins: [
+    vue(),
+    viteImagemin({
+      gifsicle: { optimizationLevel: 7 },
+      optipng: { optimizationLevel: 7 },
+      mozjpeg: { quality: 20 },
+      pngquant: { quality: [0.8, 0.9] },
+      svgo: {
+        plugins: [
+          { name: 'removeViewBox': false },
+          { name: 'removeDimensions': true }
+        ]
+      }
+    })
+  ]
+})
+```
+
+### 响应式图片
+
+```vue
+<template>
+  <!-- 现代格式 + 响应式 -->
+  <picture>
+    <source
+      :srcset="`/images/photo.avif`"
+      type="image/avif"
+    />
+    <source
+      :srcset="`/images/photo.webp`"
+      type="image/webp"
+    />
+    <img
+      src="/images/photo.jpg"
+      alt="Description"
+      loading="lazy"
+      decoding="async"
+    />
+  </picture>
+
+  <!-- 响应式图片 srcset -->
+  <img
+    src="/images/photo-800.jpg"
+    srcset="
+      /images/photo-400.jpg 400w,
+      /images/photo-800.jpg 800w,
+      /images/photo-1200.jpg 1200w
+    "
+    sizes="(max-width: 600px) 400px, (max-width: 1200px) 800px, 1200px"
+    alt="Responsive image"
+  />
+</template>
+```
+
+### SVG 图标
+
+```vue
+<!-- 直接内联 SVG -->
+<template>
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+  </svg>
+</template>
+
+<!-- 或使用 vite-plugin-svg-icons -->
+```
+
+## 生产构建优化
+
+### 压缩与优化
+
+```javascript
+export default defineConfig({
+  build: {
+    // 最小化混淆程度（es 保留更多变量名，压缩率稍低但调试友好）
+    minify: 'esbuild', // 'esbuild' | 'terser' | false
+
+    // Terser 配置（如果使用 terser）
+    // terserOptions: {
+    //   compress: {
+    //     drop_console: true,  // 移除 console.log
+    //     drop_debugger: true
+    //   }
+    // }
+
+    // 资产内联大小限制（字节）
+    assetsInlineLimit: 4096, // 4KB 以下的资源内联为 base64
+
+    // 清理 CSS
+    cssCodeSplit: true,
+
+    // 国际化
+    // 使用 @intlify/vite-plugin-vue-i18n
+  }
+})
+```
+
+### Tree Shaking
+
+```javascript
+// 确保使用 ES modules
+// src/main.js
+import { createApp } from 'vue'  // 按需导入，tree shaking 生效
+import { createPinia } from 'pinia'
+
+// 避免导入整个库
+// 不好: import _ from 'lodash'
+// 好:
+import debounce from 'lodash-es/debounce'
+import { cloneDeep } from 'lodash-es'
+```
+
+### 依赖优化
+
+```javascript
+// vite.config.js
+export default defineConfig({
+  optimizeDeps: {
+    // 预构建依赖
+    include: ['vue', 'vue-router', 'pinia'],
+    // 排除不应预构建的依赖
+    exclude: ['some-cjs-lib']
+  }
+})
+```
+
+## CDN 加速与部署
+
+### CDN 配置
+
+```javascript
+// vite.config.js
+export default defineConfig({
+  base: '/static/', // 部署到子目录
+
+  build: {
+    assetsPublicPath: 'https://cdn.example.com/',
+    assetsDir: 'assets'
+  }
+})
+```
+
+### 动态 CDN 加载大型库
+
+```javascript
+// 使用 CDN 按需加载大型库
+export async function loadEcharts() {
+  if (!window.echarts) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = 'https://cdn.example.com/echarts.min.js'
+      script.onload = resolve
+      script.onerror = reject
+      document.head.appendChild(script)
+    })
+  }
+  return window.echarts
+}
+```
+
+### 部署配置
+
+```javascript
+// 环境变量
+// .env.production
+VITE_APP_TITLE=My App
+VITE_API_BASE_URL=https://api.example.com
+
+// 使用
+const apiUrl = import.meta.env.VITE_API_BASE_URL
+```
+
+## 性能监控
+
+### 构建分析
+
+```bash
+npm install -D rollup-plugin-visualizer
+```
+
+```javascript
+import { visualizer } from 'rollup-plugin-visualizer'
+
+export default defineConfig({
+  plugins: [
+    vue(),
+    visualizer({
+      filename: 'stats.html',  // 生成分析报告
+      open: true,
+      gzipSize: true
+    })
+  ]
+})
+```
+
+### 性能指标检查
+
+```javascript
+// 检查包大小
+import { performance } from 'perf_hooks'
+
+// 构建性能
+import { build } from 'vite'
+
+const start = performance.now()
+await build(config)
+const duration = performance.now() - start
+console.log(`Build took ${duration}ms`)
+```
+
+## 常见优化清单
+
+```javascript
+// 完整的优化配置示例
+export default defineConfig({
+  plugins: [vue()],
+
+  resolve: {
+    alias: { '@': '/src' },
+    // 省略扩展名，减少尝试次数
+    extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json']
+  },
+
+  build: {
+    target: 'es2015',
+    outDir: 'dist',
+    sourcemap: false,
+    minify: 'esbuild',
+    cssCodeSplit: true,
+    chunkSizeWarningLimit: 500,
+
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vue-core': ['vue', 'vue-router', 'pinia'],
+          'vendor': ['dayjs', 'lodash-es']
+        },
+
+        // 静态资源命名
+        assetFileNames: 'assets/[name]-[hash][extname]',
+        chunkFileNames: 'js/[name]-[hash].js',
+        entryFileNames: 'js/[name]-[hash].js'
+      }
+    }
+  },
+
+  optimizeDeps: {
+    include: ['vue', 'vue-router', 'pinia']
+  },
+
+  // 开发服务器优化
+  server: {
+    port: 3000,
+    // 代理 API 请求
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
+      }
+    }
+  }
+})
+```
+
+## 总结
+
+Vite 构建优化涵盖多个层面：
+
+- **代码分割**：通过路由懒加载和 `manualChunks` 控制包大小
+- **资源优化**：图片压缩、SVG 图标、响应式图片
+- **Tree Shaking**：使用 ESM、按需导入
+- **CDN 加速**：分离静态资源和第三方库
+- **构建分析**：使用 visualizer 分析依赖关系
+- **环境变量**：区分开发和生产配置
+
+通过合理的优化策略，可以让 Vue 应用的加载速度和运行性能得到显著提升。

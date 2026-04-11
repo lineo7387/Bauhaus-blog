@@ -1,0 +1,456 @@
+---
+title: 条件渲染与列表渲染
+description: 深入讲解 Vue 3 中 v-if、v-show、v-for 的使用场景与性能差异，以及 key 属性的作用和常见渲染陷阱的规避方法
+pubDate: 2026-04-11
+category: vue
+tags: [vue, vue3, directive, 条件渲染, 列表渲染]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 6
+planId: conditional-list-rendering
+---
+
+# 条件渲染与列表渲染
+
+Vue 3 提供了两套条件控制 DOM 显示的方案——`v-if` 与 `v-show`，以及列表渲染指令 `v-for`。理解它们之间的差异和适用场景，是写出高性能 Vue 应用的基础。
+
+## v-if 与 v-show：两种控制显示的方式
+
+### v-if：真正的条件渲染
+
+`v-if` 是"真实"的条件渲染。当条件为 `false` 时，元素及其子元素**不会被创建**，也不会出现在 DOM 中：
+
+```vue
+<template>
+  <div>
+    <button @click="isLoggedIn = !isLoggedIn">
+      {{ isLoggedIn ? '退出登录' : '登录' }}
+    </button>
+
+    <!-- v-if：条件为 false 时元素从 DOM 中完全移除 -->
+    <div v-if="isLoggedIn" class="user-panel">
+      <p>欢迎回来，用户！</p>
+      <button @click="logout">退出</button>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const isLoggedIn = ref(false)
+
+function logout() {
+  isLoggedIn.value = false
+}
+</script>
+```
+
+> **适用场景**：`v-if` 适合渲染成本高、且不频繁切换的元素，因为切换时需要重新创建和销毁 DOM 节点。
+
+### v-else-if 与 v-else：链式条件
+
+```vue
+<template>
+  <div>
+    <p>当前评分：{{ score }}</p>
+
+    <div v-if="score >= 90" class="grade excellent">
+      优秀
+    </div>
+    <div v-else-if="score >= 70" class="grade good">
+      良好
+    </div>
+    <div v-else-if="score >= 60" class="grade pass">
+      及格
+    </div>
+    <div v-else class="grade fail">
+      不及格
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const score = ref(85)
+</script>
+```
+
+> **注意**：`v-else-if` 和 `v-else` 必须紧跟在使用了 `v-if` 的元素之后，否则 Vue 会报语法错误。
+
+### v-show：基于 CSS 的显示控制
+
+`v-show` 通过设置 `display: none` 来控制元素显示，元素**始终保留在 DOM 中**：
+
+```vue
+<template>
+  <div>
+    <button @click="showModal = !showModal">
+      {{ showModal ? '关闭弹窗' : '打开弹窗' }}
+    </button>
+
+    <!-- v-show：通过 CSS display 属性控制显示 -->
+    <div v-show="showModal" class="modal">
+      <div class="modal-content">
+        <h3>提示信息</h3>
+        <p>这是一条提示消息</p>
+        <button @click="showModal = false">确定</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const showModal = ref(false)
+</script>
+
+<style scoped>
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: white;
+  padding: 2rem;
+  border: 3px solid #121212;
+  box-shadow: 6px 6px 0 0 #121212;
+  max-width: 400px;
+}
+</style>
+```
+
+> **适用场景**：`v-show` 适合频繁切换显示状态的元素（如弹窗、折叠面板），因为它只切换 CSS 样式，无需重新创建 DOM。
+
+### 性能对比与选择原则
+
+| 特性 | `v-if` | `v-show` |
+|------|--------|----------|
+| 初始渲染 | 条件为 false 时跳过创建 | 始终创建，仅设置 `display: none` |
+| 切换开销 | 需要创建/销毁 DOM | 仅切换 CSS 样式 |
+| 懒加载（v-if） | 支持（配合 `v-if` 的隐式懒加载） | 不支持 |
+| `<template>` 支持 | 支持（分组渲染） | 不支持 |
+
+```vue
+<!-- v-if 支持与 template 配合实现分组渲染 -->
+<template v-if="isAdmin">
+  <Dashboard />
+  <Settings />
+  <UserManagement />
+</template>
+
+<!-- v-show 无法与 template 配合 -->
+```
+
+**选择原则**：
+- 元素切换**不频繁**、渲染成本高 → 用 `v-if`
+- 元素切换**频繁** → 用 `v-show`
+- 需要与 `<template>` 配合分组 → 用 `v-if`
+
+## v-for：列表渲染
+
+`v-for` 是 Vue 中最常用的列表渲染指令，用于遍历数组、对象、整数范围等数据源。
+
+### 遍历数组
+
+```vue
+<template>
+  <ul>
+    <!-- 语法：item in items，或 (item, index) in items -->
+    <li v-for="(todo, index) in todos" :key="todo.id">
+      <span>{{ index + 1 }}.</span>
+      <span :class="{ done: todo.completed }">{{ todo.title }}</span>
+    </li>
+  </ul>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const todos = ref([
+  { id: 1, title: '学习 Vue 3', completed: true },
+  { id: 2, title: '完成项目实战', completed: false },
+  { id: 3, title: '阅读源码', completed: false }
+])
+</script>
+
+<style scoped>
+.done {
+  text-decoration: line-through;
+  color: #999;
+}
+</style>
+```
+
+### 遍历对象
+
+```vue
+<template>
+  <dl>
+    <!-- 遍历对象：(value, key, index) in object -->
+    <template v-for="(value, key, index) in user" :key="key">
+      <dt>{{ key }}</dt>
+      <dd>{{ value }}</dd>
+    </template>
+  </dl>
+</template>
+
+<script setup>
+import { reactive } from 'vue'
+
+const user = reactive({
+  name: 'Alice',
+  email: 'alice@example.com',
+  role: 'Developer'
+})
+</script>
+```
+
+### 遍历整数范围
+
+```vue
+<template>
+  <div class="pagination">
+    <button
+      v-for="page in totalPages"
+      :key="page"
+      :class="{ active: page === currentPage }"
+      @click="currentPage = page"
+    >
+      {{ page }}
+    </button>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const totalPages = 10
+const currentPage = ref(1)
+</script>
+```
+
+## key 的作用与重要性
+
+`key` 是 `v-for` 中的一个特殊 attribute，用于给每个节点一个唯一标识。Vue 的**虚拟 DOM diff 算法**依赖 `key` 来判断哪些节点发生了变化。
+
+### 使用 index 作为 key 的问题
+
+```vue
+<!-- ❌ 不推荐：用 index 作为 key -->
+<li v-for="(item, index) in items" :key="index">
+  {{ item.name }}
+</li>
+```
+
+当列表中间插入或删除元素时，`index` 会发生变化，导致 Vue 错误地复用和更新已有节点，引发渲染错误：
+
+```vue
+<script setup>
+// 原始列表：[{id:1, name:'A'}, {id:2, name:'B'}, {id:3, name:'C'}]
+// 插入新元素后：[A, B, new, C]
+
+// ❌ 使用 index 作为 key：
+// 旧 index 0 → A（复用，更新后仍显示 A）
+// 旧 index 1 → B（复用，更新后显示 B）
+// 旧 index 2 → C（复用，更新后显示 new，C 被错误更新）
+
+// ✅ 使用唯一 id 作为 key：
+// id:1 → A（精确匹配，复用）
+// id:2 → B（精确匹配，复用）
+// id:3 → C（精确匹配，复用）
+// new → new（新增）
+</script>
+```
+
+### 正确使用 key
+
+```vue
+<!-- ✅ 推荐：使用数据唯一标识作为 key -->
+<template>
+  <ul>
+    <li
+      v-for="product in products"
+      :key="product.id"
+      @click="removeProduct(product.id)"
+    >
+      {{ product.name }} - ¥{{ product.price }}
+    </li>
+  </ul>
+
+  <button @click="addProduct">添加商品</button>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const nextId = ref(4)
+
+const products = ref([
+  { id: 1, name: 'Vue 入门', price: 99 },
+  { id: 2, name: 'Vue 进阶', price: 199 },
+  { id: 3, name: 'Vue 实战', price: 299 }
+])
+
+function addProduct() {
+  products.value.push({
+    id: nextId.value++,
+    name: `新商品 ${nextId.value - 3}`,
+    price: Math.floor(Math.random() * 100) + 50
+  })
+}
+
+function removeProduct(id) {
+  products.value = products.value.filter(p => p.id !== id)
+}
+</script>
+```
+
+> **最佳实践**：始终使用数据中的**唯一 ID** 作为 `key`，而非数组索引。当没有唯一 ID 时，可以使用 `crypto.randomUUID()` 生成。
+
+## v-for 与 v-if 的配合
+
+**重要原则**：`v-for` 的优先级高于 `v-if`，这意味着 `v-if` 会在 `v-for` 的每个元素上分别执行。
+
+### 常见错误
+
+```vue
+<!-- ❌ 不推荐：在同一个元素上同时使用 v-for 和 v-if -->
+<li v-for="item in items" v-if="item.visible" :key="item.id">
+  {{ item.name }}
+</li>
+
+<!-- 问题：每次渲染都会执行 v-if，导致性能浪费 -->
+```
+
+### 正确做法：使用计算属性预处理
+
+```vue
+<template>
+  <!-- ✅ 推荐：先过滤数据，再渲染 -->
+  <li v-for="item in visibleItems" :key="item.id">
+    {{ item.name }}
+  </li>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+
+const items = ref([
+  { id: 1, name: '项目一', visible: true },
+  { id: 2, name: '项目二', visible: false },
+  { id: 3, name: '项目三', visible: true }
+])
+
+// 使用 computed 预先过滤，只在 items 变化时重新计算
+const visibleItems = computed(() => {
+  return items.value.filter(item => item.visible)
+})
+</script>
+```
+
+### 使用 v-if 与 v-for 分层
+
+```vue
+<!-- ✅ 更好：先判断是否有数据，再渲染列表 -->
+<template>
+  <div v-if="loading" class="loading">加载中...</div>
+  <div v-else-if="error" class="error">{{ error }}</div>
+  <ul v-else>
+    <li v-for="item in items" :key="item.id">
+      {{ item.name }}
+    </li>
+  </ul>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+const loading = ref(false)
+const error = ref(null)
+const items = ref([])
+</script>
+```
+
+## 常见陷阱与最佳实践
+
+### 避免在 v-for 中修改原始数组
+
+```vue
+<script setup>
+const numbers = ref([1, 2, 3, 4, 5])
+
+// ❌ 错误：直接修改原数组（可能不触发响应式更新）
+function removeFirst() {
+  numbers.value.splice(0, 1) // splice 会修改原数组，但不保证响应式
+}
+
+// ✅ 正确：创建新数组（Vue 会检测到引用变化）
+function removeFirst() {
+  numbers.value = numbers.value.slice(1)
+}
+
+// ✅ 正确：使用 filter（返回新数组）
+function removeEven() {
+  numbers.value = numbers.value.filter(n => n % 2 !== 0)
+}
+</script>
+```
+
+### 模板中的列表操作
+
+```vue
+<template>
+  <div>
+    <button @click="sortByPrice">按价格排序</button>
+    <button @click="reverseList">反转列表</button>
+    <button @click="filterExpensive">只显示高价</button>
+
+    <ul>
+      <li v-for="item in displayItems" :key="item.id">
+        {{ item.name }} - ¥{{ item.price }}
+      </li>
+    </ul>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+
+const items = ref([
+  { id: 1, name: 'Vue 书籍', price: 88 },
+  { id: 2, name: 'TypeScript 书籍', price: 128 },
+  { id: 3, name: 'Node.js 书籍', price: 98 }
+])
+
+const displayItems = ref([...items.value])
+
+function sortByPrice() {
+  displayItems.value = [...displayItems.value].sort(
+    (a, b) => a.price - b.price
+  )
+}
+
+function reverseList() {
+  displayItems.value = [...displayItems.value].reverse()
+}
+
+function filterExpensive() {
+  displayItems.value = items.value.filter(item => item.price > 100)
+}
+</script>
+```
+
+## 总结
+
+- **`v-if`**：真正的条件渲染，条件为 false 时元素从 DOM 中完全移除，适合渲染成本高、不频繁切换的场景
+- **`v-show`**：基于 CSS `display` 的显示控制，元素始终保留在 DOM 中，适合频繁切换的场景
+- **`v-for`**：列表渲染，支持数组、对象、整数范围，默认提供 `item` 和 `index` 参数
+- **`key`**：必须为 `v-for` 提供唯一 `key`，使用数据唯一 ID 而非数组索引
+- **`v-if` + `v-for`**：优先使用计算属性预处理数据，避免在同一元素上混用
+
+掌握条件渲染与列表渲染的差异和最佳实践，能帮助你在不同场景下做出正确的技术选型。下一篇文章我们将学习 **事件处理与绑定**，深入探讨修饰符、按键修饰符和组合式事件处理的用法。

@@ -1,0 +1,453 @@
+---
+title: 生命周期钩子详解
+description: 全面对比 Vue 3 选项式 API 与 Composition API 的生命周期钩子，讲解各阶段的使用场景、常见陷阱与最佳实践
+pubDate: 2026-04-11
+category: vue
+tags: [vue, vue3, lifecycle, hooks]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: vue-lifecycle-hooks
+---
+
+# 生命周期钩子详解
+
+理解 Vue 组件的生命周期是掌握 Vue 开发的关键。生命周期钩子让我们能够在组件的不同阶段执行特定逻辑，从创建到销毁的整个过程都有对应的钩子函数。
+
+## 生命周期图谱
+
+Vue 3 组件的生命周期分为几个主要阶段：
+
+1. **创建阶段**：组件实例初始化
+2. **挂载阶段**：DOM 渲染
+3. **更新阶段**：响应式数据变化导致重新渲染
+4. **卸载阶段**：组件从 DOM 中移除
+
+```
+创建 → 挂载 → 更新 → 卸载
+```
+
+## 选项式 API 生命周期
+
+### 创建阶段
+
+```vue
+<script>
+export default {
+  beforeCreate() {
+    // 实例初始化后，数据观测和事件配置之前调用
+    // 此时无法访问 data、methods、computed
+    console.log('beforeCreate:', this.$data) // undefined
+  },
+
+  created() {
+    // 实例创建完成后调用
+    // 此时可以访问 data、methods、computed，但 DOM 还未挂载
+    console.log('created:', this.message) // 'Hello'
+    this.fetchData()
+  },
+
+  data() {
+    return { message: 'Hello' }
+  }
+}
+</script>
+```
+
+### 挂载阶段
+
+```vue
+<script>
+export default {
+  beforeMount() {
+    // 模板编译完成，但尚未渲染到 DOM
+    console.log('beforeMount:', document.querySelector('h1')) // null
+  },
+
+  mounted() {
+    // 组件已渲染到 DOM
+    // 适合执行需要 DOM 的操作：第三方库初始化、事件监听、定时器
+    console.log('mounted:', document.querySelector('h1')) // <h1>元素</h1>
+    this.initChart()
+    this.startTimer()
+  },
+
+  methods: {
+    initChart() {
+      // 初始化图表库，如 ECharts
+    },
+    startTimer() {
+      this.timer = setInterval(() => {}, 1000)
+    }
+  },
+
+  beforeUnmount() {
+    // 组件即将卸载
+    // 清理定时器、取消事件监听、断开 WebSocket
+    clearInterval(this.timer)
+  },
+
+  unmounted() {
+    // 组件已卸载
+    console.log('Component unmounted')
+  }
+}
+</script>
+```
+
+### 更新阶段
+
+```vue
+<script>
+export default {
+  data() {
+    return { count: 0 }
+  },
+
+  beforeUpdate() {
+    // 数据变化后，DOM 更新之前调用
+    // 可以获取更新前的 DOM 状态
+    console.log('beforeUpdate:', document.querySelector('span').textContent)
+  },
+
+  updated() {
+    // DOM 更新完成后调用
+    // 适合执行依赖新 DOM 的操作，但要注意避免无限循环
+    this.highlightElement()
+  }
+}
+</script>
+```
+
+## Composition API 生命周期
+
+在 Composition API 中，生命周期钩子需要从 `vue` 导入：
+
+```javascript
+import {
+  onMounted,
+  onUpdated,
+  onUnmounted,
+  onBeforeMount,
+  onBeforeUpdate,
+  onBeforeUnmount
+} from 'vue'
+```
+
+### 基本用法
+
+```vue
+<script setup>
+import {
+  ref,
+  onMounted,
+  onBeforeMount,
+  onUpdated,
+  onBeforeUpdate,
+  onUnmounted,
+  onBeforeUnmount
+} from 'vue'
+
+const count = ref(0)
+
+onBeforeMount(() => {
+  console.log('beforeMount - 即将挂载')
+})
+
+onMounted(() => {
+  console.log('mounted - 已挂载')
+  this.startAnimation()
+})
+
+onBeforeUpdate(() => {
+  console.log('beforeUpdate - 即将更新')
+})
+
+onUpdated(() => {
+  console.log('updated - 已更新')
+})
+
+onBeforeUnmount(() => {
+  console.log('beforeUnmount - 即将卸载')
+  this.cleanup()
+})
+
+onUnmounted(() => {
+  console.log('unmounted - 已卸载')
+})
+
+function startAnimation() {
+  // 启动动画
+}
+
+function cleanup() {
+  // 清理资源
+}
+</script>
+```
+
+## 两套 API 的对应关系
+
+| 选项式 API | Composition API | 执行时机 |
+|------------|-----------------|----------|
+| `beforeCreate` | `setup` | 实例初始化前 |
+| `created` | `setup` | 实例创建后 |
+| `beforeMount` | `onBeforeMount` | 挂载前 |
+| `mounted` | `onMounted` | 挂载后 |
+| `beforeUpdate` | `onBeforeUpdate` | 更新前 |
+| `updated` | `onUpdated` | 更新后 |
+| `beforeUnmount` | `onBeforeUnmount` | 卸载前 |
+| `unmounted` | `onUnmounted` | 卸载后 |
+| `errorCaptured` | `onErrorCaptured` | 错误捕获 |
+| `renderTracked` | `onRenderTracked` | 渲染追踪 |
+| `renderTriggered` | `onRenderTriggered` | 渲染触发 |
+
+> **注意**：`beforeCreate` 和 `created` 在 `<script setup>` 中没有对应的钩子，因为 `setup` 本身就在这个阶段执行。
+
+## 父子组件生命周期执行顺序
+
+当父组件包含子组件时，生命周期钩子的执行顺序如下：
+
+```
+父 beforeCreate → 父 created → 父 beforeMount
+  → 子 beforeCreate → 子 created → 子 beforeMount → 子 mounted
+→ 父 mounted
+```
+
+### 实际示例
+
+```vue
+<!-- Parent.vue -->
+<script setup>
+import { onMounted } from 'vue'
+import Child from './Child.vue'
+
+onMounted(() => {
+  console.log('父组件 mounted')
+})
+</script>
+
+<template>
+  <div>
+    <h1>父组件</h1>
+    <Child />
+  </div>
+</template>
+```
+
+```vue
+<!-- Child.vue -->
+<script setup>
+import { onMounted } from 'vue'
+
+onMounted(() => {
+  console.log('子组件 mounted')
+})
+</script>
+
+<template>
+  <p>子组件内容</p>
+</template>
+```
+
+输出顺序：`父组件 mounted` → `子组件 mounted`（实际是子先mounted，父最后）
+
+## 常用场景与最佳实践
+
+### 场景一：DOM 操作与第三方库
+
+```vue
+<script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
+import Chart from 'chart.js/auto'
+
+const canvasRef = ref(null)
+let chartInstance = null
+
+onMounted(() => {
+  // 初始化图表
+  chartInstance = new Chart(canvasRef.value, {
+    type: 'bar',
+    data: { labels: ['A', 'B', 'C'], datasets: [{ data: [1, 2, 3] }] }
+  })
+})
+
+onUnmounted(() => {
+  // 销毁图表实例，防止内存泄漏
+  chartInstance?.destroy()
+})
+</script>
+
+<template>
+  <canvas ref="canvasRef"></canvas>
+</template>
+```
+
+### 场景二：异步数据获取
+
+```vue
+<script setup>
+import { ref, onMounted } from 'vue'
+
+const user = ref(null)
+const isLoading = ref(true)
+const error = ref(null)
+
+onMounted(async () => {
+  try {
+    const response = await fetch('/api/user')
+    user.value = await response.json()
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    isLoading.value = false
+  }
+})
+</script>
+```
+
+### 场景三：事件监听与清理
+
+```vue
+<script setup>
+import { onMounted, onUnmounted } from 'vue'
+
+function handleResize() {
+  console.log('Window resized:', window.innerWidth)
+}
+
+function handleScroll() {
+  console.log('Scrolled:', window.scrollY)
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
+  window.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  // 重要：移除事件监听，防止内存泄漏
+  window.removeEventListener('resize', handleResize)
+  window.removeEventListener('scroll', handleScroll)
+})
+</script>
+```
+
+### 场景四：响应式数据更新后的操作
+
+```vue
+<script setup>
+import { ref, watch, onUpdated } from 'vue'
+
+const inputRef = ref(null)
+const query = ref('')
+
+// 使用 watch 响应特定变化
+watch(query, async (newQuery) => {
+  if (newQuery.length > 2) {
+    // 执行搜索
+  }
+})
+
+// 如果需要在每次 DOM 更新后执行操作
+onUpdated(() => {
+  // 适合操作新渲染的 DOM
+  console.log('DOM updated')
+})
+</script>
+```
+
+## 常见陷阱
+
+### 陷阱一：在 updated 中修改数据
+
+```javascript
+// 错误：可能导致无限循环
+onUpdated(() => {
+  this.count++ // 触发再次 updated
+})
+
+// 正确：使用 watch 代替
+watch(count, (newCount) => {
+  // 处理变化
+})
+```
+
+### 陷阱二：忘记清理副作用
+
+```javascript
+// 错误：定时器泄漏
+onMounted(() => {
+  setInterval(() => {
+    this.fetchData()
+  }, 5000)
+})
+
+// 正确：保存定时器 ID 并清理
+const timer = null
+onMounted(() => {
+  timer = setInterval(() => {
+    this.fetchData()
+  }, 5000)
+})
+
+onUnmounted(() => {
+  clearInterval(timer)
+})
+```
+
+### 陷阱三：在 setup 顶部调用生命周期钩子
+
+```javascript
+// 错误：钩子应在 setup 内部的条件语句之后调用
+const shouldMount = computed(() => true)
+onMounted(() => {}) // 错误！
+
+// 正确：钩子必须在同步代码中调用
+onMounted(() => {})
+```
+
+## 组合式函数中的生命周期
+
+在 Composables 中使用生命周期钩子时，需要注意：它们必须在组件的 setup 期间同步调用：
+
+```javascript
+// src/composables/useInterval.js
+import { onUnmounted } from 'vue'
+
+export function useInterval(callback, interval) {
+  const timer = setInterval(callback, interval)
+
+  // Composable 中的钩子仍然正常工作
+  onUnmounted(() => {
+    clearInterval(timer)
+  })
+
+  return () => clearInterval(timer)
+}
+```
+
+```vue
+<script setup>
+import { useInterval } from '@/composables/useInterval'
+
+const { clear } = useInterval(() => {
+  console.log('tick')
+}, 1000)
+
+// 需要时清除定时器
+clear()
+</script>
+```
+
+## 总结
+
+生命周期钩子是 Vue 组件从创建到销毁各阶段的重要入口：
+
+- **创建阶段**：`beforeCreate` / `created` 适合初始化非 DOM 逻辑
+- **挂载阶段**：`beforeMount` / `mounted` 适合 DOM 操作和第三方库初始化
+- **更新阶段**：`beforeUpdate` / `updated` 适合响应变化后的处理，注意避免无限循环
+- **卸载阶段**：`beforeUnmount` / `unmounted` 适合清理定时器、事件监听等资源
+
+在 Composition API 中，生命周期钩子通过 `onXxx` 函数导入使用，逻辑更加集中和可复用。

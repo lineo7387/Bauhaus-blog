@@ -1,0 +1,489 @@
+---
+title: Flexbox 布局详解
+description: 深入理解 React Native 中 Flexbox 的工作原理，掌握主轴交叉轴对齐、flexGrow/flexShrink、常见布局模式及与 CSS Flexbox 的核心差异
+pubDate: 2026-04-11
+category: react-native
+tags: [react-native, flexbox, 布局, 入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: react-native-flexbox-layout
+---
+
+## 前言
+
+React Native 使用 **Flexbox** 作为默认且唯一的布局系统。没有 `display: block / inline / grid`，所有布局都靠 Flexbox 完成。这与 Web 开发中 Flexbox 仅作为「一种布局选项」不同——在 RN 中，**Flexbox 就是布局本身**。掌握它，是构建任何 RN UI 的前提。
+
+## Flexbox 基本概念
+
+### 两个轴：主轴与交叉轴
+
+```
+                交叉轴（Column）
+                      ↑
+                      │
+              ┌───────┼───────┐
+                      │
+    →→→→→→→→→→→→→→→→→→→→→→→ 主轴（Row，默认）
+              ┌───────┼───────┐
+                      │
+                      ↓
+                交叉轴
+```
+
+- **主轴（Main Axis）**：子项的排列方向，`flexDirection` 控制
+  - `row`（默认）：水平排列
+  - `column`：垂直排列
+- **交叉轴（Cross Axis）**：垂直于主轴的方向
+
+### 核心布局属性速查
+
+| 容器属性 | 子项属性 |
+|---------|---------|
+| `flexDirection` | `flexGrow` |
+| `justifyContent` | `flexShrink` |
+| `alignItems` | `flexBasis` |
+| `alignSelf` | `alignSelf` |
+| `flexWrap` | `position: absolute` |
+| `gap` | — |
+
+## 主轴对齐：justifyContent
+
+`justifyContent` 控制子项在**主轴**上的分布方式：
+
+```tsx
+import { View, Text, StyleSheet } from 'react-native';
+
+function JustifyContentDemo() {
+  const boxes = ['A', 'B', 'C'].map((label) => (
+    <View key={label} style={styles.box}>
+      <Text>{label}</Text>
+    </View>
+  ));
+
+  return (
+    <View style={styles.demoWrapper}>
+      <Text style={styles.label}>flex-start（默认）</Text>
+      <View style={[styles.container, { justifyContent: 'flex-start' }]}>
+        {boxes}
+      </View>
+
+      <Text style={styles.label}>center</Text>
+      <View style={[styles.container, { justifyContent: 'center' }]}>
+        {boxes}
+      </View>
+
+      <Text style={styles.label}>flex-end</Text>
+      <View style={[styles.container, { justifyContent: 'flex-end' }]}>
+        {boxes}
+      </View>
+
+      <Text style={styles.label}>space-between</Text>
+      <View style={[styles.container, { justifyContent: 'space-between' }]}>
+        {boxes}
+      </View>
+
+      <Text style={styles.label}>space-around</Text>
+      <View style={[styles.container, { justifyContent: 'space-around' }]}>
+        {boxes}
+      </View>
+
+      <Text style={styles.label}>space-evenly</Text>
+      <View style={[styles.container, { justifyContent: 'space-evenly' }]}>
+        {boxes}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  demoWrapper: { padding: 16 },
+  label: { fontSize: 12, color: '#666', marginTop: 16, marginBottom: 8 },
+  container: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F0F0',
+    height: 80,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  box: {
+    width: 50,
+    height: 50,
+    backgroundColor: '#61DAFB',
+    borderRadius: 4,
+    margin: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fixedBox: {
+    width: 80,
+    height: 50,
+    backgroundColor: '#D02020',
+    borderRadius: 4,
+    margin: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+```
+
+## 交叉轴对齐：alignItems
+
+`alignItems` 控制子项在**交叉轴**上的对齐方式：
+
+```tsx
+import { View, Text, StyleSheet } from 'react-native';
+
+function AlignItemsDemo() {
+  const boxes = ['A', 'B', 'C'].map((label) => (
+    <View key={label} style={styles.box}>
+      <Text>{label}</Text>
+    </View>
+  ));
+
+  return (
+    <View style={styles.demoWrapper}>
+      <Text style={styles.label}>stretch（默认）</Text>
+      <View style={[styles.container, { alignItems: 'stretch' }]}>
+        {['A', 'B', 'C'].map((label) => (
+          <View key={label} style={[styles.box, { height: undefined }]}>
+            <Text>{label}</Text>
+          </View>
+        ))}
+      </View>
+
+      <Text style={styles.label}>flex-start</Text>
+      <View style={[styles.container, { alignItems: 'flex-start' }]}>
+        {boxes}
+      </View>
+
+      <Text style={styles.label}>center</Text>
+      <View style={[styles.container, { alignItems: 'center' }]}>
+        {boxes}
+      </View>
+
+      <Text style={styles.label}>flex-end</Text>
+      <View style={[styles.container, { alignItems: 'flex-end' }]}>
+        {boxes}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  demoWrapper: { padding: 16 },
+  label: { fontSize: 12, color: '#666', marginTop: 16, marginBottom: 8 },
+  container: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F0F0',
+    height: 100,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  box: {
+    width: 50,
+    height: 50,
+    backgroundColor: '#61DAFB',
+    borderRadius: 4,
+    margin: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+```
+
+:::tip
+`alignItems` 的默认值为 `stretch`，这意味着子项如果不设置固定高度（或宽度），会自动拉伸填满交叉轴方向的全部空间。这是 RN 与 CSS Flexbox 的重要区别——**RN 中默认拉伸，CSS 中默认不拉伸**。
+:::
+
+## 填充与弹性：flexGrow、flexShrink、flexBasis
+
+### flexBasis：初始尺寸
+
+设置子项在主轴方向上的初始大小：
+
+```tsx
+// flexBasis 示例
+<View style={{ flexDirection: 'row' }}>
+  {/* 固定 100dp 宽 */}
+  <View style={{ flexBasis: 100, backgroundColor: '#61DAFB' }} />
+  {/* 剩余空间由 flexGrow 决定 */}
+  <View style={{ flexGrow: 1, backgroundColor: '#F0C020' }} />
+  {/* 固定 80dp 宽 */}
+  <View style={{ flexBasis: 80, backgroundColor: '#D02020' }} />
+</View>
+```
+
+### flexGrow：分配剩余空间
+
+当容器有剩余空间时，`flexGrow` 定义子项如何「吸收」这些空间：
+
+```tsx
+function FlexGrowExample() {
+  return (
+    <View style={styles.demoWrapper}>
+      <Text style={styles.label}>flexGrow 等分剩余空间</Text>
+      <View style={[styles.container]}>
+        <View style={[styles.box, { flexGrow: 1 }]}><Text>A</Text></View>
+        <View style={[styles.box, { flexGrow: 1 }]}><Text>B</Text></View>
+        <View style={[styles.box, { flexGrow: 2 }]}><Text>C (2倍)</Text></View>
+      </View>
+
+      <Text style={styles.label}>flexGrow: 1 填满剩余空间</Text>
+      <View style={[styles.container]}>
+        <View style={styles.fixedBox}><Text>固定</Text></View>
+        {/* 只有这个会扩展 */}
+        <View style={[styles.box, { flexGrow: 1 }]}><Text>扩展</Text></View>
+      </View>
+    </View>
+  );
+}
+```
+
+### flexShrink：压缩空间
+
+当子项总尺寸超过容器时，`flexShrink` 决定哪些项被压缩：
+
+```tsx
+<View style={{ flexDirection: 'row' }}>
+  {/* flexShrink: 0 不压缩，flexShrink: 1 压缩 */}
+  <View style={{ flexShrink: 0, width: 200, backgroundColor: '#61DAFB' }}>
+    <Text>不压缩</Text>
+  </View>
+  <View style={{ flexShrink: 1, backgroundColor: '#F0C020' }}>
+    <Text>可压缩</Text>
+  </View>
+</View>
+```
+
+### flex 简写
+
+在 RN 中，`flex: number` 是 `flexGrow: number` 的简写（不等同于 CSS 的 `flex: 1 1 0`）：
+
+```tsx
+// RN 中这些等价：
+<View style={{ flex: 1 }} />
+<View style={{ flexGrow: 1 }} />
+
+// flex: 2 = 两倍flexGrow
+<View style={{ flex: 2 }} />  // 分配 2/(1+2+1) = 50% 空间
+```
+
+:::warning
+**RN `flex` vs CSS `flex`**：两者行为不同。RN 的 `flex` 默认只设置 `flexGrow`，不设置 `flexShrink` 和 `flexBasis`。在 RN 中用 `flex: 1` 填充空间时，不需要担心超容时的压缩行为（除非显式设置 `flexShrink`）。
+:::
+
+## flexWrap 换行
+
+默认情况下，Flexbox 不换行（`flexWrap: 'nowrap'`），子项会被压缩或溢出。设置换行：
+
+```tsx
+function FlexWrapDemo() {
+  const items = Array.from({ length: 8 }, (_, i) => (
+    <View key={i} style={styles.wrapBox}>
+      <Text>{i + 1}</Text>
+    </View>
+  ));
+
+  return (
+    <View style={styles.demoWrapper}>
+      <Text style={styles.label}>flexWrap: 'wrap'</Text>
+      <View style={[styles.container, { flexWrap: 'wrap', height: 200 }]}>
+        {items}
+      </View>
+
+      <Text style={styles.label}>flexWrap: 'nowrap'（默认，会溢出）</Text>
+      <View style={[styles.container, { flexWrap: 'nowrap' }]}>
+        {items}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrapBox: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#61DAFB',
+    borderRadius: 8,
+    margin: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+```
+
+## gap：间距控制
+
+RN 0.71+ 支持原生 `gap` 属性：
+
+```tsx
+<View style={{
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 12,           // row + column gap
+  rowGap: 16,        // 单独设置
+  columnGap: 8,
+}}>
+  {/* 子项 */}
+</View>
+```
+
+:::tip
+在不支持 `gap` 的旧版 RN 中，使用 `margin` 或 `View` 作为间距分隔符。新项目（0.71+）直接用 `gap` 更简洁。
+:::
+
+## alignSelf：覆盖容器对齐
+
+子项可以覆盖父容器 `alignItems` 的设置：
+
+```tsx
+<View style={{
+  flexDirection: 'row',
+  alignItems: 'flex-start',  // 容器默认顶部对齐
+  height: 120,
+}}>
+  <View style={[styles.box, { alignSelf: 'flex-end' }]}>
+    <Text>我在底部</Text>
+  </View>
+  <View style={styles.box}>
+    <Text>我在顶部</Text>
+  </View>
+</View>
+```
+
+## 常见布局模式实战
+
+### 头部固定 + 内容填充
+
+```tsx
+function HeaderFooterLayout() {
+  return (
+    <View style={styles.root}>
+      {/* 固定头部 */}
+      <View style={styles.header}>
+        <Text style={styles.headerText}>标题栏</Text>
+      </View>
+
+      {/* 可滚动内容区 */}
+      <ScrollView style={styles.content}>
+        <View style={styles.contentInner}>
+          <Text>这是页面主体内容...</Text>
+        </View>
+      </ScrollView>
+
+      {/* 固定底部 */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>底部导航</Text>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  header: {
+    height: 56,
+    backgroundColor: '#61DAFB',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  headerText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
+  content: {
+    flex: 1,            // 占据 header 和 footer 之外的所有空间
+    backgroundColor: '#F5F5F5',
+  },
+  contentInner: {
+    padding: 16,
+  },
+  footer: {
+    height: 60,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  footerText: {
+    fontSize: 14,
+    color: '#333',
+  },
+});
+```
+
+### 网格布局
+
+```tsx
+function GridLayout({ items = ['A', 'B', 'C', 'D', 'E'] }) {
+  return (
+    <View style={styles.gridContainer}>
+      {items.map((item, index) => (
+        <View key={index} style={styles.gridItem}>
+          <Text style={styles.gridText}>{item}</Text>
+        </View>
+      ))}
+      {/* 填充空白格子 */}
+      {Array.from({ length: items.length % 3 > 0 ? 3 - (items.length % 3) : 0 }).map(
+        (_, i) => (
+          <View key={`empty-${i}`} style={styles.gridItem} />
+        )
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    padding: 16,
+  },
+  gridItem: {
+    width: '30%',           // 3列 + gap: 12px
+    aspectRatio: 1,        // 正方形
+    backgroundColor: '#61DAFB',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gridText: {
+    color: '#FFF',
+    fontWeight: 'bold',
+  },
+});
+```
+
+## RN Flexbox vs CSS Flexbox 核心差异
+
+| 差异点 | React Native | CSS Flexbox |
+|--------|-------------|-------------|
+| 默认 `flexDirection` | `row` | `row`（Web 默认） |
+| 默认 `alignItems` | `stretch` | `normal`（不拉伸） |
+| `flex` 行为 | 仅 `flexGrow` | `flex-grow shrink basis` |
+| `gap` 支持 | RN 0.71+ | 广泛支持 |
+| 负数 `flexBasis` | 不支持 | 支持 |
+| `position: sticky` | 不支持 | 支持 |
+
+:::warning
+最重要的区别是 `alignItems` 的默认值。RN 中 `alignItems: 'stretch'` 是默认值，而 CSS 中 `align-items: normal` 不会拉伸子项。因此，**在 RN 中给子项设置固定高度/宽度时要格外小心**，因为固定尺寸会阻止拉伸，容易出现布局问题。
+:::
+
+## 小结
+
+- **主轴对齐用 `justifyContent`**，交叉轴对齐用 `alignItems`
+- `flex: 1` 填充剩余空间，`flexBasis` 设置初始尺寸，`flexShrink` 控制压缩
+- RN 默认 `alignItems: stretch`，设置固定尺寸会阻止拉伸——与 CSS 行为不同
+- `flexWrap: 'wrap'` 实现换行，`gap` 控制间距
+- `alignSelf` 让子项覆盖父容器的对齐设置
+- 头部固定 + 内容填充 + 底部固定的经典布局：`header: 固定高度 / content: flex: 1 / footer: 固定高度`
+
+Flexbox 布局是 React Native UI 的核心。下一篇文章我们将探讨组件的**数据管理**——Props 与 State 的机制与最佳实践。

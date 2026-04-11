@@ -1,0 +1,597 @@
+---
+title: 核心组件一览
+description: 掌握 React Native 中最常用的基础组件：View、Text、Image、TextInput、ScrollView、FlatList 的用法与注意事项
+pubDate: 2026-04-11
+category: react-native
+tags: [react-native, 组件, UI, 入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: react-native-core-components
+---
+
+## 前言
+
+React Native 的 UI 由一系列**原生组件**构成，这些组件对应各平台的真实 UI 元素（如 iOS 的 UIView、Android 的 View）。掌握核心组件是构建任何 RN 应用的基础。本文将逐一介绍最常用的组件及其使用场景。
+
+## View —— 最基础的容器
+
+**View** 是 React Native 中最核心的组件，相当于 Web 开发中的 `<div>`。所有其他组件都必须在 View 内渲染。
+
+```tsx
+import { View, Text, StyleSheet } from 'react-native';
+
+// 基础用法
+function BasicView() {
+  return (
+    <View style={styles.container}>
+      <Text>Hello React Native</Text>
+    </View>
+  );
+}
+
+// 带样式的嵌套布局
+function NestedLayout() {
+  return (
+    <View style={styles.wrapper}>
+      <View style={styles.card}>
+        <Text style={styles.title}>卡片标题</Text>
+        <Text>这是卡片内容</Text>
+      </View>
+      <View style={[styles.card, styles.highlighted]}>
+        <Text style={styles.title}>另一个卡片</Text>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrapper: {
+    padding: 16,           // 内边距
+    backgroundColor: '#F5F5F5',
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  highlighted: {
+    backgroundColor: '#E3F2FD',
+    borderColor: '#61DAFB',
+    borderWidth: 2,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+});
+```
+
+:::tip
+React Native 中**没有** `<div>`，所有容器都用 `<View>`。每个屏幕的根元素通常就是一个带 `flex: 1` 的 View。
+:::
+
+## Text —— 文本渲染
+
+**Text** 是 RN 中唯一可以直接渲染文字的组件。嵌套的 Text 会继承父级样式。
+
+```tsx
+import { Text, View, StyleSheet } from 'react-native';
+
+function TextExamples() {
+  return (
+    <View style={{ padding: 16 }}>
+      {/* 基础文字 */}
+      <Text>默认文字</Text>
+
+      {/* 带样式的文字 */}
+      <Text style={styles.largeText}>大号加粗标题</Text>
+      <Text style={styles.smallText}>小号描述文字</Text>
+
+      {/* 嵌套文字（样式继承） */}
+      <Text style={styles.paragraph}>
+        这是一段包含{' '}
+        <Text style={styles.bold}>粗体</Text>
+        {' 和 '}
+        <Text style={styles.link}>链接</Text>
+        的文字。
+      </Text>
+
+      {/* 可点击文字 */}
+      <Text
+        style={styles.link}
+        onPress={() => console.log('点击了')}
+      >
+        点击我
+      </Text>
+
+      {/* 多行文字 */}
+      <Text style={styles.longText} numberOfLines={2}>
+        这是一段很长的文字，会在两行后以省略号结尾...
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  largeText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    marginVertical: 8,
+  },
+  smallText: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  paragraph: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#333333',
+    marginVertical: 12,
+  },
+  bold: {
+    fontWeight: 'bold',
+  },
+  link: {
+    color: '#61DAFB',
+    textDecorationLine: 'underline',
+  },
+  longText: {
+    marginTop: 12,
+    color: '#666',
+  },
+});
+```
+
+:::warning
+**Text 组件必须闭合**。不像 HTML 中的 `<p>React Native<p>`，RN 的 Text 是自闭合的。漏写闭合标签会导致奇怪的编译错误。
+:::
+
+## Image —— 图片显示
+
+**Image** 组件支持本地资源和网络图片：
+
+```tsx
+import { Image, View, StyleSheet } from 'react-native';
+
+function ImageExamples() {
+  return (
+    <View style={styles.container}>
+      {/* 网络图片 */}
+      <Image
+        source={{ uri: 'https://picsum.photos/400/300' }}
+        style={styles.networkImage}
+      />
+
+      {/* 本地图片（放在项目 assets 中） */}
+      <Image
+        source={require('./assets/logo.png')}
+        style={styles.localImage}
+      />
+
+      {/* 带占位和错误处理的图片 */}
+      <Image
+        source={{ uri: 'https://example.com/image.jpg' }}
+        style={styles.networkImage}
+        placeholderContent={<View style={styles.placeholder}><Text>加载中...</Text></View>}
+        onError={(e) => console.log('图片加载失败', e.nativeEvent.error)}
+        defaultSource={require('./assets/fallback.png')} // iOS
+      />
+
+      {/* 调整图片尺寸模式 */}
+      <View style={styles.row}>
+        <View>
+          <Text style={styles.label}>cover</Text>
+          <Image
+            source={{ uri: 'https://picsum.photos/200/200' }}
+            style={[styles.box, { resizeMode: 'cover' }]}
+          />
+        </View>
+        <View>
+          <Text style={styles.label}>contain</Text>
+          <Image
+            source={{ uri: 'https://picsum.photos/200/200' }}
+            style={[styles.box, { resizeMode: 'contain' }]}
+          />
+        </View>
+        <View>
+          <Text style={styles.label}>stretch</Text>
+          <Image
+            source={{ uri: 'https://picsum.photos/200/200' }}
+            style={[styles.box, { resizeMode: 'stretch' }]}
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { padding: 16, alignItems: 'center' },
+  networkImage: { width: 200, height: 150, borderRadius: 8 },
+  localImage: { width: 100, height: 100 },
+  placeholder: {
+    width: 200,
+    height: 150,
+    backgroundColor: '#E0E0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  row: { flexDirection: 'row', marginTop: 16, gap: 12 },
+  box: { width: 100, height: 100 },
+  label: { textAlign: 'center', marginBottom: 4, fontSize: 12 },
+});
+```
+
+:::tip
+本地图片使用 `require()` 时，**不要**拼接字符串变量：`require('./' + name)` 是**无效的**。对于动态图片路径，使用网络图片或 `uri` 方式。
+:::
+
+## TextInput —— 用户输入
+
+**TextInput** 是原生输入框组件，支持单行和多行模式：
+
+```tsx
+import { TextInput, View, Text, StyleSheet } from 'react-native';
+import { useState } from 'react';
+
+function InputExamples() {
+  const [name, setName] = useState('');
+  const [bio, setBio] = useState('');
+  const [secure, setSecure] = useState('');
+
+  return (
+    <View style={styles.container}>
+      {/* 基本输入框 */}
+      <View style={styles.field}>
+        <Text style={styles.label}>用户名</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="请输入用户名"
+          value={name}
+          onChangeText={setName}
+          autoCapitalize="none"      // 不自动大写
+          autoCorrect={false}         // 关闭自动纠错
+        />
+      </View>
+
+      {/* 多行文本框 */}
+      <View style={styles.field}>
+        <Text style={styles.label}>个人简介</Text>
+        <TextInput
+          style={[styles.input, styles.multiline]}
+          placeholder="介绍一下自己..."
+          value={bio}
+          onChangeText={setBio}
+          multiline
+          numberOfLines={4}
+          textAlignVertical="top"     // Android 多行对齐
+        />
+      </View>
+
+      {/* 密码输入框 */}
+      <View style={styles.field}>
+        <Text style={styles.label}>密码</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="请输入密码"
+          value={secure}
+          onChangeText={setSecure}
+          secureTextEntry={true}      // 隐藏输入内容
+          keyboardType="visible-password" // 允许显示密码按钮
+        />
+      </View>
+
+      {/* 带图标的输入框 */}
+      <View style={styles.iconField}>
+        <TextInput
+          style={styles.iconInput}
+          placeholder="搜索..."
+          leftIcon={<Text>🔍</Text>}
+        />
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { padding: 16 },
+  field: { marginBottom: 16 },
+  label: { fontSize: 14, fontWeight: '600', marginBottom: 6, color: '#333' },
+  input: {
+    borderWidth: 1,
+    borderColor: '#CCCCCC',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  multiline: {
+    minHeight: 100,
+    paddingTop: 10,
+  },
+  iconField: { marginBottom: 16 },
+  iconInput: {
+    borderWidth: 1,
+    borderColor: '#CCCCCC',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    flexDirection: 'row',
+  },
+});
+```
+
+:::warning
+`onChangeText` 接收的是**新的完整文本**（字符串），而不是事件对象。这与 HTML 的 `onChange` 不同。如果需要 `onChangeEvent`，可以使用 `onChange={(e) => console.log(e.nativeEvent.text)}`。
+:::
+
+## ScrollView —— 可滚动容器
+
+**ScrollView** 适合内容不多、需要全部渲染的场景：
+
+```tsx
+import { ScrollView, View, Text, StyleSheet, Image } from 'react-native';
+
+function ScrollViewExample() {
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}  // 隐藏滚动条
+      horizontal                                 // 水平滚动模式
+    >
+      {/* 水平滚动的卡片列表 */}
+      {[1, 2, 3, 4, 5].map((item) => (
+        <View key={item} style={styles.card}>
+          <Image
+            source={{ uri: `https://picsum.photos/seed/${item}/200/150` }}
+            style={styles.cardImage}
+          />
+          <Text style={styles.cardTitle}>卡片 {item}</Text>
+          <Text style={styles.cardDesc}>这是一段描述文字</Text>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+  content: {
+    padding: 16,
+    gap: 12,
+    flexDirection: 'row',    // 配合 horizontal 使用
+  },
+  card: {
+    width: 160,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  cardImage: {
+    width: '100%',
+    height: 100,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    padding: 8,
+    paddingBottom: 0,
+  },
+  cardDesc: {
+    fontSize: 12,
+    color: '#666',
+    padding: 8,
+  },
+});
+```
+
+:::warning
+**ScrollView 会一次性渲染所有子组件**。如果列表数据量很大（如上百条），ScrollView 会造成严重的性能问题，此时应使用 `FlatList`（下文介绍）。
+:::
+
+## FlatList —— 高性能列表
+
+**FlatList** 是 React Native 中渲染长列表的推荐方案。它只渲染屏幕上可见的项（虚拟化），大幅提升大量数据的渲染性能：
+
+```tsx
+import { FlatList, View, Text, StyleSheet, Image } from 'react-native';
+
+// 数据类型定义
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+}
+
+const products: Product[] = Array.from({ length: 100 }, (_, i) => ({
+  id: String(i + 1),
+  name: `商品 ${i + 1}`,
+  price: Math.floor(Math.random() * 1000) + 99,
+  image: `https://picsum.photos/seed/${i + 1}/80/80`,
+}));
+
+function FlatListExample() {
+  // 渲染单个列表项
+  const renderItem = ({ item }: { item: Product }) => (
+    <View style={styles.productCard}>
+      <Image source={{ uri: item.image }} style={styles.productImage} />
+      <View style={styles.productInfo}>
+        <Text style={styles.productName}>{item.name}</Text>
+        <Text style={styles.productPrice}>¥{item.price}</Text>
+      </View>
+      <Text style={styles.addButton}>+</Text>
+    </View>
+  );
+
+  // 分隔线
+  const ItemSeparator = () => <View style={styles.separator} />;
+
+  // 空状态组件
+  const ListEmpty = () => (
+    <View style={styles.empty}>
+      <Text>没有找到商品</Text>
+    </View>
+  );
+
+  return (
+    <FlatList
+      data={products}
+      keyExtractor={(item) => item.id}
+      renderItem={renderItem}
+      ItemSeparatorComponent={ItemSeparator}
+      ListEmptyComponent={ListEmpty}
+      showsVerticalScrollIndicator={false}
+      // 性能优化关键属性
+      initialNumToRender={10}      // 初始渲染数量
+      maxToRenderPerBatch={10}    // 每批最大渲染数
+      windowSize={5}              // 窗口大小（屏幕数）
+      removeClippedSubviews={true} // 移除屏幕外的视图
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  productCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  productImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+  },
+  productInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  productName: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  productPrice: {
+    fontSize: 14,
+    color: '#D02020',
+    marginTop: 4,
+  },
+  addButton: {
+    fontSize: 24,
+    color: '#61DAFB',
+    paddingHorizontal: 12,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#EEEEEE',
+    marginLeft: 84,  // 对齐文字
+  },
+  empty: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+});
+```
+
+:::tip
+**FlatList vs ScrollView**：数据量 < 20 条时用 ScrollView；数据量大或列表无限长时必须用 FlatList。FlatList 的虚拟化机制只渲染可见区域的项，内存占用恒定，不会随数据量增长。
+:::
+
+## StyleSheet 样式管理
+
+React Native 的样式系统基于 **CSS 子集**，但写法上是 JavaScript 对象（不使用 CSS 字符串）：
+
+```tsx
+import { StyleSheet, View, Text } from 'react-native';
+
+// StyleSheet.create() 提供 IDE 类型提示和样式验证
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,                  // 占据全部可用空间
+    backgroundColor: '#FAFAFA',
+    paddingHorizontal: 16,
+  },
+  header: {
+    height: 56,               // RN 中无单位，默认 dp
+    backgroundColor: '#61DAFB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    // 硬阴影（Bauhaus 风格）
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 0,
+    elevation: 4,              // Android 阴影
+  },
+  headerText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  card: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#121212',
+    // Android 中 borderWidth 会同时影响四个边
+  },
+  // 条件样式
+  highlightedCard: {
+    borderColor: '#D02020',
+  },
+  text: {
+    fontSize: 16,
+    color: '#333333',
+    lineHeight: 24,
+  },
+});
+
+function StyledComponent({ isHighlighted }) {
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerText}>标题</Text>
+      </View>
+      <View style={[styles.card, isHighlighted && styles.highlightedCard]}>
+        <Text style={styles.text}>这是卡片内容</Text>
+      </View>
+    </View>
+  );
+}
+```
+
+:::tip
+**平台差异**：`borderWidth` 在 Android 上四个边统一显示，在 iOS 上可以配合 `borderWidth` 和子视图实现不等边效果。Android 的 `elevation` 是最简阴影写法，iOS 使用 `shadow*` 属性。
+:::
+
+## 小结
+
+- **View**：根容器，类似 `<div>`，支持嵌套和样式
+- **Text**：唯一文本组件，支持嵌套样式继承；**必须闭合**
+- **Image**：支持网络 URL 和本地 `require()`；动态路径图片用网络 URL
+- **TextInput**：用户输入，支持单行/多行、密码、键盘类型；`onChangeText` 接收完整字符串
+- **ScrollView**：一次性渲染全部子项，适合少量内容
+- **FlatList**：虚拟化列表，只渲染可见区域，适合大数据量，性能关键组件
+- **StyleSheet**：CSS 子集，JavaScript 对象写法，推荐使用 `StyleSheet.create()`
+
+下一篇文章我们将深入探讨 React Native 的 **Flexbox 布局系统**，掌握行、列、对齐、间距等核心布局技巧。

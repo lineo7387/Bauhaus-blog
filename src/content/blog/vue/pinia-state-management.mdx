@@ -1,0 +1,574 @@
+---
+title: Pinia 状态管理
+description: 深入讲解 Vue 3 官方推荐的状态管理库 Pinia，包括 store 定义、 getters、actions、插件机制以及模块化设计模式
+pubDate: 2026-04-11
+category: vue
+tags: [vue, vue3, pinia, state-management]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 12
+planId: pinia-state-management
+---
+
+# Pinia 状态管理
+
+Pinia 是 Vue 3 官方推荐的新一代状态管理库，它提供了更简单的 API、更好的 TypeScript 支持，以及 Vue DevTools 集成。本文将全面讲解 Pinia 的核心概念和使用方法。
+
+## 为什么选择 Pinia
+
+相比 Vuex，Pinia 有以下优势：
+
+- **更简单的 API**：没有 mutations，直接在 actions 中修改状态
+- **原生 TypeScript 支持**：类型推断更完整
+- **模块化设计**：每个 store 都是独立的，无需像 Vuex 那样注册模块
+- **轻量**：压缩后约 1KB
+- **DevTools 集成**：支持时间旅行调试
+
+## 安装与配置
+
+```bash
+npm install pinia
+```
+
+```javascript
+// main.js
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
+import App from './App.vue'
+
+const app = createApp(App)
+
+app.use(createPinia())
+
+app.mount('#app')
+```
+
+## 定义 Store
+
+Pinia 提供了三种定义 store 的方式：
+
+### 选项式 Store
+
+```javascript
+// src/stores/counter.js
+import { defineStore } from 'pinia'
+
+export const useCounterStore = defineStore('counter', {
+  // state 必须是箭头函数（为了支持服务端渲染）
+  state: () => ({
+    count: 0,
+    lastChanged: null
+  }),
+
+  // getter 类似 computed
+  getters: {
+    double: (state) => state.count * 2,
+    isPositive: (state) => state.count > 0,
+    // getter 中访问其他 getter
+    statusText: (state) => {
+      if (state.count === 0) return '归零'
+      return state.count > 0 ? '正数' : '负数'
+    }
+  },
+
+  // actions 类似 methods，可以是异步的
+  actions: {
+    increment() {
+      this.count++
+      this.lastChanged = Date.now()
+    },
+    decrement() {
+      this.count--
+      this.lastChanged = Date.now()
+    },
+    reset() {
+      this.count = 0
+      this.lastChanged = Date.now()
+    }
+  }
+})
+```
+
+### 组合式 Store
+
+```javascript
+// src/stores/user.js
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+
+export const useUserStore = defineStore('user', () => {
+  // state
+  const name = ref('')
+  const email = ref('')
+  const isAuthenticated = ref(false)
+
+  // getters
+  const displayName = computed(() => name.value || email.value.split('@')[0])
+  const hasEmail = computed(() => !!email.value)
+
+  // actions
+  function login(userData) {
+    name.value = userData.name
+    email.value = userData.email
+    isAuthenticated.value = true
+  }
+
+  function logout() {
+    name.value = ''
+    email.value = ''
+    isAuthenticated.value = false
+  }
+
+  async function fetchUser() {
+    const response = await fetch('/api/user')
+    const data = await response.json()
+    login(data)
+  }
+
+  return {
+    // 暴露所有内容
+    name,
+    email,
+    isAuthenticated,
+    displayName,
+    hasEmail,
+    login,
+    logout,
+    fetchUser
+  }
+})
+```
+
+### 在组件中使用
+
+```vue
+<script setup>
+import { storeToRefs } from 'pinia'
+import { useCounterStore } from '@/stores/counter'
+import { useUserStore } from '@/stores/user'
+
+const counterStore = useCounterStore()
+const userStore = useUserStore()
+
+// 解构 state 和 getters
+// 注意：普通解构会丢失响应式，必须使用 storeToRefs
+const { count, double, statusText } = storeToRefs(counterStore)
+
+// actions 可以直接解构
+const { increment, decrement, reset } = counterStore
+
+// 或直接访问
+counterStore.increment()
+</script>
+
+<template>
+  <div>
+    <p>计数：{{ count }}</p>
+    <p>加倍：{{ double }}</p>
+    <p>状态：{{ statusText }}</p>
+    <button @click="increment">+1</button>
+    <button @click="decrement">-1</button>
+    <button @click="reset">重置</button>
+  </div>
+</template>
+```
+
+## Getters 详解
+
+### 基础 getter
+
+```javascript
+state: () => ({
+  todos: [
+    { id: 1, text: '学习 Pinia', done: true },
+    { id: 2, text: '写文档', done: false },
+    { id: 3, text: '代码审查', done: false }
+  ]
+}),
+
+getters: {
+  // 访问 state
+  doneTodos: (state) => state.todos.filter(t => t.done),
+  undoneTodos: (state) => state.todos.filter(t => !t.done),
+
+  // getter 中访问其他 getter
+  doneCount: (state) => state.todos.filter(t => t.done).length,
+  progress: (state) => {
+    const total = state.todos.length
+    if (total === 0) return 0
+    return (state.todos.filter(t => t.done).length / total * 100).toFixed(0)
+  }
+}
+```
+
+### 带参数的 getter
+
+```javascript
+getters: {
+  // 返回函数的 getter 可以接收参数
+  getTodoById: (state) => (id) => {
+    return state.todos.find(todo => todo.id === id)
+  },
+
+  // 或者使用 computed + 闭包
+  filterTodos: (state) => {
+    return (done) => {
+      return state.todos.filter(t => t.done === done)
+    }
+  }
+}
+
+// 使用
+const getTodoById = useTodoStore()
+getTodoById.getTodoById(1) // 返回 id 为 1 的 todo
+```
+
+### this 在 getter 中访问
+
+```javascript
+getters: {
+  // 组合式风格中可以用 this 访问
+  completedTodos(this) {
+    return this.todos.filter(todo => todo.done)
+  },
+
+  // 推荐：显式传递 state
+  completedTodos2(state) {
+    return state.todos.filter(todo => todo.done)
+  }
+}
+```
+
+## Actions 详解
+
+Actions 是修改 state 的地方，可以是同步或异步的：
+
+### 同步 actions
+
+```javascript
+actions: {
+  addTodo(text) {
+    this.todos.push({
+      id: Date.now(),
+      text,
+      done: false
+    })
+  },
+
+  toggleTodo(id) {
+    const todo = this.todos.find(t => t.id === id)
+    if (todo) {
+      todo.done = !todo.done
+    }
+  },
+
+  removeTodo(id) {
+    const index = this.todos.findIndex(t => t.id === id)
+    if (index > -1) {
+      this.todos.splice(index, 1)
+    }
+  }
+}
+```
+
+### 异步 actions
+
+```javascript
+actions: {
+  async fetchTodos() {
+    try {
+      this.isLoading = true
+      const response = await fetch('/api/todos')
+      const data = await response.json()
+      this.todos = data
+    } catch (error) {
+      this.error = error.message
+    } finally {
+      this.isLoading = false
+    }
+  },
+
+  async addTodoAsync(text) {
+    // 乐观更新：先更新 UI
+    const tempId = Date.now()
+    this.todos.push({ id: tempId, text, done: false })
+
+    try {
+      const response = await fetch('/api/todos', {
+        method: 'POST',
+        body: JSON.stringify({ text })
+      })
+      const newTodo = await response.json()
+      // 替换临时数据
+      const index = this.todos.findIndex(t => t.id === tempId)
+      this.todos[index] = newTodo
+    } catch (error) {
+      // 失败时回滚
+      this.todos = this.todos.filter(t => t.id !== tempId)
+      throw error
+    }
+  }
+}
+```
+
+### 组合多个 store
+
+```javascript
+import { defineStore } from 'pinia'
+import { useUserStore } from './user'
+import { useCartStore } from './cart'
+
+export const useOrderStore = defineStore('order', {
+  state: () => ({
+    orders: []
+  }),
+
+  actions: {
+    async createOrder() {
+      const userStore = useUserStore()
+      const cartStore = useCartStore()
+
+      if (!userStore.isAuthenticated) {
+        throw new Error('请先登录')
+      }
+
+      if (cartStore.items.length === 0) {
+        throw new Error('购物车为空')
+      }
+
+      const order = {
+        id: Date.now(),
+        userId: userStore.userId,
+        items: [...cartStore.items],
+        total: cartStore.totalPrice,
+        createdAt: new Date().toISOString()
+      }
+
+      await fetch('/api/orders', {
+        method: 'POST',
+        body: JSON.stringify(order)
+      })
+
+      this.orders.push(order)
+      cartStore.clear()
+
+      return order
+    }
+  }
+})
+```
+
+## Pinia 插件
+
+Pinia 支持插件来扩展功能：
+
+### 持久化插件
+
+```javascript
+// src/plugins/persist.js
+export function persistPlugin({ store }) {
+  // 从 localStorage 恢复
+  const savedState = localStorage.getItem(`pinia-${store.$id}`)
+  if (savedState) {
+    store.$patch(JSON.parse(savedState))
+  }
+
+  // 监听变化并保存
+  store.$subscribe((mutation, state) => {
+    localStorage.setItem(`pinia-${store.$id}`, JSON.stringify(state))
+  })
+}
+```
+
+```javascript
+// main.js
+import { createPinia } from 'pinia'
+import { persistPlugin } from './plugins/persist'
+
+const pinia = createPinia()
+pinia.use(persistPlugin)
+
+app.use(pinia)
+```
+
+### 日志插件
+
+```javascript
+// src/plugins/logger.js
+export function loggerPlugin({ store }) {
+  store.$subscribe((mutation, state) => {
+    console.log(`[${store.$id}] ${mutation.type}`, mutation.payload)
+  })
+
+  store.$onAction(({
+    store,
+    name,
+    args
+  }) => {
+    console.log(`[${store.$id}] Action: ${name}`, args)
+  })
+}
+```
+
+## Store 模块化设计
+
+Pinia 的设计让模块化更加自然：
+
+```
+src/stores/
+├── index.js          # 导出所有 store
+├── user.js           # 用户相关
+├── cart.js           # 购物车
+├── order.js          # 订单
+└── settings.js      # 设置
+```
+
+```javascript
+// src/stores/index.js
+export { useUserStore } from './user'
+export { useCartStore } from './cart'
+export { useOrderStore } from './order'
+export { useSettingsStore } from './settings'
+```
+
+```javascript
+// 在组件中使用
+import {
+  useUserStore,
+  useCartStore,
+  useOrderStore
+} from '@/stores'
+
+const userStore = useUserStore()
+const cartStore = useCartStore()
+const orderStore = useOrderStore()
+```
+
+## 实践：购物车 Store
+
+```javascript
+// src/stores/cart.js
+import { defineStore } from 'pinia'
+
+export const useCartStore = defineStore('cart', {
+  state: () => ({
+    items: [],
+    shippingFee: 10
+  }),
+
+  getters: {
+    totalItems: (state) =>
+      state.items.reduce((sum, item) => sum + item.quantity, 0),
+
+    subtotal: (state) =>
+      state.items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+
+    totalPrice: (state) =>
+      state.items.reduce((sum, item) => sum + item.price * item.quantity, 0) + state.shippingFee,
+
+    isEmpty: (state) => state.items.length === 0
+  },
+
+  actions: {
+    addItem(product) {
+      const existing = this.items.find(i => i.id === product.id)
+
+      if (existing) {
+        existing.quantity += 1
+      } else {
+        this.items.push({
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: 1
+        })
+      }
+    },
+
+    removeItem(productId) {
+      const index = this.items.findIndex(i => i.id === productId)
+      if (index > -1) {
+        this.items.splice(index, 1)
+      }
+    },
+
+    updateQuantity(productId, quantity) {
+      const item = this.items.find(i => i.id === productId)
+      if (item) {
+        if (quantity <= 0) {
+          this.removeItem(productId)
+        } else {
+          item.quantity = quantity
+        }
+      }
+    },
+
+    clear() {
+      this.items = []
+    }
+  }
+})
+```
+
+```vue
+<!-- Cart.vue -->
+<script setup>
+import { useCartStore } from '@/stores/cart'
+
+const cart = useCartStore()
+
+function handleCheckout() {
+  if (cart.isEmpty) return
+  // 处理结算
+}
+</script>
+
+<template>
+  <div class="cart">
+    <h2>购物车</h2>
+
+    <div v-if="cart.isEmpty" class="empty">
+      购物车是空的
+    </div>
+
+    <div v-else>
+      <ul>
+        <li v-for="item in cart.items" :key="item.id">
+          {{ item.name }} - ¥{{ item.price }} × {{ item.quantity }}
+          <button @click="cart.updateQuantity(item.id, item.quantity - 1)">
+            -
+          </button>
+          <button @click="cart.updateQuantity(item.id, item.quantity + 1)">
+            +
+          </button>
+          <button @click="cart.removeItem(item.id)">删除</button>
+        </li>
+      </ul>
+
+      <div class="summary">
+        <p>商品数量：{{ cart.totalItems }}</p>
+        <p>小计：¥{{ cart.subtotal }}</p>
+        <p>运费：¥{{ cart.shippingFee }}</p>
+        <p><strong>总计：¥{{ cart.totalPrice }}</strong></p>
+        <button @click="handleCheckout" :disabled="cart.isEmpty">
+          去结算
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+```
+
+## 总结
+
+Pinia 简化了 Vue 3 应用的状态管理：
+
+- **Store 定义**：`defineStore` 支持选项式和组合式两种风格
+- **State**：`state` 是一个返回初始状态的函数
+- **Getters**：类似 computed，自动缓存，支持链式调用
+- **Actions**：可以同步也可以异步，直接修改 state
+- **解构**：`storeToRefs` 保证解构后的数据保持响应性
+- **插件**：通过 `$subscribe` 和 `$onAction` 扩展功能
+
+相比 Vuex，Pinia 的学习曲线更低，同时提供了更好的开发体验。

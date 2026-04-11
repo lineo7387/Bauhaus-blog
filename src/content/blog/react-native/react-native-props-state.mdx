@@ -1,0 +1,547 @@
+---
+title: Props 与 State 基础
+description: 理解 React Native 中组件间数据传递的核心机制：Props 的只读性与传递方式、State 的声明式更新，以及组件生命周期的基本概念
+pubDate: 2026-04-11
+category: react-native
+tags: [react-native, props, state, 入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: react-native-props-state
+---
+
+## 前言
+
+Props 和 State 是 React（及 React Native）数据驱动的两大支柱。Props 负责**组件间的数据传递**，State 负责**组件内部的状态管理**。理解这两者的区别和使用方式，是构建可靠 RN 应用的基础。
+
+## Props：组件间的数据传递
+
+### Props 的基本用法
+
+Props（Properties）是父组件传递给子组件的数据通道。在 RN 中，Props 通过组件标签的属性传递：
+
+```tsx
+import { View, Text, StyleSheet } from 'react-native';
+
+// 子组件：声明 props 参数
+function UserCard({ name, age, avatar }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.avatar}>{avatar}</Text>
+      <View>
+        <Text style={styles.name}>{name}</Text>
+        <Text style={styles.age}>{age} 岁</Text>
+      </View>
+    </View>
+  );
+}
+
+// 父组件：传递 props
+function App() {
+  const user = {
+    name: 'Alice',
+    age: 28,
+    avatar: '👤',
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>用户列表</Text>
+      <UserCard
+        name={user.name}
+        age={user.age}
+        avatar={user.avatar}
+      />
+      <UserCard name="Bob" age={35} avatar="🧑" />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { padding: 16, flex: 1, backgroundColor: '#F5F5F5' },
+  title: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  avatar: { fontSize: 32, marginRight: 12 },
+  name: { fontSize: 16, fontWeight: '600' },
+  age: { fontSize: 14, color: '#666', marginTop: 2 },
+});
+```
+
+### 传递各种数据类型
+
+Props 可以传递任何 JavaScript 数据类型：
+
+```tsx
+// 数字
+<Badge count={5} max={99} />
+
+// 布尔
+<ToggleButton active={true} disabled={false} />
+
+// 数组
+<TagList tags={['React', 'Native', 'Flexbox']} />
+
+// 对象
+<UserInfo user={{ name: 'Alice', email: 'alice@example.com' }} />
+
+// JSX 元素（最强大的用法）
+<Card
+  header={<Text style={styles.cardTitle}>标题</Text>}
+  body={<Text>卡片内容</Text>}
+  footer={<Button title="确定" />}
+/>
+```
+
+### Props 解构与默认值
+
+使用 ES6 解构让组件代码更简洁：
+
+```tsx
+// ❌ 不解构写法
+function Button({ title, color, onPress, disabled }) {
+  return (
+    <TouchableOpacity
+      style={[styles.button, { backgroundColor: color }]}
+      onPress={onPress}
+      disabled={disabled}
+    >
+      <Text style={[styles.text, disabled && styles.disabledText]}>
+        {title}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+// ✓ 解构写法（推荐）
+function Button({ title, color = '#61DAFB', onPress, disabled = false }) {
+  return (
+    <TouchableOpacity
+      style={[styles.button, { backgroundColor: color }]}
+      onPress={onPress}
+      disabled={disabled}
+    >
+      <Text style={[styles.text, disabled && styles.disabledText]}>
+        {title}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+```
+
+:::tip
+通过解构参数设置默认值，是 React Native 中推荐的默认值写法。比 `defaultProps` 更简洁，且与 TypeScript 类型配合更好。
+:::
+
+### Props 的只读性
+
+Props 是**只读的**，组件不能修改自己接收到的 Props：
+
+```tsx
+// ❌ 错误：尝试修改 props（不会报错，但违反原则）
+function BadCounter({ count }) {
+  count = count + 1;  // 不要这样做！
+  return <Text>{count}</Text>;
+}
+
+// ✓ 正确：派生值用变量，不修改 props
+function GoodCounter({ initialCount }) {
+  const doubled = initialCount * 2;  // 派生值，完全OK
+  return (
+    <View>
+      <Text>初始值：{initialCount}</Text>
+      <Text>翻倍值：{doubled}</Text>
+    </View>
+  );
+}
+```
+
+:::warning
+**Props 单向数据流**是 React 的核心原则：数据从父组件流向子组件，父组件负责修改数据，子组件只负责展示。如果子组件需要触发修改，必须通过**回调函数**（作为 props 传递）来实现。
+:::
+
+## State：组件内部状态
+
+### useState 基础
+
+**State** 是组件内部可变的私有数据。当 State 变化时，组件会自动重新渲染：
+
+```tsx
+import { View, Text, Button, StyleSheet } from 'react-native';
+import { useState } from 'react';
+
+function Counter() {
+  // useState 返回 [当前值, 更新函数]
+  const [count, setCount] = useState(0);
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.count}>{count}</Text>
+      <View style={styles.buttons}>
+        <Button
+          title="-1"
+          onPress={() => setCount(count - 1)}
+          color="#D02020"
+        />
+        <Button
+          title="重置"
+          onPress={() => setCount(0)}
+          color="#666666"
+        />
+        <Button
+          title="+1"
+          onPress={() => setCount(count + 1)}
+          color="#61DAFB"
+        />
+      </View>
+    </View>
+  );
+}
+```
+
+### State 更新机制
+
+State 的更新是**异步且批量**的。连续多次调用 `setState` 可能不会立即反映在 UI 上：
+
+```tsx
+// ❌ 错误：基于当前 state 的更新不用普通变量
+function BadCounter() {
+  const [count, setCount] = useState(0);
+
+  // 连续快速调用，UI 可能只更新到 2
+  const handleAddThree = () => {
+    setCount(count + 1);
+    setCount(count + 1);
+    setCount(count + 1);
+  };
+
+  // 更好的写法：用函数式更新
+  const handleAddThree = () => {
+    setCount((prev) => prev + 1);
+    setCount((prev) => prev + 1);
+    setCount((prev) => prev + 1);
+  };
+
+  return <Button title="+3" onPress={handleAddThree} />;
+}
+```
+
+:::tip
+当新的 State 依赖旧的 State 时，**始终使用函数式更新** `setCount(prev => prev + 1)`，避免因为异步批处理导致的数据竞争问题。
+:::
+
+### 多个 State 的管理
+
+一个组件可以有多个独立的 State：
+
+```tsx
+function LoginForm() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // 登录逻辑
+      await login(username, password);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.form}>
+      <TextInput
+        placeholder="用户名"
+        value={username}
+        onChangeText={setUsername}
+        autoCapitalize="none"
+      />
+      <TextInput
+        placeholder="密码"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
+      {error && <Text style={styles.error}>{error}</Text>}
+      <Button
+        title={isLoading ? '登录中...' : '登录'}
+        onPress={handleLogin}
+        disabled={isLoading}
+      />
+    </View>
+  );
+}
+```
+
+### State 与 Props 的配合
+
+State 和 Props 通常配合使用：Props 提供初始值，State 管理内部变化：
+
+```tsx
+// Props 提供初始值
+function Stepper({ initialValue = 0, step = 1, min = 0, max = 100 }) {
+  const [value, setValue] = useState(initialValue);
+
+  const increment = () => {
+    setValue((prev) => Math.min(prev + step, max));
+  };
+
+  const decrement = () => {
+    setValue((prev) => Math.max(prev - step, min));
+  };
+
+  return (
+    <View style={styles.stepper}>
+      <Button title="-" onPress={decrement} disabled={value <= min} />
+      <Text style={styles.value}>{value}</Text>
+      <Button title="+" onPress={increment} disabled={value >= max} />
+    </View>
+  );
+}
+
+// 使用：每次渲染 Stepper 时，若传入不同 initialValue，会重置为新值
+<Stepper initialValue={5} step={5} min={0} max={100} />
+```
+
+## 回调函数 Props：子组件触发父组件更新
+
+这是 React 数据流最核心的模式——**子组件不能直接改父组件的数据，必须通过调用父组件传入的回调函数**：
+
+```tsx
+import { View, Text, Button, TextInput, StyleSheet } from 'react-native';
+import { useState } from 'react';
+
+// 子组件：通过 props.onAdd 通知父组件添加项
+function AddItemForm({ onAdd }) {
+  const [text, setText] = useState('');
+
+  const handleSubmit = () => {
+    if (text.trim()) {
+      onAdd(text.trim());  // 调用父组件传入的回调
+      setText('');         // 清空输入框（自己的 state）
+    }
+  };
+
+  return (
+    <View style={styles.form}>
+      <TextInput
+        style={styles.input}
+        value={text}
+        onChangeText={setText}
+        placeholder="输入新事项..."
+        onSubmitEditing={handleSubmit}
+      />
+      <Button title="添加" onPress={handleSubmit} />
+    </View>
+  );
+}
+
+// 父组件：管理列表数据
+function TodoList() {
+  const [items, setItems] = useState(['学习 React Native', '写 Demo']);
+
+  const addItem = (newItem) => {
+    // ✓ 正确：在父组件中更新数据
+    setItems((prev) => [...prev, newItem]);
+  };
+
+  return (
+    <View style={styles.container}>
+      <AddItemForm onAdd={addItem} />
+      {items.map((item, index) => (
+        <View key={index} style={styles.item}>
+          <Text>{item}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 16 },
+  form: { flexDirection: 'row', marginBottom: 16, gap: 8 },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#CCC',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  item: {
+    padding: 12,
+    backgroundColor: '#F9F9F9',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+});
+```
+
+## 组件生命周期概览
+
+在 React Native（React）中，组件有以下生命周期阶段：
+
+```
+┌──────────────┐
+│   Mounting   │  组件首次创建并渲染到视图
+│   （挂载）    │
+└──────┬───────┘
+       ▼
+┌──────────────┐
+│   Updating   │  Props 或 State 变化时重新渲染
+│   （更新）    │
+└──────┬───────┘
+       ▼
+┌──────────────┐
+│   Unmounting │  组件从 DOM 中移除
+│   （卸载）    │
+└──────────────┘
+```
+
+在函数组件中，生命周期通过 Hooks 管理：
+
+```tsx
+import { useState, useEffect } from 'react';
+
+// 挂载时：useEffect 空依赖数组 []
+useEffect(() => {
+  console.log('组件已挂载');
+  return () => console.log('组件将卸载');  // 清理函数
+}, []);
+
+// 每次渲染后：useEffect 无依赖数组
+useEffect(() => {
+  console.log('渲染了');
+});
+
+// 特定依赖变化后：useEffect([dep])
+useEffect(() => {
+  console.log('count 变化了：', count);
+}, [count]);
+```
+
+:::tip
+**Hooks 完全指南**将在进阶章节详细展开，包括 `useEffect` 的依赖分析、清理函数、竞态条件处理等高级话题。
+:::
+
+## 完整示例：带点赞的评论卡片
+
+整合 Props、State 和回调函数的综合示例：
+
+```tsx
+import { View, Text, Button, StyleSheet } from 'react-native';
+import { useState } from 'react';
+
+// 评论组件
+function CommentCard({ author, content, initialLikes }) {
+  const [likes, setLikes] = useState(initialLikes);
+  const [liked, setLiked] = useState(false);
+
+  const handleLike = () => {
+    if (liked) {
+      setLikes(likes - 1);
+      setLiked(false);
+    } else {
+      setLikes(likes + 1);
+      setLiked(true);
+    }
+  };
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.header}>
+        <Text style={styles.avatar}>{author.avatar}</Text>
+        <View>
+          <Text style={styles.authorName}>{author.name}</Text>
+          <Text style={styles.timestamp}>2小时前</Text>
+        </View>
+      </View>
+      <Text style={styles.content}>{content}</Text>
+      <View style={styles.actions}>
+        <Button
+          title={liked ? `❤️ ${likes}` : `🤍 ${likes}`}
+          onPress={handleLike}
+          color={liked ? '#D02020' : '#666'}
+        />
+      </View>
+    </View>
+  );
+}
+
+// 评论列表（父组件）
+function CommentSection() {
+  const [comments, setComments] = useState([
+    {
+      id: 1,
+      author: { name: 'Alice', avatar: '👩‍💻' },
+      content: 'React Native 的 Flexbox 布局真的很好用！',
+      likes: 12,
+    },
+    {
+      id: 2,
+      author: { name: 'Bob', avatar: '👨‍🎨' },
+      content: 'New Architecture 性能提升明显，推荐大家升级。',
+      likes: 8,
+    },
+  ]);
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.sectionTitle}>评论 ({comments.length})</Text>
+      {comments.map((comment) => (
+        <CommentCard
+          key={comment.id}
+          author={comment.author}
+          content={comment.content}
+          initialLikes={comment.likes}
+        />
+      ))}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { padding: 16, flex: 1, backgroundColor: '#F5F5F5' },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  avatar: { fontSize: 36, marginRight: 12 },
+  authorName: { fontSize: 16, fontWeight: '600' },
+  timestamp: { fontSize: 12, color: '#999', marginTop: 2 },
+  content: { fontSize: 15, lineHeight: 22, color: '#333' },
+  actions: { marginTop: 12, alignSelf: 'flex-start' },
+});
+```
+
+## 小结
+
+- **Props**：父组件传递给子组件的只读数据，驱动 UI 展示
+- **Props 传递**：任何 JS 数据类型（数字、字符串、数组、对象、JSX 元素）
+- **Props 只读性**：子组件不能修改 Props，状态变更必须通过回调
+- **State**：`useState` Hook 管理组件内部可变状态
+- **State 更新**：依赖上一状态的更新用函数式写法 `setCount(prev => prev + 1)`
+- **单向数据流**：Props 向下流动，回调函数向上通知，构成 React 的核心数据模型
+
+到这里，React Native 的基础知识已全部覆盖。接下来我们将进入**进阶技能**部分，首先深入探讨 React Native 中 Hooks 的完整用法。

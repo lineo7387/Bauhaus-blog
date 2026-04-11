@@ -10,6 +10,7 @@
 | React | 18.x | in-progress | [_plans/react.md](react.md) | 10 / 14 |
 | Python | 3.13 | completed | [_plans/python.md](python.md) | 16 / 16 |
 | Java | 17+ | planning | [_plans/java.md](java.md) | 0 / 12 |
+| React Native | 0.76.x | in-progress | [_plans/react-native.md](react-native.md) | 4 / 12 |
 
 ## 状态说明
 
