@@ -11,7 +11,6 @@ interface Props {
 
 const { headings } = Astro.props;
 
-// Filter to h2 and h3 only
 const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
 ---
 
@@ -32,7 +31,7 @@ const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
   </nav>
 )}
 
-<style>
+<style is:global>
   .toc {
     padding: 0;
   }
@@ -42,6 +41,26 @@ const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
     border: 2px solid #121212;
     border-left: 4px solid #1040C0;
     padding: 1rem;
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
+  }
+
+  /* Custom scrollbar — Bauhaus color scheme */
+  .toc-inner::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .toc-inner::-webkit-scrollbar-track {
+    background: #F0C020;
+    border-left: 1px solid #121212;
+  }
+
+  .toc-inner::-webkit-scrollbar-thumb {
+    background: #121212;
+  }
+
+  .toc .toc-inner::-webkit-scrollbar-thumb:hover {
+    background: #D02020;
   }
 
   .toc-header {
@@ -59,10 +78,6 @@ const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
   .toc-list {
     list-style: none;
     padding: 0;
-    margin: 0;
-  }
-
-  .toc-item {
     margin: 0;
   }
 
@@ -92,10 +107,6 @@ const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
     padding-left: 1.5rem;
     font-size: 0.8rem;
     color: #121212cc;
-  }
-
-  .toc-depth-3 .toc-link:hover {
-    color: #121212;
   }
 </style>
 
@@ -137,7 +148,6 @@ const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
         const target = document.getElementById(id);
         if (target) {
           target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          // Update URL without jump
           history.pushState(null, '', `#${id}`);
         }
       });
