@@ -19,6 +19,10 @@
     "ts-check": {
       "description": "TypeScript 代码规范检查，避免 any、复用现有类型、检查 Astro props 和 content collection 类型",
       "path": ".claude/commands/ts-check.md"
+    },
+    "git-push": {
+      "description": "自动提交并推送代码变更到 GitHub：检查变更、生成 commit message、执行 git add/commit/push",
+      "path": ".claude/commands/git-push.md"
     }
   }
 }
