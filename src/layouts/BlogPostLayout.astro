@@ -96,9 +96,9 @@ const updatedFormattedDate = updatedDate?.toLocaleDateString('en-US', {
     <div class="bg-white border-b-4 border-black">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
         <!-- Desktop: two-column layout with sticky TOC on right -->
-        <div class="lg:grid lg:grid-cols-[1fr_280px] lg:gap-16">
+        <div class="lg:grid lg:grid-cols-[1fr_280px] lg:gap-12">
           <!-- Main Content -->
-          <div>
+          <div class="min-w-0 overflow-hidden">
             {updatedDate && (
               <p class="text-sm text-black/60 mb-8 border-l-4 border-primary-yellow pl-4">
                 Last updated: {updatedFormattedDate}
