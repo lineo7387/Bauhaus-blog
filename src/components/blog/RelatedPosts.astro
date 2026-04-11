@@ -16,6 +16,17 @@ const relatedPosts = allPosts
   .sort(() => Math.random() - 0.5)
   .slice(0, 3);
 
+const planEntries = await getCollection("plans");
+
+function getCatIndex(postId: string, planId: string | undefined, category: string): number {
+  const plan = planEntries.find(p => p.data.skill === category);
+  if (plan?.data.planOrder && planId) {
+    const idx = plan.data.planOrder.indexOf(planId);
+    if (idx !== -1) return idx + 1;
+  }
+  return allPosts.filter(p => p.data.category === category).findIndex(p => p.id === postId) + 1;
+}
+
 // If not enough, get other posts
 if (relatedPosts.length < 2) {
   const otherPosts = allPosts
@@ -42,6 +53,7 @@ if (relatedPosts.length < 2) {
               slug={post.id}
               image={post.data.heroImage}
               category={post.data.category}
+              categoryIndex={getCatIndex(post.id, post.data.planId, post.data.category)}
             />
           </div>
         ))}
