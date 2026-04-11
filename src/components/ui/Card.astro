@@ -8,10 +8,11 @@ interface Props {
   slug: string;
   image?: string;
   category: string;
+  categoryIndex?: number;
   class?: string;
 }
 
-const { title, excerpt, date, slug, image, category, class: className = '' } = Astro.props;
+const { title, excerpt, date, slug, image, category, categoryIndex, class: className = '' } = Astro.props;
 
 const formattedDate = date.toLocaleDateString('en-US', {
   year: 'numeric',
@@ -45,13 +46,20 @@ const colors = categoryColors[category] ?? { bg: 'bg-primary-blue', text: 'text-
   )}
 
   <div class="p-6">
-    <div class="flex items-center gap-3 mb-4">
-      <span class={`text-xs font-bold uppercase tracking-wider px-2 py-1 ${colors.bg} ${colors.text}`}>
-        {category}
-      </span>
-      <time class="text-xs font-medium text-black/60" datetime={date.toISOString()}>
-        {formattedDate}
-      </time>
+    <div class="flex items-center justify-between gap-3 mb-4">
+      <div class="flex items-center gap-3">
+        <span class={`text-xs font-bold uppercase tracking-wider px-2 py-1 ${colors.bg} ${colors.text}`}>
+          {category}
+        </span>
+        <time class="text-xs font-medium text-black/60" datetime={date.toISOString()}>
+          {formattedDate}
+        </time>
+      </div>
+      {categoryIndex !== undefined && (
+        <span class="text-xs font-black text-black/40">
+          #{categoryIndex}
+        </span>
+      )}
     </div>
 
     <h3 class="text-xl font-black uppercase tracking-tight mb-3 leading-tight">
