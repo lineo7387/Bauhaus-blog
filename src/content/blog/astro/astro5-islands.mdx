@@ -1,0 +1,420 @@
+---
+title: 岛屿架构与部分水合
+description: 深入讲解 Astro 岛屿架构的核心机制：client:* 指令全家桶（load/idle/visible/media/only）、多框架组件集成、岛屿间通信模式，以及性能优化技巧与最佳实践。
+pubDate: 2026-04-12
+category: Astro
+tags: [astro, 前端, 岛屿架构]
+author: AI-Writer
+readingTime: 22
+planId: astro5-islands
+---
+
+# 岛屿架构与部分水合
+
+**岛屿架构**（Islands Architecture）是 Astro 的核心创新，它打破了传统 SPA（单页应用）的桎梏，实现了"默认零 JavaScript"的理念。在岛屿架构下，页面的大部分内容是静态 HTML，只有需要交互的组件才会加载 JavaScript，从而实现极致的性能表现。
+
+## 核心概念
+
+### 传统 SPA vs 岛屿架构
+
+**传统 SPA（React/Vue）**：
+```
+整个页面 → 一个大型 JS Bundle → 水合整个应用
+```
+- 初始加载慢（需要下载完整 JS）
+- 即使页面大部分是静态内容，也必须加载全部 JS
+- 用户必须等待 JS 执行后才能看到内容
+
+**岛屿架构（Astro）**：
+```
+静态 HTML（零 JS）+ 交互岛屿（有 JS）
+```
+- 静态内容直接渲染，无需 JS
+- 只有"岛屿"组件才加载 JS
+- 岛屿之间相互独立，按需加载
+
+### 什么是"岛屿"
+
+岛屿（Island）是页面中需要 JavaScript 驱动的交互组件。岛屿之外的区域称为"死水"（Dead Waters），是不包含任何 JavaScript 的纯静态 HTML。
+
+```
+┌─────────────────────────────────────────────┐
+│  Header（静态 HTML）                         │
+├─────────────────────────────────────────────┤
+│                                             │
+│  ┌───────────────┐   ┌───────────────┐     │
+│  │  计数器岛屿    │   │  搜索框岛屿    │     │
+│  │  (React/TS)   │   │  (Preact)     │     │
+│  └───────────────┘   └───────────────┘     │
+│                                             │
+│  文章内容（静态 HTML，无 JS）                 │
+│                                             │
+│  ┌───────────────┐                         │
+│  │  评论组件岛屿  │                         │
+│  │  (React)      │                         │
+│  └───────────────┘                         │
+│                                             │
+├─────────────────────────────────────────────┤
+│  Footer（静态 HTML）                         │
+└─────────────────────────────────────────────┘
+```
+
+## client:* 指令
+
+Astro 使用 `client:*` 指令控制岛屿组件的水合时机。
+
+### 指令一览
+
+| 指令 | 加载时机 | 使用场景 |
+|------|---------|---------|
+| `client:load` | 页面加载后立即 | 首屏关键交互组件 |
+| `client:idle` | 浏览器空闲时（requestIdleCallback） | 非关键交互组件 |
+| `client:visible` | 组件进入视口时（IntersectionObserver） | 延迟加载的交互组件 |
+| `client:media` | 媒体查询匹配时 | 响应式交互组件 |
+| `client:only` | 仅客户端渲染，不在服务端渲染 | 依赖浏览器 API 的组件 |
+
+### client:load — 立即加载
+
+```astro
+---
+import Counter from '../components/Counter.jsx';
+import Navigation from '../components/Navigation.svelte';
+---
+
+<!-- 页面加载后立即水合 -->
+<Counter client:load initialCount={0} />
+
+<!-- 导航栏通常需要立即可用 -->
+<Navigation client:load />
+```
+
+> **适用场景**：首屏必须立即可交互的组件，如导航栏、搜索框、登录状态显示等。
+
+### client:idle — 空闲时加载
+
+```astro
+---
+import Analytics from '../components/Analytics.tsx';
+import CommentSection from '../components/CommentSection.jsx';
+---
+
+<!-- 页面加载完成后，浏览器空闲时水合 -->
+<Analytics client:idle pluginId="UA-12345" />
+
+<!-- 评论通常不在首屏，不需要立即加载 -->
+<CommentSection client:idle postId={post.id} />
+```
+
+> **适用场景**：非首屏关键组件，在用户有空时再加载 JS，减少主线程压力。
+
+### client:visible — 视口可见时加载
+
+```astro
+---
+import HeavyChart from '../components/HeavyChart.jsx';
+import CommentSection from '../components/CommentSection.jsx';
+import ProductGallery from '../components/ProductGallery.jsx';
+---
+
+<!-- 仅当组件进入视口时才加载 JS -->
+<HeavyChart client:visible chartData={data} />
+
+<!-- 评论区在页面底部 -->
+<CommentSection client:visible postId={post.id} />
+
+<!-- 产品画廊 -->
+<ProductGallery client:visible images={product.images} />
+```
+
+> **适用场景**：位于页面下方的组件，用户可能不会滚动到那里，按需加载节省带宽。
+
+### client:media — 媒体查询匹配时加载
+
+```astro
+---
+import MobileMenu from '../components/MobileMenu.jsx';
+import DesktopSidebar from '../components/DesktopSidebar.jsx';
+---
+
+<!-- 仅在移动端（< 768px）时加载 -->
+<MobileMenu client:media="(max-width: 767px)" />
+
+<!-- 仅在桌面端（>= 768px）时加载 -->
+<DesktopSidebar client:media="(min-width: 768px)" />
+```
+
+> **适用场景**：根据屏幕尺寸选择性加载组件，减少移动端不必要的 JS 负担。
+
+### client:only — 仅客户端渲染
+
+```astro
+---
+import TwitterWidget from '../components/TwitterWidget.jsx';
+import ComplexCanvas from '../components/ComplexCanvas.jsx';
+---
+
+<!-- 不在服务端渲染，仅客户端渲染 -->
+<!-- 避免 SSR 与客户端行为不一致的问题 -->
+<TwitterWidget client:only="react" />
+
+<!-- 依赖浏览器 Canvas API -->
+<ComplexCanvas client:only="react" />
+```
+
+> **重要**：使用 `client:only` 时，组件的初始 HTML 不会在服务端生成。如果需要 SEO，谨慎使用。
+
+## 框架组件集成
+
+Astro 支持多种 UI 框架的组件，以下是常用框架的集成方法。
+
+### 安装集成
+
+```bash
+# React
+pnpm add @astrojs/react react react-dom
+
+# Vue
+pnpm add @astrojs/vue vue
+
+# Svelte
+pnpm add @astrojs/svelte svelte
+
+# Solid
+pnpm add @astrojs/solid-js solid-js
+
+# Preact
+pnpm add @astrojs/preact preact
+```
+
+### 配置集成
+
+```javascript
+// astro.config.mjs
+import react from '@astrojs/react';
+import vue from '@astrojs/vue';
+import svelte from '@astrojs/svelte';
+
+export default defineConfig({
+  integrations: [
+    react(),    // React 支持
+    vue(),     // Vue 支持
+    svelte(),  // Svelte 支持
+  ],
+});
+```
+
+### 多框架共存
+
+Astro 允许在同一项目中使用多种框架组件：
+
+```astro
+---
+import Counter from '../components/Counter.jsx';      // React
+import ThemeToggle from '../components/ThemeToggle.svelte';  // Svelte
+import Sidebar from '../components/Sidebar.vue';      // Vue
+import StatCard from '../components/StatCard.tsx';    // Solid
+---
+
+<!-- React 计数器 -->
+<Counter client:load initialCount={0} />
+
+<!-- Svelte 主题切换 -->
+<ThemeToggle client:idle />
+
+<!-- Vue 侧边栏 -->
+<Sidebar client:visible menuItems={menu} />
+
+<!-- Solid 统计卡片 -->
+<StatCard client:visible stats={data} />
+```
+
+> **提示**：虽然多框架共存可行，但建议控制在 1-2 种框架，避免包体积膨胀。
+
+## 岛屿间通信模式
+
+岛屿之间默认是相互独立的，没有直接的通信机制。Astro 提供了几种模式实现岛屿间交互。
+
+### 方式一：原生事件 + DOM
+
+最简单的方式是通过 DOM 事件实现通信：
+
+```astro
+<!-- src/pages/index.astro -->
+<nav>
+  <!-- Vue 岛屿：显示当前主题 -->
+  <ThemeDisplay client:idle />
+
+  <!-- React 岛屿：切换主题 -->
+  <ThemeToggle client:load />
+</nav>
+```
+
+```tsx
+// src/components/ThemeToggle.tsx (React)
+import { useState } from 'react';
+
+export default function ThemeToggle() {
+  const [theme, setTheme] = useState('light');
+
+  const toggle = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+
+    // 通过自定义事件通知其他岛屿
+    window.dispatchEvent(new CustomEvent('theme-change', {
+      detail: { theme: newTheme },
+    }));
+  };
+
+  return <button onClick={toggle}>切换主题: {theme}</button>;
+}
+```
+
+```vue
+<!-- src/components/ThemeDisplay.vue (Vue) -->
+<template>
+  <span>当前主题：{{ theme }}</span>
+</template>
+
+<script setup>
+import { ref, onMounted, onUnmounted } from 'vue';
+
+const theme = ref('light');
+
+const handleThemeChange = (event) => {
+  theme.value = event.detail.theme;
+};
+
+onMounted(() => {
+  window.addEventListener('theme-change', handleThemeChange);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('theme-change', handleThemeChange);
+});
+</script>
+```
+
+### 方式二：Nano Stores（跨框架状态管理）
+
+Nano Stores 是一个极小的跨框架状态管理库：
+
+```bash
+pnpm add nanostores @nanostores/react @nanostores/vue
+```
+
+```typescript
+// src/stores/theme.ts
+import { atom, computed } from 'nanostores';
+
+export const theme = atom<'light' | 'dark'>('light');
+
+export const isDark = computed(theme, value => value === 'dark');
+
+export function toggleTheme() {
+  theme.set(theme.get() === 'light' ? 'dark' : 'light');
+}
+```
+
+```tsx
+// src/components/ThemeToggle.tsx (React)
+import { useStore } from '@nanostores/react';
+import { theme, toggleTheme } from '../../stores/theme';
+
+export default function ThemeToggle() {
+  const currentTheme = useStore(theme);
+
+  return (
+    <button onClick={toggleTheme}>
+      切换主题：{currentTheme}
+    </button>
+  );
+}
+```
+
+```vue
+<!-- src/components/ThemeDisplay.vue (Vue) -->
+<template>
+  <span>当前主题：{{ theme }}</span>
+</template>
+
+<script setup>
+import { useStore } from '@nanostores/vue';
+import { theme } from '../../stores/theme';
+
+const currentTheme = useStore(theme);
+</script>
+```
+
+### 方式三：父组件传递回调
+
+```astro
+---
+// src/pages/index.astro
+// 父组件管理状态，通过 props 传递给各个岛屿
+
+const [activeTab, setActiveTab] = useState('overview');
+---
+
+<TabList client:load active={activeTab} onTabChange={setActiveTab} />
+<Overview client:idle active={activeTab} />
+<Settings client:visible active={activeTab} />
+```
+
+## 性能优化技巧
+
+### 延迟非关键岛屿
+
+```astro
+---
+import HeavyWidget from '../components/HeavyWidget.jsx';
+import NewsletterForm from '../components/NewsletterForm.jsx';
+import CommentSection from '../components/CommentSection.jsx';
+---
+
+<!-- 首屏必需 -->
+<NewsletterForm client:visible />
+
+<!-- 非关键，延迟加载 -->
+<HeavyWidget client:visible />
+
+<!-- 评论通常不需要 -->
+<CommentSection client:idle />
+```
+
+### 控制岛屿大小
+
+避免单个岛屿过于庞大，保持小而专注的组件设计：
+
+```astro
+<!-- ❌ 一个大岛屿包含所有功能 -->
+<Dashboard client:load />
+
+<!-- ✅ 拆分为多个小岛屿 -->
+<StatsOverview client:load />
+<UserProfile client:idle />
+<RecentActivity client:visible />
+<NotificationPanel client:visible />
+```
+
+### 使用合适的指令
+
+```
+用户可见 → client:load（首屏交互）
+非首屏 → client:idle（减少主线程压力）
+长页面下方 → client:visible（按需加载）
+响应式 → client:media
+浏览器专属 → client:only
+```
+
+## 总结
+
+本文深入讲解了 Astro 岛屿架构的核心机制：
+
+- **岛屿架构**："默认零 JS"，静态内容不携带 JS，只有交互组件才水合
+- **client:* 指令**：`load` / `idle` / `visible` / `media` / `only` 控制水合时机
+- **多框架共存**：Astro 支持 React、Vue、Svelte、Solid 等框架同时使用
+- **岛屿通信**：通过自定义事件、Nano Stores 或父组件 props 实现跨岛屿交互
+- **性能优化**：合理拆分岛屿、选择合适的加载指令
+
+下一篇文章我们将学习 **View Transitions 页面过渡**，掌握 Astro 5 提供的原生页面过渡动画能力。

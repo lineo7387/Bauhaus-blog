@@ -1,0 +1,471 @@
+---
+title: View Transitions 页面过渡
+description: 掌握 Astro 5 原生 View Transitions API，涵盖 ViewTransitions 组件配置、transition:name 命名过渡、transition:animate 自定义动画、生命周期回调，以及 Fallback 降级策略。
+pubDate: 2026-04-12
+category: Astro
+tags: [astro, 前端, 页面过渡]
+author: AI-Writer
+readingTime: 18
+planId: astro5-view-transitions
+---
+
+# View Transitions 页面过渡
+
+View Transitions 是 Astro 5 提供的原生页面过渡动画功能，允许在不同页面之间创建流畅的视觉过渡效果，无需编写复杂的 JavaScript 或引入额外的动画库。
+
+## 概述
+
+View Transitions API 最初是浏览器原生提供的能力，Astro 将其封装为简单的组件和指令，让开发者可以轻松实现单页应用般的页面切换体验，同时保持多页应用（MPA）的性能和 SEO 优势。
+
+### 核心优势
+
+- **原生实现**：利用浏览器 View Transitions API，性能优异
+- **MPA 架构**：保持多页应用的 SEO 和加载性能
+- **声明式配置**：通过组件和指令配置，无需复杂代码
+- **渐进增强**：不支持的浏览器自动降级
+
+## 基本配置
+
+### 安装与启用
+
+```astro
+---
+// src/components/BaseLayout.astro
+import { ViewTransitions } from 'astro:transitions';
+---
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><slot name="title">默认标题</slot></title>
+
+    <!-- 在 head 中引入 ViewTransitions 组件 -->
+    <ViewTransitions />
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="/">首页</a>
+        <a href="/blog">博客</a>
+        <a href="/about">关于</a>
+      </nav>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+  </body>
+</html>
+```
+
+> **注意**：`ViewTransitions` 必须放在 `<head>` 标签内。添加后，整个应用将启用页面过渡效果。
+
+## 过渡动画指令
+
+### transition:name — 命名过渡
+
+通过 `transition:name` 指令，为元素指定唯一名称，实现跨页面的元素追踪和动画。
+
+```astro
+---
+// src/pages/index.astro
+---
+
+<main>
+  <!-- 定义可被追踪的元素 -->
+  <h1 transition:name="hero-title">欢迎来到博客</h1>
+
+  <a href="/blog">
+    <img
+      src="/hero-image.jpg"
+      alt="Hero"
+      transition:name="hero-image"
+    />
+  </a>
+</main>
+```
+
+```astro
+---
+// src/pages/blog/index.astro
+---
+
+<main>
+  <!-- 具有相同 transition:name 的元素将产生过渡动画 -->
+  <h1 transition:name="hero-title">博客文章列表</h1>
+
+  <div class="hero-section">
+    <img
+      src="/hero-image.jpg"
+      alt="Hero"
+      transition:name="hero-image"
+    />
+  </div>
+</main>
+```
+
+> **效果**：当用户从首页点击链接进入博客页面时，`hero-title` 和 `hero-image` 会在两个页面之间平滑过渡，而不是简单的页面切换。
+
+### transition:animate — 自定义动画
+
+`transition:animate` 指令指定元素的过渡动画类型：
+
+```astro
+<!-- 使用内置动画 -->
+<h1 transition:animate="slide">滑入标题</h1>
+
+<h1 transition:animate="fade">淡入标题</h1>
+
+<h1 transition:animate="morph">变形标题</h1>
+
+<!-- 自定义动画 -->
+<h1 transition:animate="custom-bounce">弹跳标题</h1>
+```
+
+#### 内置动画类型
+
+| 动画类型 | 效果 |
+|---------|------|
+| `fade` | 淡入淡出 |
+| `slide` | 滑入滑出 |
+| `morph` | 元素变形过渡 |
+| `initial` | 保持当前状态（无动画）|
+
+#### 组合使用
+
+```astro
+<!-- 同时指定名称和动画 -->
+<h1 transition:name="hero-title" transition:animate="slide">
+  博客标题
+</h1>
+
+<!-- 页面整体淡入 -->
+<main transition:animate="fade">
+  <slot />
+</main>
+```
+
+## 共享元素过渡
+
+共享元素过渡是 View Transitions 最强大的功能之一，实现不同页面间相同元素的平滑移动。
+
+### 场景：产品卡片到详情页
+
+```astro
+---
+// src/pages/products/index.astro
+import ProductCard from '../components/ProductCard.astro';
+
+const products = await getProducts();
+---
+
+<div class="product-grid">
+  {products.map(product => (
+    <ProductCard product={product} />
+  ))}
+</div>
+```
+
+```astro
+---
+// src/components/ProductCard.astro
+interface Props {
+  product: { id: string; name: string; image: string; price: number };
+}
+
+const { product } = Astro.props;
+---
+
+<a href={`/products/${product.id}`} class="product-card">
+  <img
+    src={product.image}
+    alt={product.name}
+    transition:name={`product-image-${product.id}`}
+  />
+  <h3 transition:name={`product-name-${product.id}`}>
+    {product.name}
+  </h3>
+  <p class="price">¥{product.price}</p>
+</a>
+```
+
+```astro
+---
+// src/pages/products/[id].astro
+const { id } = Astro.params;
+const product = await getProductById(id);
+---
+
+<article class="product-detail">
+  <img
+    src={product.image}
+    alt={product.name}
+    transition:name={`product-image-${product.id}`}
+  />
+
+  <div class="info">
+    <h1 transition:name={`product-name-${product.id}`}>
+      {product.name}
+    </h1>
+    <p class="price">¥{product.price}</p>
+    <p>{product.description}</p>
+    <button>加入购物车</button>
+  </div>
+</article>
+```
+
+> **效果**：点击产品卡片后，图片和标题会从卡片位置平滑过渡到详情页的对应位置。
+
+## 生命周期回调
+
+Astro 提供了丰富的生命周期事件，允许在过渡的不同阶段执行自定义逻辑。
+
+### 事件列表
+
+| 事件 | 触发时机 |
+|------|---------|
+| `astro:before-preparation` | 开始加载新页面之前 |
+| `astro:after-preparation` | 新页面内容加载完成后 |
+| `astro:before-swap` | 新 DOM 内容替换旧内容之前 |
+| `astro:after-swap` | DOM 替换完成后 |
+| `astro:page-load` | 页面完全加载后 |
+
+### 使用方式
+
+```astro
+---
+// src/components/BaseLayout.astro
+import { ViewTransitions } from 'astro:transitions';
+---
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <ViewTransitions />
+    <script>
+      // 在页面加载时获取过渡事件
+      document.addEventListener('astro:page-load', () => {
+        console.log('页面加载完成');
+      });
+    </script>
+  </head>
+  <body>
+    <header>
+      <!-- 显示加载进度 -->
+      <div id="loading-bar" class="loading-bar" />
+    </header>
+
+    <main>
+      <slot />
+    </main>
+  </body>
+</html>
+
+<script>
+  // 添加过渡动画逻辑
+  function setupTransitionEvents() {
+    const loadingBar = document.getElementById('loading-bar');
+
+    // 新页面开始加载
+    document.addEventListener('astro:before-preparation', () => {
+      loadingBar?.classList.add('loading');
+    });
+
+    // 新页面加载完成
+    document.addEventListener('astro:after-preparation', () => {
+      loadingBar?.classList.remove('loading');
+    });
+  }
+
+  // 页面加载和过渡时都要设置事件
+  document.addEventListener('astro:page-load', setupTransitionEvents);
+</script>
+
+<style>
+  .loading-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: #D02020;
+    width: 0;
+    transition: width 0.3s;
+  }
+
+  .loading-bar.loading {
+    animation: loading 1s ease-in-out infinite;
+  }
+
+  @keyframes loading {
+    0% { width: 0; }
+    50% { width: 70%; }
+    100% { width: 100%; }
+  }
+</style>
+```
+
+### 滚动位置恢复
+
+```astro
+<script>
+  function handleScrollRestoration() {
+    // 使用 sessionStorage 存储滚动位置
+    const scrollPositions = {};
+
+    document.addEventListener('astro:before-swap', (e) => {
+      // 保存当前滚动位置
+      scrollPositions[location.pathname] = window.scrollY;
+    });
+
+    document.addEventListener('astro:after-swap', () => {
+      // 恢复之前保存的滚动位置
+      const savedPosition = scrollPositions[location.pathname];
+      if (savedPosition !== undefined) {
+        window.scrollTo(0, savedPosition);
+      }
+    });
+  }
+
+  document.addEventListener('astro:page-load', handleScrollRestoration);
+</script>
+```
+
+## 自定义 CSS 动画
+
+### 定义关键帧动画
+
+```astro
+<style>
+  /* 自定义滑入动画 */
+  @keyframes slide-in-right {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  /* 自定义滑出动画 */
+  @keyframes slide-out-left {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+  }
+
+  /* 在 transition:animate 中使用 */
+  h1 {
+    animation: slide-in-right 0.3s ease-out;
+  }
+</style>
+```
+
+### 使用 view-transition-class
+
+```css
+/* 旧页面动画 */
+::view-transition-old(root) {
+  animation: 300ms ease-in fade-out;
+}
+
+/* 新页面动画 */
+::view-transition-new(root) {
+  animation: 300ms ease-out fade-in;
+}
+
+/* 特定元素的过渡 */
+::view-transition-old(hero-title),
+::view-transition-new(hero-title) {
+  animation-duration: 0.5s;
+}
+```
+
+## Fallback 降级策略
+
+不支持 View Transitions API 的浏览器（如旧版 Safari）会自动降级为正常的页面跳转，不影响用户体验。
+
+### 手动降级检测
+
+```astro
+<script>
+  // 检测浏览器支持
+  if (!document.startViewTransition) {
+    console.log('浏览器不支持 View Transitions，使用标准页面跳转');
+  }
+</script>
+```
+
+### 按需启用
+
+```astro
+---
+// 仅在支持时才启用
+const supportsViewTransitions = typeof document !== 'undefined'
+  && 'startViewTransition' in document;
+---
+
+<head>
+  {supportsViewTransitions && <ViewTransitions />}
+</head>
+```
+
+## 与 React Spring / Framer Motion 的对比
+
+| 特性 | Astro View Transitions | React Spring | Framer Motion |
+|------|----------------------|-------------|---------------|
+| 实现方式 | 浏览器原生 API | 物理动画库 | 声明式动画库 |
+| 适用场景 | 页面过渡 | 组件内动画 | 组件内/间动画 |
+| JS 体积 | 极小 | 较大 | 较大 |
+| 复杂度 | 简单 | 中等 | 中等 |
+| 跨页面动画 | 原生支持 | 需额外配置 | 需额外配置 |
+
+## 常见问题
+
+### 动画不生效
+
+确保元素有唯一的 `transition:name`：
+
+```astro
+<!-- ❌ 多个元素同名 -->
+<img transition:name="image" />
+<img transition:name="image" />
+
+<!-- ✅ 每个元素使用唯一的名称 -->
+<img transition:name="image-1" />
+<img transition:name="image-2" />
+```
+
+### 图片闪烁
+
+在全局样式中禁用默认的图片过渡：
+
+```css
+/* 禁止图片的默认过渡 */
+::view-transition-old(product-image),
+::view-transition-new(product-image) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+```
+
+## 总结
+
+本文全面介绍了 Astro View Transitions 的使用方法：
+
+- **基本配置**：`ViewTransitions` 组件一键启用页面过渡
+- **过渡指令**：`transition:name` 命名元素，`transition:animate` 指定动画
+- **共享元素过渡**：跨页面追踪相同元素，实现流畅过渡
+- **生命周期事件**：`before-preparation`、`after-swap` 等回调实现自定义逻辑
+- **CSS 自定义**：通过 `::view-transition-*` 完全自定义过渡效果
+- **降级策略**：自动检测浏览器支持，不支持的浏览器平滑降级
+
+下一篇文章我们将学习 **图像优化**，掌握 Astro 内置的 `<Image>` 组件和图像优化能力。

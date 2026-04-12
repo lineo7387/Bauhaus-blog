@@ -1,0 +1,552 @@
+---
+title: 国际化（i18n）配置
+description: 掌握 Astro 的多语言站点构建方法，包括 i18n 配置、路由策略（prefixDefaultLocale）、t() 翻译函数、浏览器语言检测与中间件自动重定向、内容国际化组织，以及 hreflang SEO 优化。
+pubDate: 2026-04-12
+category: Astro
+tags: [astro, 前端, 国际化]
+author: AI-Writer
+readingTime: 20
+planId: astro5-i18n
+---
+
+# 国际化（i18n）配置
+
+Astro 提供了开箱即用的国际化功能，支持多语言站点的路由、翻译和内容管理。通过配置 `i18n` 对象，可以实现基于路由的多语言支持、翻译函数、以及自动语言检测与重定向。
+
+## 基本配置
+
+### astro.config.mjs 中的 i18n 配置
+
+```javascript
+// astro.config.mjs
+import tailwindcss from '@tailwindcss/vite';
+
+export default defineConfig({
+  site: 'https://example.com', // i18n 必须配置 site URL
+
+  i18n: {
+    // 默认语言
+    defaultLocale: 'zh-CN',
+
+    // 支持的语言列表
+    locales: ['zh-CN', 'en-US', 'ja-JP'],
+
+    // 语言路由配置
+    routing: {
+      // 语言前缀策略
+      prefixDefaultLocale: false, // true: /zh-CN/about, false: /about (默认语言无前缀)
+    },
+
+    // 降级到默认语言的方向
+    fallbackLanguage: {
+      // 如果请求 /ja-JP/some-page 不存在，尝试 /zh-CN/some-page
+      'ja-JP': 'zh-CN',
+    },
+  },
+
+  vite: {
+    plugins: [tailwindcss()],
+  },
+});
+```
+
+### locales 命名规范
+
+```javascript
+i18n: {
+  // BCP 47 标签格式（推荐）
+  locales: [
+    'en',          // 英语
+    'en-US',       // 美国英语
+    'zh-CN',       // 简体中文
+    'zh-TW',       // 繁体中文
+    'ja',          // 日语
+    'ko',          // 韩语
+  ],
+  defaultLocale: 'zh-CN',
+}
+```
+
+## 路由翻译
+
+### 路由策略
+
+#### 策略一：默认语言无前缀
+
+```javascript
+i18n: {
+  defaultLocale: 'zh-CN',
+  locales: ['zh-CN', 'en-US', 'ja-JP'],
+  routing: {
+    prefixDefaultLocale: false,
+  },
+}
+```
+
+路由结构：
+```
+/                → zh-CN (默认)
+/en-US/          → en-US
+/en-US/about     → en-US/about
+/ja-JP/          → ja-JP
+```
+
+#### 策略二：所有语言有前缀
+
+```javascript
+i18n: {
+  defaultLocale: 'zh-CN',
+  locales: ['zh-CN', 'en-US', 'ja-JP'],
+  routing: {
+    prefixDefaultLocale: true,
+  },
+}
+```
+
+路由结构：
+```
+/zh-CN/          → zh-CN
+/zh-CN/about     → zh-CN/about
+/en-US/          → en-US
+/en-US/about     → en-US/about
+```
+
+### 语言路由组件
+
+#### BaseLayout.astro
+
+```astro
+---
+// src/components/BaseLayout.astro
+import Header from './Header.astro';
+import Footer from './Footer.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'Astro 多语言博客' } = Astro.props;
+
+// 获取当前语言
+const currentLang = Astro.currentLocale ?? 'zh-CN';
+---
+
+<!DOCTYPE html>
+<html lang={currentLang}>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content={description} />
+  <title>{title}</title>
+
+  <!-- 语言切换 -->
+  <link rel="alternate" hreflang="x-default" href={Astro.url.pathname} />
+  <link rel="alternate" hreflang="zh-CN" href={`/zh-CN${Astro.url.pathname.replace(/^\/(en-US|ja-JP)/, '')}`} />
+  <link rel="alternate" hreflang="en-US" href={`/en-US${Astro.url.pathname.replace(/^\/(zh-CN|ja-JP)/, '')}`} />
+  <link rel="alternate" hreflang="ja-JP" href={`/ja-JP${Astro.url.pathname.replace(/^\/(zh-CN|en-US)/, '')}`} />
+</head>
+<body>
+  <Header currentLang={currentLang} />
+  <main>
+    <slot />
+  </main>
+  <Footer />
+</body>
+</html>
+```
+
+#### Header.astro 语言切换
+
+```astro
+---
+// src/components/Header.astro
+interface Props {
+  currentLang: string;
+}
+
+const { currentLang } = Astro.props;
+
+const languages = [
+  { code: 'zh-CN', label: '中文', flag: '🇨🇳' },
+  { code: 'en-US', label: 'English', flag: '🇺🇸' },
+  { code: 'ja-JP', label: '日本語', flag: '🇯🇵' },
+];
+
+// 生成语言切换链接
+function getLocalizedPath(targetLang: string): string {
+  const pathname = Astro.url.pathname;
+
+  // 移除当前语言前缀
+  let cleanPath = pathname;
+  if (currentLang !== 'zh-CN') {
+    cleanPath = pathname.replace(`/${currentLang}`, '') || '/';
+  }
+
+  // 添加目标语言前缀
+  if (targetLang === 'zh-CN') {
+    return cleanPath;
+  }
+  return `/${targetLang}${cleanPath === '/' ? '' : cleanPath}`;
+}
+---
+
+<header class="site-header">
+  <nav class="nav">
+    <a href={getLocalizedPath('zh-CN')}>首页</a>
+    <a href={getLocalizedPath('zh-CN') + '/blog'}>博客</a>
+    <a href={getLocalizedPath('zh-CN') + '/about'}>关于</a>
+  </nav>
+
+  <div class="language-switcher">
+    {languages.map(lang => (
+      <a
+        href={getLocalizedPath(lang.code)}
+        class:list={['lang-btn', { active: currentLang === lang.code }]}
+      >
+        <span>{lang.flag}</span>
+        <span>{lang.label}</span>
+      </a>
+    ))}
+  </div>
+</header>
+```
+
+## translate() 和 t() 函数
+
+Astro 提供了翻译函数来管理 UI 文本。
+
+### 创建翻译文件
+
+```typescript
+// src/i18n/translations.ts
+export const translations = {
+  'zh-CN': {
+    nav: {
+      home: '首页',
+      blog: '博客',
+      about: '关于',
+      contact: '联系',
+    },
+    common: {
+      readMore: '阅读更多',
+      backToTop: '返回顶部',
+      loading: '加载中...',
+    },
+    blog: {
+      allPosts: '所有文章',
+      noPosts: '暂无文章',
+      publishedOn: '发布于',
+    },
+  },
+  'en-US': {
+    nav: {
+      home: 'Home',
+      blog: 'Blog',
+      about: 'About',
+      contact: 'Contact',
+    },
+    common: {
+      readMore: 'Read More',
+      backToTop: 'Back to Top',
+      loading: 'Loading...',
+    },
+    blog: {
+      allPosts: 'All Posts',
+      noPosts: 'No posts yet',
+      publishedOn: 'Published on',
+    },
+  },
+  'ja-JP': {
+    nav: {
+      home: 'ホーム',
+      blog: 'ブログ',
+      about: '概要',
+      contact: 'お問い合わせ',
+    },
+    common: {
+      readMore: '続きを読む',
+      backToTop: 'トップへ戻る',
+      loading: '読み込み中...',
+    },
+    blog: {
+      allPosts: 'すべての記事',
+      noPosts: '記事がありません',
+      publishedOn: '公開日',
+    },
+  },
+};
+
+export type Locale = keyof typeof translations;
+export type TranslationKeys = typeof translations['zh-CN'];
+```
+
+### 翻译函数
+
+```typescript
+// src/i18n/utils.ts
+import { translations, type Locale, type TranslationKeys } from './translations';
+
+export function t(locale: Locale, key: string): string {
+  const keys = key.split('.');
+  let result: unknown = translations[locale];
+
+  for (const k of keys) {
+    if (result && typeof result === 'object' && k in result) {
+      result = (result as Record<string, unknown>)[k];
+    } else {
+      // 回退到中文
+      result = translations['zh-CN'];
+      for (const k2 of keys) {
+        result = (result as Record<string, unknown>)[k2];
+      }
+      break;
+    }
+  }
+
+  return typeof result === 'string' ? result : key;
+}
+
+// 快捷方法：获取当前语言的翻译
+export function useTranslations(locale: Locale) {
+  return (key: string) => t(locale, key);
+}
+```
+
+### 在组件中使用
+
+```astro
+---
+// src/components/Header.astro
+import { useTranslations } from '../i18n/utils';
+
+const { currentLang } = Astro.props;
+const t = useTranslations(currentLang as 'zh-CN' | 'en-US' | 'ja-JP');
+---
+
+<nav class="nav">
+  <a href="/">{t('nav.home')}</a>
+  <a href="/blog">{t('nav.blog')}</a>
+  <a href="/about">{t('nav.about')}</a>
+</nav>
+
+<button>{t('common.readMore')}</button>
+```
+
+## 浏览器语言检测与重定向
+
+### 中间件实现自动重定向
+
+```typescript
+// src/middleware.ts
+import { defineMiddleware } from 'astro:middleware';
+
+const SUPPORTED_LOCALES = ['zh-CN', 'en-US', 'ja-JP'];
+const DEFAULT_LOCALE = 'zh-CN';
+
+function getPreferredLocale(request: Request): string {
+  // 从 Accept-Language 头获取首选语言
+  const acceptLanguage = request.headers.get('accept-language');
+
+  if (!acceptLanguage) return DEFAULT_LOCALE;
+
+  // 解析 Accept-Language
+  const languages = acceptLanguage
+    .split(',')
+    .map(lang => {
+      const [code, q = 'q=1'] = lang.trim().split(';');
+      return {
+        code: code.trim(),
+        quality: parseFloat(q.replace('q=', '')),
+      };
+    })
+    .sort((a, b) => b.quality - a.quality);
+
+  // 匹配支持的语言
+  for (const { code } of languages) {
+    // 精确匹配
+    if (SUPPORTED_LOCALES.includes(code)) {
+      return code;
+    }
+    // 前缀匹配（zh → zh-CN）
+    const prefix = code.split('-')[0];
+    const match = SUPPORTED_LOCALES.find(l => l.startsWith(prefix));
+    if (match) return match;
+  }
+
+  return DEFAULT_LOCALE;
+}
+
+export const onRequest = defineMiddleware(async (context, next) => {
+  const { pathname } = context.url;
+
+  // 跳过已带语言前缀的路径
+  const hasLocalePrefix = SUPPORTED_LOCALES.some(
+    locale => pathname === `/${locale}` || pathname.startsWith(`/${locale}/`)
+  );
+
+  // 跳过静态资源
+  const isStaticFile = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2)$/.test(pathname);
+
+  // 跳过 API 路由
+  const isApiRoute = pathname.startsWith('/api/');
+
+  if (!hasLocalePrefix && !isStaticFile && !isApiRoute) {
+    const preferredLocale = getPreferredLocale(context.request);
+    const targetPath = `/${preferredLocale}${pathname === '/' ? '' : pathname}`;
+    return context.redirect(targetPath, 302);
+  }
+
+  return next();
+});
+```
+
+## 内容国际化
+
+### 按语言组织内容
+
+```
+src/content/
+├── blog/
+│   ├── zh-CN/
+│   │   ├── welcome.md
+│   │   └── getting-started.md
+│   ├── en-US/
+│   │   ├── welcome.md
+│   │   └── getting-started.md
+│   └── ja-JP/
+│       ├── welcome.md
+│       └── getting-started.md
+└── docs/
+    ├── zh-CN/
+    └── en-US/
+```
+
+### 内容集合配置
+
+```typescript
+// src/content.config.ts
+import { defineCollection, z } from 'astro:content';
+import { glob } from 'astro/loaders';
+
+const blog = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/blog' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    pubDate: z.coerce.date(),
+    locale: z.enum(['zh-CN', 'en-US', 'ja-JP']).optional(),
+  }),
+});
+
+export const collections = { blog };
+```
+
+### 按语言筛选
+
+```astro
+---
+// src/pages/[lang]/blog/index.astro
+import { getCollection } from 'astro:content';
+
+export function getStaticPaths() {
+  return [
+    { params: { lang: 'zh-CN' } },
+    { params: { lang: 'en-US' } },
+    { params: { lang: 'ja-JP' } },
+  ];
+}
+
+const { lang } = Astro.params;
+
+// 获取当前语言的文章
+const allPosts = await getCollection('blog');
+const posts = allPosts
+  .filter(post => {
+    const postLang = post.id.split('/')[0];
+    return postLang === lang;
+  })
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+---
+
+<h1>{lang === 'zh-CN' ? '博客' : lang === 'en-US' ? 'Blog' : 'ブログ'}</h1>
+<ul>
+  {posts.map(post => (
+    <li>
+      <a href={`/${lang}/blog/${post.id}`}>{post.data.title}</a>
+    </li>
+  ))}
+</ul>
+```
+
+## 响应式内容策略
+
+### 语言感知的响应式设计
+
+```astro
+---
+const { currentLang } = Astro.props;
+
+// 根据语言调整排版
+const fontSize = currentLang === 'ja-JP' ? 'larger' : 'medium';
+const lineHeight = currentLang === 'zh-CN' ? 1.8 : 1.6;
+---
+
+<p style={`font-size: ${fontSize}; line-height: ${lineHeight};`}>
+  内容文本...
+</p>
+```
+
+## 常见问题
+
+### 语言切换时保留查询参数
+
+```typescript
+function getLocalizedPath(targetLang: string): string {
+  const url = new URL(Astro.url.href);
+
+  // 保留查询参数
+  const searchParams = url.search;
+
+  // 构建新路径
+  let newPath = url.pathname;
+  const currentLangMatch = url.pathname.match(/^\/(zh-CN|en-US|ja-JP)/);
+
+  if (currentLangMatch) {
+    newPath = url.pathname.replace(currentLangMatch[0], '');
+  }
+
+  if (targetLang === 'zh-CN') {
+    return `${newPath}${searchParams}`;
+  }
+
+  return `/${targetLang}${newPath}${searchParams}`;
+}
+```
+
+### SEO 注意事项
+
+```html
+<!-- 在 <head> 中添加语言alternate链接 -->
+<link rel="alternate" hreflang="zh-CN" href="/zh-CN/page" />
+<link rel="alternate" hreflang="en-US" href="/en-US/page" />
+<link rel="alternate" hreflang="ja-JP" href="/ja-JP/page" />
+<link rel="alternate" hreflang="x-default" href="/zh-CN/page" />
+
+<!-- hreflang 值说明：-->
+<!-- zh-CN, en-US: 各语言的页面 -->
+<!-- x-default: 默认语言（无特定语言偏好时展示的版本）-->
+```
+
+## 总结
+
+本文全面介绍了 Astro 的国际化功能：
+
+- **配置基础**：`i18n` 配置对象定义默认语言和支持的语言列表
+- **路由策略**：`prefixDefaultLocale` 控制默认语言是否有前缀
+- **翻译函数**：自定义 `t()` / `translate()` 函数管理 UI 文本
+- **语言检测**：通过中间件实现基于 `Accept-Language` 的自动重定向
+- **内容组织**：按语言目录组织内容集合，按语言筛选查询
+- **SEO 优化**：`hreflang` 属性正确设置语言替代链接
+
+下一篇文章我们将学习 **API 端点与后端集成**，掌握 Astro 的服务端 API 构建能力。

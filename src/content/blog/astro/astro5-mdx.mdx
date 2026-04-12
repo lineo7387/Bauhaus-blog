@@ -1,0 +1,433 @@
+---
+title: MDX 集成与使用
+description: 掌握 Astro 中 MDX 的安装配置、在 MDX 中使用 Astro 组件、导入导出、JSX 表达式、自定义 MDX 组件映射，以及 MDX 与 Content Collections 结合的最佳实践。
+pubDate: 2026-04-12
+category: Astro
+tags: [astro, 前端, mdx]
+author: AI-Writer
+readingTime: 16
+planId: astro5-mdx
+---
+
+# MDX 集成与使用
+
+MDX 是 Markdown 的超集，允许在 Markdown 文件中直接使用 JSX 语法，嵌入组件、导入模块、执行任意 JavaScript 表达式。这使得内容创作可以兼具 Markdown 的书写体验和 React/Astro 组件的交互能力。
+
+## 安装与配置
+
+### 安装 @astrojs/mdx
+
+```bash
+pnpm add @astrojs/mdx
+```
+
+### 在 astro.config.mjs 中启用
+
+```javascript
+// astro.config.mjs
+import { defineConfig } from 'astro/config';
+import mdx from '@astrojs/mdx';
+import tailwindcss from '@tailwindcss/vite';
+
+export default defineConfig({
+  vite: {
+    plugins: [tailwindcss()],
+  },
+  integrations: [
+    mdx(),
+  ],
+});
+```
+
+### 基础 MDX 文件
+
+```mdx
+---
+title: 我的第一篇 MDX 文章
+description: 体验 MDX 的强大功能
+pubDate: 2026-04-12
+---
+
+# 欢迎来到 MDX
+
+这是一篇 **MDX** 文章，支持 Markdown 和 JSX 的混合语法。
+
+## 使用组件
+
+import Callout from '../../components/Callout.astro';
+
+<Callout type="info">
+  这是通过 MDX 导入的 Astro 组件！
+</Callout>
+```
+
+## 在 MDX 中使用 Astro 组件
+
+### 导入与使用
+
+```mdx
+---
+title: MDX 中使用组件
+---
+
+import Button from '../../components/Button.astro';
+import Alert from '../../components/Alert.astro';
+
+# 文章标题
+
+这是正文内容...
+
+<Button text="点击我" variant="primary" />
+
+<Alert type="warning">
+  这是一个警告提示框
+</Alert>
+```
+
+### 组件化内容块
+
+```mdx
+---
+title: 代码示例展示
+---
+
+import CodeDemo from '../../components/CodeDemo.astro';
+
+# 使用 CodeDemo 组件
+
+<CodeDemo
+  title="计数器示例"
+  code={`const count = ref(0);`}
+  language="typescript"
+>
+  <Counter />
+</CodeDemo>
+
+## 更多内容
+
+文字内容继续...
+```
+
+## 导入导出（export / import）
+
+MDX 支持 ES 模块的导入导出语法，可以从 MDX 文件中导出数据供外部使用。
+
+### 导出数据
+
+```mdx
+---
+title: Vue 响应式原理
+description: 深入理解 Vue 的响应式系统
+pubDate: 2026-04-12
+---
+
+# Vue 响应式原理
+
+export const summary = {
+  difficulty: 'hard',
+  duration: '45 分钟',
+  prerequisites: ['JavaScript 基础', 'Vue 基础'],
+};
+
+这篇文章深入分析了 Vue 3 的响应式系统实现...
+
+## 导出变量使用
+
+<p>难度：{summary.difficulty}</p>
+<p>预计阅读：{summary.duration}</p>
+```
+
+### 导出组件
+
+```mdx
+---
+title: 图文卡片
+---
+
+export const Card = ({ title, image, children }) => (
+  <div className="card">
+    <img src={image} alt={title} />
+    <h3>{title}</h3>
+    <div>{children}</div>
+  </div>
+);
+
+<Card title="示例图片" image="/demo.jpg">
+  这是卡片的内容区域
+</Card>
+```
+
+## JSX 表达式
+
+MDX 允许在内容中使用大括号 `{}` 嵌入任意 JavaScript 表达式：
+
+```mdx
+---
+title: JSX 表达式示例
+---
+
+import { getCollection } from 'astro:content';
+
+# 动态内容
+
+当前日期：{new Date().toLocaleDateString('zh-CN')}
+
+# 数组渲染
+
+{['Astro', 'React', 'Vue', 'Svelte'].map(framework => (
+  <li key={framework}>{framework}</li>
+))}
+
+# 条件渲染
+
+{true && <p>条件为真时显示</p>}
+
+# 嵌入组件
+
+import FeatureCard from '../../components/FeatureCard.astro';
+
+<FeatureCard
+  title="零 JavaScript"
+  description="默认不发送 JS 到客户端"
+  icon="⚡"
+/>
+```
+
+## 自定义 MDX 组件
+
+### 全局组件映射
+
+通过配置，可以将 Markdown 元素映射到自定义组件：
+
+```javascript
+// astro.config.mjs
+import mdx from '@astrojs/mdx';
+
+export default defineConfig({
+  integrations: [
+    mdx({
+      // 将特定 Markdown 元素映射到自定义组件
+      remarkPlugins: [],
+      rehypePlugins: [],
+    }),
+  ],
+});
+```
+
+### 在页面中映射组件
+
+```astro
+---
+// src/pages/index.astro
+import { useMDX } from 'astro:content';
+import CustomPre from '../components/CustomPre.astro';
+import CustomCode from '../components/CustomCode.astro';
+import Callout from '../components/Callout.astro';
+
+const { Content } = await entry.render();
+---
+
+<Content
+  components={{
+    // 将 <pre> 标签映射到自定义组件
+    pre: CustomPre,
+    // 将 <code> 标签映射到自定义组件
+    code: CustomCode,
+    // 将未匹配的块级元素映射
+    Callout,
+  }}
+/>
+```
+
+### 常见映射场景
+
+```astro
+---
+const { Content } = await post.render();
+---
+
+<Content
+  components={{
+    // 自定义代码块
+    pre: CodeBlock,
+    code: InlineCode,
+    // 自定义提示框
+    blockquote: Callout,
+    // 自定义表格
+    table: ResponsiveTable,
+    // 自定义链接
+    a: ExternalLink,
+  }}
+/>
+```
+
+## MDX 与 Content Collections 结合
+
+MDX 是内容集合最常用的内容格式之一：
+
+### 配置 MDX 集合
+
+```typescript
+// src/content.config.ts
+import { defineCollection, z } from 'astro:content';
+import { glob } from 'astro/loaders';
+
+const blog = defineCollection({
+  loader: glob({ pattern: '**/*.mdx', base: './src/content/blog' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    pubDate: z.coerce.date(),
+    category: z.string(),
+    tags: z.array(z.string()).default([]),
+    featured: z.boolean().default(false),
+  }),
+});
+
+export const collections = { blog };
+```
+
+### MDX 文件中使用组件
+
+```mdx
+---
+title: Spring Boot 3 自动配置原理
+description: 深入解析 Spring Boot 的自动配置机制
+pubDate: 2026-04-12
+category: springboot
+tags: [springboot, java, spring]
+---
+
+# Spring Boot 3 自动配置原理
+
+import CodeComparison from '../../components/CodeComparison.astro';
+import Callout from '../../components/Callout.astro';
+
+Spring Boot 的**自动配置**是其最核心的特性之一，通过 `@EnableAutoConfiguration` 注解，框架能够根据 classpath 中的依赖自动配置 Bean。
+
+<Callout type="info">
+  自动配置大大减少了样板配置代码，让开发者专注于业务逻辑实现。
+</Callout>
+
+## 核心注解
+
+`@EnableAutoConfiguration` 是自动配置的入口...
+
+<CodeComparison
+  before={`@Configuration
+public class DataSourceConfig {
+    @Bean
+    public DataSource dataSource() {
+        DriverManagerDataSource ds = new DriverManagerDataSource();
+        ds.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        ds.setUrl("jdbc:mysql://localhost:3306/demo");
+        ds.setUsername("root");
+        ds.setPassword("password");
+        return ds;
+    }
+}`}
+  after={`// 只需添加依赖，自动配置生效
+// spring-boot-starter-data-jdbc`}
+/>
+```
+
+## MDX 高级用法
+
+### Frontmatter 中的导出
+
+```mdx
+---
+title: Vue Composition API
+export const difficulty = 'intermediate';
+export const estimatedMinutes = 30;
+---
+
+# Vue Composition API
+
+难度：{difficulty}
+预计阅读：{estimatedMinutes} 分钟
+```
+
+### 使用布局组件
+
+```mdx
+---
+title: 文章标题
+layout: ../../layouts/PostLayout.astro
+---
+
+# 文章正文
+
+<slot /> {/* 在 PostLayout 中定义的内容 */}
+```
+
+### 双向 MDX
+
+```astro
+---
+// src/pages/index.astro
+import MyMdxFile from '../content/blog/my-post.mdx';
+---
+
+<MyMdxFile />
+```
+
+## 常见问题
+
+### MDX 中使用变量
+
+```mdx
+---
+title: 使用变量的例子
+---
+
+export const siteName = 'Bauhaus Blog';
+
+# 欢迎来到 {siteName}
+
+正文内容...
+```
+
+### 导入图片
+
+```mdx
+---
+title: 导入图片示例
+---
+
+import coverImage from '../../assets/cover.jpg';
+
+<img src={coverImage.src} alt="封面图片" />
+```
+
+### 使用全局组件
+
+如果某个组件在多个 MDX 文件中使用频繁，可以配置全局可用：
+
+```javascript
+// astro.config.mjs
+import mdx from '@astrojs/mdx';
+
+export default defineConfig({
+  integrations: [
+    mdx({
+      // 在此处注册的组件会在所有 MDX 文件中可用
+    }),
+  ],
+});
+```
+
+> **注意**：全局组件配置较为有限，更推荐在每个 MDX 文件顶部使用 `import` 语句显式导入，保持代码清晰。
+
+## 总结
+
+本文全面介绍了 Astro 中 MDX 的使用方法：
+
+- **安装配置**：通过 `@astrojs/mdx` 集成启用 MDX 支持
+- **组件使用**：在 MDX 文件中导入和使用 Astro 组件
+- **导出导入**：`export` 导出数据和组件，`import` 导入依赖
+- **JSX 表达式**：在 Markdown 中使用 `{expression}` 语法嵌入动态内容
+- **组件映射**：将 Markdown 元素映射到自定义组件
+- **内容集合**：MDX 与 Content Collections 的最佳组合实践
+
+下一篇文章我们将学习 **渲染模式：SSG / SSR / 混合渲染**，掌握 Astro 的三种渲染策略及其适用场景。

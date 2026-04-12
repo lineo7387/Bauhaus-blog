@@ -1,0 +1,449 @@
+---
+title: 图像优化
+description: 掌握 Astro 内置的 Image 和 Picture 组件，实现自动格式转换、响应式 srcset、懒加载与 CLS 防护，以及 getImage 程序化 API 的使用方法。
+pubDate: 2026-04-12
+category: Astro
+tags: [astro, 前端, 图像优化]
+author: AI-Writer
+readingTime: 15
+planId: astro5-image-optimization
+---
+
+# 图像优化
+
+Astro 内置了强大的图像优化功能，通过 `<Image>` 组件和 `getImage()` 程序化 API，提供自动格式转换、尺寸优化、懒加载等开箱即用的能力，显著提升页面加载性能。
+
+## Image 组件
+
+Astro 的 `<Image>` 组件位于 `astro:assets`，是优化图像的主要方式。
+
+### 基本用法
+
+```astro
+---
+import { Image } from 'astro:assets';
+import heroImage from '../assets/hero.jpg';
+---
+
+<!-- Astro 自动处理以下优化： -->
+<!-- 1. 转换为 WebP/AVIF 格式 -->
+<!-- 2. 生成 srcset 实现响应式 -->
+<!-- 3. 添加 width/height 防止布局偏移 -->
+<!-- 4. 设置 loading="lazy" -->
+<Image src={heroImage} alt="Hero 图片" />
+```
+
+### 完整属性
+
+```astro
+---
+import { Image } from 'astro:assets';
+import coverImage from '../assets/cover.jpg';
+---
+
+<Image
+  src={coverImage}
+  alt="封面图片"
+  width={800}              // 输出宽度
+  height={600}             // 输出高度
+  format="webp"            // 输出格式：webp / avif / png / jpg
+  quality={80}            // 质量 1-100
+  loading="lazy"          // 加载策略：lazy / eager
+  decoding="async"        // 解码策略：async / sync / auto
+  class="cover-img"       // CSS 类名
+/>
+```
+
+## 自动优化行为
+
+### 格式转换
+
+Astro 会根据浏览器支持情况自动选择最佳格式：
+
+```
+浏览器支持 AVIF → 输出 AVIF（体积最小）
+浏览器仅支持 WebP → 输出 WebP
+都不支持 → 输出原始格式
+```
+
+### 响应式 srcset
+
+```astro
+---
+import { Image } from 'astro:assets';
+import hero from '../assets/hero.jpg';
+---
+
+<!-- Astro 自动生成多个尺寸的 srcset -->
+<Image
+  src={hero}
+  widths={[400, 800, 1200, 1600]}
+  sizes="(max-width: 600px) 400px, (max-width: 1200px) 800px, 1200px"
+  alt="Hero"
+/>
+
+<!-- 生成的 HTML：-->
+<!--
+<img
+  src="/_astro/hero.12345.webp"
+  srcset="/_astro/hero.400.webp 400w, /_astro/hero.800.webp 800w, ..."
+  sizes="..."
+  width="1600"
+  height="900"
+  loading="lazy"
+  decoding="async"
+/>
+-->
+```
+
+### 防止布局偏移（CLS）
+
+```astro
+---
+import { Image } from 'astro:assets';
+import icon from '../assets/icon.png';
+---
+
+<!-- Astro 自动从图片读取宽高比 -->
+<!-- 生成带有正确宽高比的 wrapper，防止页面布局偏移 -->
+<Image src={icon} alt="图标" />
+```
+
+## 外部图片
+
+对于来自 CDN 或外部 URL 的图片，使用 `inferSize` 属性：
+
+```astro
+---
+import { Image } from 'astro:assets';
+---
+
+<!-- 启用 inferSize 获取远程图片尺寸 -->
+<Image
+  src="https://picsum.photos/1200/800"
+  alt="随机图片"
+  inferSize={true}
+  loading="lazy"
+/>
+
+<!-- 也可以手动指定尺寸 -->
+<Image
+  src="https://picsum.photos/1200/800"
+  alt="随机图片"
+  width={800}
+  height={600}
+  inferSize={false}
+/>
+```
+
+> **注意**：使用外部图片时，`inferSize` 需要在运行时获取图片尺寸，可能会有轻微延迟。
+
+## Picture 组件
+
+`<Picture>` 组件提供更精细的格式和尺寸控制，适合 art-direction 场景。
+
+### 基本用法
+
+```astro
+---
+import { Picture } from 'astro:assets';
+import heroImage from '../assets/hero.jpg';
+---
+
+<Picture
+  src={heroImage}
+  alt="Hero 图片"
+  widths={[400, 800, 1200, 1600]}
+  formats={['avif', 'webp', 'jpeg']}
+/>
+```
+
+### Art Direction 场景
+
+根据屏幕尺寸加载不同的图片：
+
+```astro
+---
+import { Picture } from 'astro:assets';
+import desktopHero from '../assets/hero-desktop.jpg';
+import mobileHero from '../assets/hero-mobile.jpg';
+---
+
+<Picture
+  src={desktopHero}
+  alt="Hero"
+  widths={[640, 1024, 1920]}
+  picture={{ '>768px': mobileHero.src }}  // 移动端使用不同图片
+/>
+```
+
+### 响应式图片
+
+```astro
+<Picture
+  src={heroImage}
+  alt="响应式 Hero"
+  widths={[320, 640, 1280, 1920]}
+  sizes="(max-width: 640px) 320px,
+         (max-width: 1024px) 640px,
+         (max-width: 1920px) 1280px,
+         1920px"
+/>
+```
+
+## getImage() 程序化 API
+
+`getImage()` 允许在 `.astro` 脚本或 API 路由中程序化地生成优化后的图片信息。
+
+### 基本用法
+
+```astro
+---
+import { getImage } from 'astro:assets';
+import originalImage from '../assets/image.jpg';
+
+const optimizedImage = await getImage({
+  src: originalImage,
+  width: 800,
+  format: 'webp',
+});
+
+console.log(optimizedImage.src);   // /_astro/image.webp
+console.log(optimizedImage.width); // 800
+---
+
+<a href={optimizedImage.src} download>
+  下载图片
+</a>
+```
+
+### 用于 API 端点
+
+```typescript
+// src/pages/api/generate-og-image.ts
+import type { APIRoute } from 'astro';
+import { getImage } from 'astro:assets';
+import ogTemplate from '../assets/og-template.png';
+
+export const GET: APIRoute = async () => {
+  const image = await getImage({
+    src: ogTemplate,
+    width: 1200,
+    height: 630,
+    format: 'png',
+  });
+
+  return new Response(image.src, {
+    headers: {
+      'Content-Type': `image/${image.format}`,
+      'Cache-Control': 'public, max-age=31536000',
+    },
+  });
+};
+```
+
+### 用于动态图片
+
+```astro
+---
+import { getImage } from 'astro:assets';
+
+const imageUrl = Astro.props.user.avatarUrl;
+const avatarImage = await getImage({
+  src: imageUrl,
+  width: 128,
+  height: 128,
+  format: 'webp',
+});
+---
+
+<img src={avatarImage.src} alt="用户头像" width="128" height="128" />
+```
+
+## 加载策略
+
+### 懒加载（默认）
+
+```astro
+<!-- 默认懒加载 -->
+<Image src={hero} alt="Hero" />
+
+<!-- 显式声明 -->
+<Image src={hero} alt="Hero" loading="lazy" />
+```
+
+### 首屏图片预加载
+
+```astro
+---
+import { Image } from 'astro:assets';
+import aboveFoldImage from '../assets/above-fold.jpg';
+---
+
+<!-- 首屏图片使用 eager，避免懒加载导致的延迟 -->
+<Image
+  src={aboveFoldImage}
+  alt="首屏图片"
+  loading="eager"
+  fetchpriority="high"
+/>
+```
+
+### fetchpriority 属性
+
+| 值 | 使用场景 |
+|---|---------|
+| `high` | 首屏关键图片（hero、banner）|
+| `medium` | 次要图片（正文中的图片）|
+| `low` | 非关键图片（占位图、懒加载图片）|
+
+```astro
+<!-- 首屏 Hero 图片 -->
+<Image
+  src={heroImage}
+  alt="Hero"
+  loading="eager"
+  fetchpriority="high"
+/>
+
+<!-- 普通正文图片 -->
+<Image
+  src={contentImage}
+  alt="内容图片"
+  loading="lazy"
+  fetchpriority="low"
+/>
+```
+
+## 配置图像服务
+
+### 默认 Sharp 服务（推荐）
+
+Astro 默认使用 Sharp 进行图像处理：
+
+```javascript
+// astro.config.mjs
+import { defineConfig } from 'astro/config';
+
+export default defineConfig({
+  image: {
+    // 默认图片服务
+    service: {
+      entrypoint: 'astro/assets/services/sharp',
+    },
+    // 域名白名单（允许外部图片优化）
+    domains: ['example.com', 'picsum.photos'],
+    // 允许的远程图片模式
+    remotePatterns: [{ protocol: 'https' }],
+  },
+});
+```
+
+### Squoosh 服务（替代方案）
+
+```javascript
+// astro.config.mjs
+import { defineConfig } from 'astro/config';
+
+export default defineConfig({
+  image: {
+    // 使用 Squoosh（支持更多格式，但较慢）
+    service: {
+      entrypoint: 'astro/assets/services/squoosh',
+    },
+  },
+});
+```
+
+## 常用场景
+
+### 博客文章图片
+
+```astro
+---
+import { Image, getImage } from 'astro:assets';
+---
+
+{post.data.image && (
+  <figure class="post-image">
+    <Image
+      src={post.data.image}
+      alt={post.data.title}
+      width={800}
+      height={450}
+      loading="eager"
+      fetchpriority="high"
+      class="post-cover"
+    />
+    <figcaption>图片描述</figcaption>
+  </figure>
+)}
+```
+
+### 产品画廊
+
+```astro
+---
+import { Image } from 'astro:assets';
+
+const images = [
+  { src: product.image1, alt: '正面' },
+  { src: product.image2, alt: '侧面' },
+  { src: product.image3, alt: '细节' },
+];
+---
+
+<div class="gallery">
+  {images.map((img, index) => (
+    <button
+      class="thumbnail"
+      onclick={`showImage(${index})`}
+    >
+      <Image
+        src={img.src}
+        alt={img.alt}
+        width={100}
+        height={100}
+        loading="lazy"
+      />
+    </button>
+  ))}
+</div>
+```
+
+### 用户头像
+
+```astro
+---
+import { Image, getImage } from 'astro:assets';
+
+const avatar = await getImage({
+  src: user.avatar,
+  width: 64,
+  height: 64,
+  format: 'webp',
+});
+---
+
+<img
+  src={avatar.src}
+  alt={user.name}
+  width="64"
+  height="64"
+  class="avatar"
+  loading="lazy"
+/>
+```
+
+## 总结
+
+本文全面介绍了 Astro 的图像优化能力：
+
+- **`<Image>` 组件**：自动格式转换、响应式 srcset、布局偏移防护
+- **`<Picture>` 组件**：多格式、多尺寸、art-direction 精细控制
+- **`getImage()` API**：程序化生成优化图片信息
+- **加载策略**：`loading="lazy"` / `eager`、`fetchpriority` 属性
+- **外部图片**：`inferSize` 自动获取远程图片尺寸
+- **配置选项**：`domains`、`remotePatterns` 域名白名单
+
+下一篇文章我们将学习 **国际化（i18n）配置**，掌握 Astro 的多语言站点构建方法。

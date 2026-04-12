@@ -1,0 +1,304 @@
+---
+title: Astro 5 项目初始化与基础配置
+description: 从零掌握 Astro 5 的现代化内容站点框架，涵盖项目初始化、目录结构解析、astro.config.mjs 配置、核心内置命令，以及与 Astro 4 的核心差异概述。
+pubDate: 2026-04-12
+category: Astro
+tags: [astro, 前端, 框架]
+author: AI-Writer
+readingTime: 15
+planId: astro5-init
+---
+
+# Astro 5 项目初始化与基础配置
+
+Astro 5 是现代化的内容驱动网站框架，以"默认零 JavaScript"为核心设计理念，大幅提升页面加载性能。本文从零开始，介绍如何创建 Astro 5 项目、解析目录结构、配置 `astro.config.mjs`，以及 Astro 5 相比 Astro 4 的核心变化。
+
+## 创建 Astro 5 项目
+
+Astro 提供了交互式创建命令，通过一行终端指令即可初始化完整项目。
+
+### 使用 pnpm（推荐）
+
+```bash
+# 创建新项目（交互式引导）
+pnpm create astro@latest my-astro-site
+
+# 非交互式快速创建（带示例）
+pnpm create astro@latest my-astro-site --template minimal --no-git --no-install
+
+# 安装依赖
+cd my-astro-site
+pnpm install
+```
+
+### 使用 npm
+
+```bash
+npm create astro@latest my-astro-site -- --template minimal --no-git
+cd my-astro-site
+npm install
+```
+
+> **提示**：`--template minimal` 会创建一个最基础的项目骨架，不包含任何示例页面，适合从头开始的项目。也可以使用 `--template blog` 快速获得一个博客模板。
+
+### 项目创建过程中的选项说明
+
+| 选项 | 说明 | 推荐 |
+|------|------|------|
+| `Where should we create your new project?` | 项目存放路径 | 输入目录名或直接回车 |
+| `How would you like to start your new project?` | 启动方式 | 选择 `Empty` 或 `Use a blog template` |
+| `Install dependencies?` | 是否自动安装依赖 | Yes |
+| `Initialize a new git repository?` | 是否初始化 git | 按需选择 |
+| `How would you like to set up TypeScript?` | TypeScript 模式 | `Strict`（推荐生产项目）|
+
+## 目录结构解析
+
+Astro 项目具有清晰的约定优于配置的结构：
+
+```
+my-astro-site/
+├── public/              # 静态资源目录（直接复制到输出目录）
+│   └── favicon.svg
+├── src/
+│   ├── components/      # Astro / 框架组件
+│   ├── layouts/         # 页面布局组件
+│   ├── pages/           # 页面文件（路由基于文件）
+│   │   ├── index.astro  # 首页 → /
+│   │   └── blog/
+│   │       └── [...slug].astro  # 博客详情页
+│   ├── styles/          # 全局样式
+│   ├── content/
+│   │   ├── config.ts    # 内容集合配置（Astro 5 使用 .config.ts）
+│   │   └── blog/        # 博客文章 Markdown/MDX 文件
+│   └── content.config.ts  # Astro 5 全局内容配置
+├── astro.config.mjs     # Astro 配置文件
+├── package.json
+├── tsconfig.json
+└── README.md
+```
+
+### 各目录职责
+
+- **`public/`**：不经过任何构建处理的静态文件，直接映射到站点根路径
+- **`src/pages/`**：Astro 基于文件路由的核心目录，每个 `.astro` / `.md` / `.mdx` 文件自动生成对应路由
+- **`src/components/`**：可复用的 UI 组件，支持 `.astro` 和支持框架（React/Vue/Svelte）的组件文件
+- **`src/layouts/`**：页面布局模板，通常包含 HTML 头部、导航栏、页脚等共用结构
+- **`src/content/`**：Astro 5 的内容集合目录，所有结构化内容（博客文章、文档等）放在此处
+
+## astro.config.mjs 配置
+
+`astro.config.mjs` 是 Astro 项目的核心配置文件，控制构建、集成、渲染模式等关键行为。
+
+### 基础配置
+
+```javascript
+// astro.config.mjs
+import { defineConfig } from 'astro/config';
+
+// 使用 Tailwind CSS v4（注意：使用 @tailwindcss/vite，不是 @astrojs/tailwind）
+import tailwindcss from '@tailwindcss/vite';
+
+export default defineConfig({
+  // Vite 插件配置
+  vite: {
+    plugins: [tailwindcss()],
+  },
+
+  // 站点基础 URL（部署到子路径时必填）
+  site: 'https://example.com',
+
+  // 构建输出目录（默认 dist）
+  outDir: './dist',
+
+  // 公共资源目录（默认 public）
+  publicDir: './public',
+});
+```
+
+### 集成配置
+
+Astro 通过集成（Integrations）扩展功能，最常用的是 MDX 支持：
+
+```javascript
+import mdx from '@astrojs/mdx';
+import sitemap from '@astrojs/sitemap';
+
+export default defineConfig({
+  site: 'https://example.com',
+  integrations: [
+    mdx(),           // MDX 支持
+    sitemap(),       // 自动生成 sitemap.xml
+  ],
+  vite: {
+    plugins: [tailwindcss()],
+  },
+});
+```
+
+### 渲染模式配置
+
+Astro 5 支持三种渲染模式，决定页面是静态生成还是按需渲染：
+
+```javascript
+// 静态生成（默认，适合内容为主的网站）
+export default defineConfig({
+  output: 'static', // 所有页面在构建时预渲染
+});
+
+// SSR 按需渲染（适合需要动态数据的网站）
+export default defineConfig({
+  output: 'server',
+  adapter: nodeAdapter(), // 需要安装适配器
+});
+
+// 混合模式（部分页面 SSR，部分页面静态）
+export default defineConfig({
+  output: 'hybrid',
+  adapter: nodeAdapter(),
+});
+```
+
+## Astro 内置命令
+
+Astro 提供了一组核心命令，涵盖开发、构建、预览的完整工作流：
+
+```bash
+# 开发服务器（热重载）
+pnpm dev
+
+# 生产构建
+pnpm build
+
+# 本地预览构建结果（构建后使用）
+pnpm preview
+
+# 类型检查（Astro 内置，不依赖 tsc）
+pnpm astro check
+
+# 清理缓存和构建产物
+pnpm astro sync && pnpm astro build
+```
+
+> **提示**：`pnpm dev` 启动后，默认监听 `http://localhost:4321`。这个端口是 Astro 的约定端口，无需额外配置。
+
+## Astro 5 相比 Astro 4 的核心差异
+
+Astro 5 带来了多个重大升级，理解这些变化有助于更好地使用新版本。
+
+### 内容集合 API 升级（最大变化）
+
+Astro 4 使用 `src/content/config.ts`，而 Astro 5 统一使用 `src/content.config.ts`：
+
+```typescript
+// Astro 5: src/content.config.ts
+import { defineCollection, z } from 'astro:content';
+import { glob } from 'astro/loaders';
+
+const blog = defineCollection({
+  // Astro 5 引入 loader 机制，支持更灵活的数据源
+  loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/blog' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    pubDate: z.coerce.date(),
+    category: z.string(),
+  }),
+});
+
+export const collections = { blog };
+```
+
+> **核心变化**：Astro 5 的 `loader` 机制将数据获取逻辑与集合定义分离，可以接入远程数据源、CMS 系统，而不仅限于本地文件。
+
+### Server 模式增强
+
+Astro 5 的 SSR 支持更加完善，引入了 `output: 'server'` 和 `hybrid` 模式的无缝切换：
+
+```javascript
+// Astro 5 中，每个页面可以独立设置渲染策略
+// src/pages/api/data.ts
+export const prerender = false; // 明确声明为 SSR
+
+// src/pages/about.astro
+export const prerender = true; // 明确声明为静态预渲染
+```
+
+### 新增 `<ViewTransitions />` 组件
+
+Astro 5 将 View Transitions 从实验阶段升级为稳定功能，无需额外配置即可使用：
+
+```astro
+---
+import { ViewTransitions } from 'astro:transitions';
+---
+<html>
+  <head>
+    <ViewTransitions />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
+```
+
+### Content Layer API
+
+Astro 5 允许定义自定义 Loader，从任意数据源加载内容：
+
+```typescript
+import { defineCollection, z } from 'astro:content';
+import { glob } from 'astro/loaders';
+
+// 使用 glob loader 加载本地文件
+const blog = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/blog' }),
+  schema: /* ... */,
+});
+
+// 自定义远程 loader（示例）
+const docs = defineCollection({
+  loader: myRemoteLoader({ url: 'https://api.example.com/docs' }),
+  schema: /* ... */,
+});
+```
+
+## 验证项目
+
+项目创建完成后，运行开发服务器验证：
+
+```bash
+cd my-astro-site
+pnpm dev
+```
+
+访问 `http://localhost:4321`，如果看到页面正常渲染，说明项目初始化成功。
+
+### 常见初始化问题
+
+**Node.js 版本问题**：Astro 5 要求 Node.js 18.17.1+（推荐 Node.js 20+）：
+
+```bash
+# 检查 Node 版本
+node -v
+
+# 如果版本过低，使用 nvm 切换
+nvm use 20
+```
+
+**依赖安装失败**：清理缓存后重试：
+
+```bash
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+```
+
+## 总结
+
+本文涵盖了 Astro 5 项目从零开始的全流程：
+
+- **项目创建**：`pnpm create astro` 是最快速的初始化方式，`--template` 参数可选择预设模板
+- **目录结构**：约定优于配置，`src/pages/` 驱动路由，`src/content/` 管理结构化内容
+- **配置核心**：`astro.config.mjs` 控制渲染模式、集成和构建行为
+- **Astro 5 核心变化**：Content Layer API（loader 机制）、Server 模式增强、View Transitions 稳定支持
+
+下一篇文章我们将深入学习 **Astro 组件基础与 .astro 语法**，掌握组件的定义、属性传递和插槽机制。

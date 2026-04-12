@@ -1,0 +1,420 @@
+---
+title: 内容集合（Content Collections）深度解析
+description: 深度解析 Astro 5 的 Content Layer API，涵盖 glob Loader 配置、Zod Schema 定义、getCollection / getEntry 查询方法、entry.render() 渲染流程，以及自定义 Loader 实现。
+pubDate: 2026-04-12
+category: Astro
+tags: [astro, 前端, 内容管理]
+author: AI-Writer
+readingTime: 22
+planId: astro5-content-collections
+---
+
+# 内容集合（Content Collections）深度解析
+
+Astro 5 的**内容集合**（Content Collections）是管理结构化内容的核心功能，提供类型安全的内容定义、查询和渲染能力。Astro 5 引入了全新的 **Content Layer API**，通过 Loader 机制支持灵活的数据源接入。
+
+## Content Layer API 概述
+
+Astro 5 的内容集合基于 Loader（加载器）构建，Loader 负责从数据源读取数据，Collection 负责定义数据结构和类型约束。
+
+### 核心概念
+
+- **Loader**：数据读取逻辑，可以是本地文件（`glob`）、远程 API、CMS 系统
+- **Collection**：一组同类型内容的集合，拥有统一的 Zod schema 验证
+- **Entry**：集合中的单条数据，如一篇博客文章
+- **Content Layer**：内容层的抽象，允许自定义 Loader 接入任意数据源
+
+## 配置内容集合
+
+### src/content.config.ts 位置
+
+> **重要**：Astro 5 将内容配置从 `src/content/config.ts` 迁移到 `src/content.config.ts`（项目根目录的 `src/` 下）。
+
+```typescript
+// src/content.config.ts
+import { defineCollection, z } from 'astro:content';
+import { glob } from 'astro/loaders';
+
+// 定义博客集合
+const blog = defineCollection({
+  // 使用 glob loader 加载本地 Markdown/MDX 文件
+  loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/blog' }),
+
+  // Zod schema 定义数据的类型约束
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    pubDate: z.coerce.date(),          // 自动将字符串转为 Date 对象
+    updatedDate: z.coerce.date().optional(),
+    category: z.string(),
+    tags: z.array(z.string()).default([]),
+    featured: z.boolean().default(false),
+    draft: z.boolean().default(false),
+    author: z.string().default('AI-Writer'),
+    readingTime: z.number().optional(),
+  }),
+});
+
+// 定义文档集合
+const docs = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/docs' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    order: z.number().default(0),
+  }),
+});
+
+// 定义作品集
+const portfolio = defineCollection({
+  loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/portfolio' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    cover: z.string(),
+    technologies: z.array(z.string()),
+    liveUrl: z.string().url().optional(),
+    repoUrl: z.string().url().optional(),
+  }),
+});
+
+export const collections = { blog, docs, portfolio };
+```
+
+### schema 的 Zod 字段类型
+
+| Zod 方法 | Astro 类型 | 说明 |
+|---------|-----------|------|
+| `z.string()` | `string` | 字符串 |
+| `z.number()` | `number` | 数字 |
+| `z.boolean()` | `boolean` | 布尔值 |
+| `z.date()` | `Date` | 日期对象 |
+| `z.coerce.date()` | `Date` | 自动从字符串转换日期 |
+| `z.enum(['a', 'b'])` | `'a' \| 'b'` | 枚举值 |
+| `z.array(z.string())` | `string[]` | 字符串数组 |
+| `z.string().optional()` | `string \| undefined` | 可选字符串 |
+| `z.string().default('x')` | `string` | 带默认值的字符串 |
+| `z.string().url()` | `string` | URL 格式字符串 |
+| `z.object({})` | `object` | 嵌套对象 |
+
+## glob Loader 用法
+
+`glob` loader 是最常用的本地文件加载器，将指定目录下的文件映射为内容条目。
+
+### 基本用法
+
+```typescript
+const blog = defineCollection({
+  // pattern: glob 匹配模式
+  // base: 文件所在的基础目录（相对于项目根目录）
+  loader: glob({ pattern: '**/*.md', base: './src/content/blog' }),
+
+  // 生成的 entry.id 为相对于 base 的路径
+  // 例如：./src/content/blog/vue/intro.md → id = 'vue/intro.md'
+  schema: z.object({ /* ... */ }),
+});
+```
+
+### 匹配规则
+
+```typescript
+// 匹配所有 md 和 mdx 文件
+loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/blog' })
+
+// 仅匹配一级目录下的文件
+loader: glob({ pattern: '*.md', base: './src/content/blog' })
+
+// 排除草稿文件（需配合路由逻辑）
+loader: glob({ pattern: '**/!(*draft)*.md', base: './src/content/blog' })
+```
+
+## 内容查询
+
+### 获取整个集合
+
+```astro
+---
+// src/pages/index.astro
+import { getCollection } from 'astro:content';
+
+// 获取所有博客文章
+const allPosts = await getCollection('blog');
+
+// 过滤：仅获取已发布的非草稿文章
+const publishedPosts = allPosts.filter(post => {
+  return !post.data.draft && post.data.pubDate <= new Date();
+});
+
+// 排序：按发布日期降序
+const sortedPosts = publishedPosts.sort(
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
+);
+---
+
+<ul>
+  {sortedPosts.map(post => (
+    <li>
+      <a href={`/blog/${post.id}`}>{post.data.title}</a>
+      <time>{post.data.pubDate.toLocaleDateString('zh-CN')}</time>
+    </li>
+  ))}
+</ul>
+```
+
+> **关键**：`post.id` 在 Astro 5 中替代了 Astro 4 的 `post.slug`，用于构建 URL 和文件路径。
+
+### 获取单条内容
+
+```astro
+---
+import { getEntry } from 'astro:content';
+
+// 通过 id 获取单篇文章
+const introPost = await getEntry('blog', 'vue/intro.md');
+// post.id === 'vue/intro.md'
+---
+
+{introPost && (
+  <article>
+    <h1>{introPost.data.title}</h1>
+    <p>{introPost.data.description}</p>
+  </article>
+)}
+```
+
+### 带类型推断的查询
+
+利用 TypeScript 的泛型，可以获得完整的类型提示：
+
+```astro
+---
+import { getCollection, type CollectionEntry } from 'astro:content';
+
+// 类型化获取
+type BlogEntry = CollectionEntry<'blog'>;
+
+const posts = await getCollection<BlogEntry>('blog');
+
+// posts[0].data 拥有完整的类型推断
+// posts[0].data.title → string
+// posts[0].data.pubDate → Date
+console.log(posts[0].data.title);
+---
+
+{posts.map((post) => (
+  <div>
+    <h2>{post.data.title}</h2>
+    <span>{post.data.category}</span>
+  </div>
+))}
+```
+
+## entry.render() 渲染流程
+
+获取内容条目后，需要调用 `render()` 方法将 Markdown/MDX 内容渲染为 HTML。
+
+### 渲染步骤
+
+```astro
+---
+import { getCollection } from 'astro:content';
+const posts = await getCollection('blog');
+const post = posts[0];
+
+// 调用 render() 获取渲染后的组件
+const { Content, headings } = await post.render();
+
+// headings 包含文章的所有标题（用于生成目录）
+console.log(headings);
+---
+
+<!-- 渲染文章正文 -->
+<article>
+  <h1>{post.data.title}</h1>
+  <Content />
+</article>
+
+<!-- 渲染目录 -->
+<nav class="toc">
+  <h3>目录</h3>
+  <ul>
+    {headings.map(h => (
+      <li>
+        <a href={`#${h.slug}`}>{h.text}</a>
+      </li>
+    ))}
+  </ul>
+</nav>
+```
+
+> **注意**：`render()` 是一个异步方法，必须使用 `await`。每次调用 `render()` 都会重新渲染内容，对于大量内容建议缓存结果。
+
+### 完整页面示例
+
+```astro
+---
+// src/pages/blog/[...id].astro
+import { getCollection } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+
+  // 过滤草稿（仅在构建时生效）
+  const published = posts.filter(post => !post.data.draft);
+
+  return published.map(post => ({
+    params: { id: post.id },  // Astro 5: 使用 id 而非 slug
+    props: { post },
+  }));
+}
+
+interface Props {
+  post: CollectionEntry<'blog'>;
+}
+
+const { post } = Astro.props;
+const { Content, headings } = await post.render();
+
+// 格式化阅读时间
+const readingTime = post.data.readingTime
+  ? `${post.data.readingTime} 分钟`
+  : `${Math.ceil(post.body.split(/\s+/).length / 200)} 分钟`;
+---
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{post.data.title} — Blog</title>
+</head>
+<body>
+  <article class="blog-post">
+    <header>
+      <div class="meta">
+        <time datetime={post.data.pubDate.toISOString()}>
+          {post.data.pubDate.toLocaleDateString('zh-CN', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })}
+        </time>
+        <span class="separator">·</span>
+        <span>{readingTime}</span>
+      </div>
+      <h1>{post.data.title}</h1>
+      <p class="description">{post.data.description}</p>
+      <div class="tags">
+        {post.data.tags.map(tag => <span class="tag">{tag}</span>)}
+      </div>
+    </header>
+
+    <div class="content">
+      <Content />
+    </div>
+  </article>
+</body>
+</html>
+
+<style>
+  /* 页面样式 */
+</style>
+```
+
+## 自定义 Loader
+
+Astro 5 的 Content Layer API 支持自定义 Loader，可以从远程数据源加载内容。
+
+### 定义自定义 Loader
+
+```typescript
+// src/content/loaders/notion.ts
+import { defineLoader } from 'astro:content';
+import { Client } from '@notionhq/client';
+
+const notionLoader = defineLoader({
+  // Loader 的唯一标识
+  name: 'notion-loader',
+
+  // 异步加载函数
+  async load() {
+    const notion = new Client({ auth: import.meta.env.NOTION_TOKEN });
+
+    const response = await notion.databases.query({
+      database_id: import.meta.env.NOTION_DATABASE_ID,
+    });
+
+    // 返回条目数组，每个条目需要有 id 和 data
+    return response.results.map(page => ({
+      id: page.id,
+      data: {
+        title: page.properties.Name.title[0]?.plain_text ?? '无标题',
+        content: page.properties.Content.rich_text[0]?.plain_text ?? '',
+        published: page.properties.Published.checkbox,
+      },
+    }));
+  },
+});
+
+// 使用自定义 loader
+import { defineCollection } from 'astro:content';
+
+const notionPosts = defineCollection({
+  loader: notionLoader,
+  schema: z.object({
+    title: z.string(),
+    content: z.string(),
+    published: z.boolean(),
+  }),
+});
+```
+
+### 其他内置 Loader
+
+```typescript
+import { glob } from 'astro/loaders';
+
+// glob: 本地文件系统（最常用）
+const blog = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/blog' }),
+});
+
+// 自定义 loader 可以接入：Contentful、Sanity、Notion、数据库等
+```
+
+## 与 Astro 4 的差异对比
+
+| 特性 | Astro 4 | Astro 5 |
+|------|---------|---------|
+| 配置文件路径 | `src/content/config.ts` | `src/content.config.ts` |
+| 条目标识符 | `slug` | `id` |
+| 数据源 | 仅本地文件 | 本地文件 + 远程数据（Loader）|
+| Schema 定义 | `z.object({})` 直接内联 | 相同 |
+| `getCollection` | 相同 | 相同 |
+| `entry.slug` | 字符串 slug | 已移除 |
+| `entry.id` | 仅文件扩展名 | 完整相对路径（含目录）|
+
+```typescript
+// Astro 4
+const post = await getEntry('blog', 'my-post');
+const { Content } = await post.render();
+console.log(post.slug);  // 'my-post'
+
+// Astro 5
+const post = await getEntry('blog', 'vue/my-post.md');
+const { Content } = await post.render();
+console.log(post.id);     // 'vue/my-post.md'
+```
+
+## 总结
+
+本文深入解析了 Astro 5 内容集合的核心能力：
+
+- **Content Layer API**：Loader 机制将数据获取与内容定义分离，支持本地和远程数据源
+- **配置方式**：`src/content.config.ts` + Zod schema 提供完整的类型安全
+- **查询方法**：`getCollection` 全量查询、`getEntry` 单条获取
+- **渲染流程**：`entry.render()` 返回 `<Content />` 组件和 `headings` 目录
+- **Astro 5 变化**：`id` 替代 `slug`、配置文件迁移至 `src/content.config.ts`
+
+下一篇文章我们将学习 **路由系统与动态路由**，掌握 Astro 基于文件的路由机制和高级路由技巧。

@@ -1,0 +1,468 @@
+---
+title: 路由系统与动态路由
+description: 掌握 Astro 基于文件的路由系统，涵盖文件路由约定、动态路由参数、[...slug] 剩余参数、getStaticPaths 静态路径生成、自定义 404 页面，以及通过 Middleware 实现路由守卫。
+pubDate: 2026-04-12
+category: Astro
+tags: [astro, 前端, 路由]
+author: AI-Writer
+readingTime: 18
+planId: astro5-routing
+---
+
+# 路由系统与动态路由
+
+Astro 的路由系统基于**文件约定**（File-based Routing），`src/pages/` 目录下的每个文件自动映射为对应的 URL 路径。这种约定优于配置的设计让路由管理变得直观简洁。
+
+## 文件路由约定
+
+### 基本规则
+
+- `src/pages/index.astro` → 站点根路径 `/`
+- `src/pages/about.astro` → `/about`
+- `src/pages/blog/index.astro` → `/blog`
+- `src/pages/blog/about.astro` → `/blog/about`
+
+```plaintext
+src/pages/
+├── index.astro          → /
+├── about.astro         → /about
+├── blog/
+│   ├── index.astro     → /blog
+│   ├── first.astro      → /blog/first
+│   └── second.astro     → /blog/second
+└── docs/
+    └── guide.astro      → /docs/guide
+```
+
+### 嵌套目录
+
+目录结构自动生成嵌套路由：
+
+```astro
+---
+// src/pages/docs/getting-started/installation.astro
+// 路由：/docs/getting-started/installation
+---
+
+<h1>安装指南</h1>
+```
+
+## 动态路由
+
+动态路由使用**方括号**包裹参数名，允许一个文件处理多个 URL 模式。
+
+### 基础动态参数
+
+```astro
+---
+// src/pages/blog/[slug].astro
+// 匹配：/blog/hello, /blog/astro, /blog/vue ...
+
+// 获取 URL 中的参数
+const { slug } = Astro.params;
+---
+
+<article>
+  <h1>文章：{slug}</h1>
+  <p>正在阅读关于 "{slug}" 的内容</p>
+</article>
+```
+
+### 多段动态参数
+
+```astro
+---
+// src/pages/docs/[category]/[topic].astro
+// 匹配：/docs/vue/basics, /docs/react/hooks, /docs/astro/components ...
+
+const { category, topic } = Astro.params;
+---
+
+<h1>{category} / {topic}</h1>
+```
+
+## getStaticPaths 生成静态路径
+
+对于静态输出模式（`output: 'static'`），需要使用 `getStaticPaths` 明确指定所有可能的路径。
+
+### 配合内容集合使用
+
+```astro
+---
+// src/pages/blog/[...slug].astro
+import { getCollection } from 'astro:content';
+
+// 生成所有博客文章的静态路径
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+
+  return posts
+    .filter(post => !post.data.draft)  // 排除草稿
+    .map(post => ({
+      params: { slug: post.id },     // Astro 5 使用 id
+      props: { post },
+    }));
+}
+
+const { post } = Astro.props;
+const { Content } = await post.render();
+---
+
+<article>
+  <h1>{post.data.title}</h1>
+  <Content />
+</article>
+```
+
+> **关键**：Astro 5 使用 `post.id`（包含文件扩展名），Astro 4 使用 `post.slug`（不含扩展名）。注意区分。
+
+### 手动定义路径
+
+```astro
+---
+// src/pages/products/[productId].astro
+
+// 定义所有可能的路径
+export function getStaticPaths() {
+  return [
+    { params: { productId: 'p001' }, props: { name: '笔记本电脑', price: 5999 } },
+    { params: { productId: 'p002' }, props: { name: '无线鼠标', price: 199 } },
+    { params: { productId: 'p003' }, props: { name: '机械键盘', price: 899 } },
+  ];
+}
+
+const { name, price } = Astro.props;
+---
+
+<div class="product">
+  <h1>{name}</h1>
+  <p class="price">¥{price}</p>
+</div>
+```
+
+### 路径优先级
+
+当多个路由模式匹配同一 URL 时，按以下规则排序：
+
+1. **静态路由** > **动态路由** > **剩余参数路由**
+2. 动态路由按文件名中 `[param]` 数量**少**的优先
+3. 同数量时，按 `[param]` 在文件名中的**顺序**决定
+
+```
+/blog/new         → blog/new.astro        （静态，精确匹配）
+/blog/[slug]      → blog/[slug].astro     （动态）
+/blog/[...slug]   → blog/[...slug].astro  （剩余参数，优先级最低）
+```
+
+## Rest 参数（剩余参数路由）
+
+使用 `[...slug]` 可以匹配任意深度的路径，适合处理文章嵌套分类。
+
+### 基本用法
+
+```astro
+---
+// src/pages/docs/[...slug].astro
+// 匹配：/docs, /docs/vue, /docs/vue/basics, /docs/vue/basics/setup
+
+const { slug } = Astro.params;
+
+// slug 是一个数组，包含了路径的每一段
+// /docs/vue/basics → ['vue', 'basics']
+console.log(slug);  // ['vue', 'basics']
+
+const pathParts = slug ? slug.split('/') : [];
+---
+
+<h1>文档路径：/{pathParts.join(' / ')}</h1>
+```
+
+> **注意**：`[...slug]` 在 Astro 5 中接收的是完整路径字符串（`vue/basics`），而非数组。如果需要数组，在处理时用 `/` 分割即可。
+
+### 配合内容集合使用
+
+```astro
+---
+// src/pages/blog/[...slug].astro
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+
+  return posts.map(post => ({
+    params: { slug: post.id },  // id 格式：'vue/intro.md'
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await post.render();
+---
+
+<article>
+  <h1>{post.data.title}</h1>
+  <Content />
+</article>
+```
+
+## 自定义 404 页面
+
+Astro 自动将 `src/pages/404.astro` 文件映射为 404 错误页面：
+
+```astro
+---
+// src/pages/404.astro
+---
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <title>页面未找到 — 404</title>
+</head>
+<body class="error-page">
+  <div class="container">
+    <div class="error-code">404</div>
+    <h1>页面不存在</h1>
+    <p>抱歉，您访问的页面已迁移或不存在。</p>
+    <a href="/" class="btn-home">返回首页</a>
+  </div>
+</body>
+</html>
+
+<style>
+  .error-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Outfit', sans-serif;
+    background: #f5f5f5;
+  }
+
+  .error-code {
+    font-size: 8rem;
+    font-weight: bold;
+    color: #D02020;
+    line-height: 1;
+  }
+
+  h1 {
+    font-size: 2rem;
+    color: #121212;
+    margin: 1rem 0;
+  }
+
+  .btn-home {
+    display: inline-block;
+    margin-top: 1.5rem;
+    padding: 0.75rem 2rem;
+    background: #1040C0;
+    color: white;
+    text-decoration: none;
+    border: 3px solid #121212;
+    box-shadow: 4px 4px 0 0 #121212;
+    font-weight: bold;
+  }
+
+  .btn-home:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 0 #121212;
+  }
+</style>
+```
+
+## 路由守卫概念
+
+与 Next.js 等框架不同，Astro 没有内置的路由守卫（Middleware）。但在混合/SSR 模式下，可以通过 Astro Middleware 实现类似功能。
+
+### 中间件实现路由保护
+
+```typescript
+// src/middleware.ts
+import { defineMiddleware } from 'astro:middleware';
+
+export const onRequest = defineMiddleware(async (context, next) => {
+  const { pathname } = context.url;
+
+  // 保护 /admin 路径
+  if (pathname.startsWith('/admin')) {
+    // 检查是否已登录（示例，实际需要连接会话存储）
+    const isLoggedIn = context.cookies.has('session');
+
+    if (!isLoggedIn) {
+      // 重定向到登录页
+      return context.redirect('/login?from=' + encodeURIComponent(pathname));
+    }
+  }
+
+  // 继续处理请求
+  return next();
+});
+```
+
+### 中间件导出位置
+
+Astro Middleware 文件可以放在以下位置：
+
+| 路径 | 作用域 |
+|------|--------|
+| `src/middleware.ts` | 整个站点 |
+| `src/pages/admin/middleware.ts` | `/admin` 目录及其子路径 |
+
+### 与 Next.js 的对比
+
+| 功能 | Astro | Next.js |
+|------|-------|---------|
+| 静态路由 | 文件约定 | 文件约定 |
+| 动态路由 | `[slug].astro` | `[slug]` |
+| 剩余参数 | `[...slug]` | `[...slug]` |
+| 404 页面 | `404.astro` | `not-found.tsx` |
+| 中间件 | `src/middleware.ts` | `middleware.ts` |
+| 路由守卫 | Middleware 实现 | Middleware + 布局组件 |
+
+## 完整示例：博客文章路由
+
+结合内容集合，构建完整的博客路由系统：
+
+```typescript
+// src/content.config.ts
+import { defineCollection, z } from 'astro:content';
+import { glob } from 'astro/loaders';
+
+const blog = defineCollection({
+  loader: glob({ pattern: '**/*.mdx', base: './src/content/blog' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    pubDate: z.coerce.date(),
+    category: z.string(),
+    tags: z.array(z.string()).default([]),
+    draft: z.boolean().default(false),
+  }),
+});
+
+export const collections = { blog };
+```
+
+```astro
+---
+// src/pages/blog/index.astro — 博客列表页
+
+import { getCollection } from 'astro:content';
+import ArticleCard from '../../components/ArticleCard.astro';
+
+const allPosts = await getCollection('blog');
+
+// 过滤草稿并排序
+const posts = allPosts
+  .filter(post => !post.data.draft)
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+---
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>博客 — 所有文章</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="/">首页</a>
+      <a href="/blog">博客</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>博客文章</h1>
+    <p>共 {posts.length} 篇文章</p>
+
+    <div class="posts-grid">
+      {posts.map(post => (
+        <ArticleCard
+          title={post.data.title}
+          description={post.data.description}
+          pubDate={post.data.pubDate}
+          url={`/blog/${post.id}`}
+          category={post.data.category}
+        />
+      ))}
+    </div>
+  </main>
+</body>
+</html>
+```
+
+```astro
+---
+// src/pages/blog/[...id].astro — 文章详情页
+
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+  return posts.map(post => ({
+    params: { id: post.id },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content, headings } = await post.render();
+---
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{post.data.title}</title>
+</head>
+<body>
+  <nav>
+    <a href="/">首页</a>
+    <a href="/blog">博客</a>
+  </nav>
+
+  <main class="article-layout">
+    <article>
+      <header>
+        <span class="category">{post.data.category}</span>
+        <time>{post.data.pubDate.toLocaleDateString('zh-CN')}</time>
+        <h1>{post.data.title}</h1>
+        <p class="description">{post.data.description}</p>
+      </header>
+
+      <div class="content">
+        <Content />
+      </div>
+    </article>
+
+    <aside class="toc">
+      <h3>目录</h3>
+      <ul>
+        {headings.map(h => (
+          <li style={{ marginLeft: `${(h.depth - 1) * 1}rem` }}>
+            <a href={`#${h.slug}`}>{h.text}</a>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  </main>
+</body>
+</html>
+```
+
+## 总结
+
+本文涵盖了 Astro 路由系统的核心知识点：
+
+- **文件约定路由**：`src/pages/` 下的文件自动映射为 URL 路径
+- **动态路由**：`[slug]` 方括号语法捕获 URL 参数
+- **getStaticPaths**：静态模式下必须显式定义所有路径
+- **Rest 参数**：`[...slug]` 匹配任意深度的路径
+- **404 页面**：`404.astro` 自动处理未匹配路由
+- **路由守卫**：通过 Middleware 实现访问控制（SSR/混合模式）
+
+下一篇文章我们将学习 **MDX 集成与使用**，掌握在 Astro 中使用 MDX 增强内容表现力的方法。

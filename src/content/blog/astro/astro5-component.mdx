@@ -1,0 +1,549 @@
+---
+title: Astro 组件基础与 .astro 语法
+description: 深入解析 .astro 文件的三要素（模板/脚本/样式）、Frontmatter 脚本区域、JSX 类模板语法、Props 定义与传递、插槽机制，以及样式作用域与导入子组件。
+pubDate: 2026-04-12
+category: Astro
+tags: [astro, 前端, 组件]
+author: AI-Writer
+readingTime: 18
+planId: astro5-component
+---
+
+# Astro 组件基础与 .astro 语法
+
+`.astro` 文件是 Astro 的核心组件格式，它将模板、脚本和样式整合在一个文件中，以简洁的方式构建静态页面。与 React 组件不同，Astro 组件默认不向浏览器发送 JavaScript，仅输出 HTML，大幅降低页面复杂度。
+
+## .astro 文件三要素
+
+每个 `.astro` 文件由三个可选区域组成：**Frontmatter 脚本**、**模板 HTML** 和**组件样式**。
+
+```astro
+---
+// 区域一：Frontmatter（服务器端执行的 JavaScript）
+const title = '我的博客';
+const items = ['苹果', '香蕉', '樱桃'];
+---
+
+<!-- 区域二：模板 HTML（JSX 类语法） -->
+<div class="card">
+  <h1>{title}</h1>
+  <ul>
+    {items.map(item => <li>{item}</li>)}
+  </ul>
+</div>
+
+<!-- 区域三：组件样式（仅作用域内生效） -->
+<style>
+  .card {
+    padding: 1.5rem;
+    border: 3px solid #121212;
+    box-shadow: 6px 6px 0 0 #121212;
+    max-width: 400px;
+  }
+
+  h1 {
+    color: #D02020;
+    font-family: 'Outfit', sans-serif;
+  }
+</style>
+```
+
+> **原理**：Frontmatter 中的代码在**构建时**执行（在服务器端运行），而非浏览器中。这与 React 的服务端渲染（SSR）有本质区别——Astro 的默认行为是在构建时完成所有数据获取，浏览器收到的是纯 HTML。
+
+## Frontmatter 脚本区域
+
+Frontmatter 使用三虚线 `---` 包裹，其中可以写任意 Node.js 兼容的 JavaScript 代码。
+
+### 变量与计算
+
+```astro
+---
+// 定义变量
+const siteName = 'Bauhaus Blog';
+const currentYear = new Date().getFullYear();
+
+// 计算属性
+const items = [
+  { id: 1, name: 'Astro', version: '5.x' },
+  { id: 2, name: 'React', version: '18.x' },
+];
+
+// 条件逻辑
+const showWelcome = true;
+const theme = 'dark';
+---
+
+<header>
+  <h1>{siteName} © {currentYear}</h1>
+  {showWelcome && <p>欢迎访问！</p>}
+</header>
+```
+
+### 导入组件和模块
+
+```astro
+---
+// 导入 Astro 组件
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+
+// 导入框架组件（需要在集成中配置对应框架）
+import Counter from '../components/Counter.jsx';
+
+// 导入工具函数
+import { formatDate } from '../utils/date.ts';
+
+// 导入 JSON 数据
+import siteData from '../data/site.json';
+
+// 导入样式
+import './button.css';
+---
+
+<Header title={siteData.title} />
+<main>{/* 页面内容 */}</main>
+<Footer />
+```
+
+> **注意**：Frontmatter 中的导入必须在文件最顶部，类似于 ES 模块的标准做法。
+
+## JSX 类模板语法
+
+Astro 的模板语法借鉴了 JSX，允许在 HTML 中嵌入 JavaScript 表达式。
+
+### 表达式与插值
+
+```astro
+---
+const name = 'Astro';
+const numbers = [1, 2, 3, 4, 5];
+const isLoggedIn = true;
+const user = { name: 'Alice', role: 'admin' };
+---
+
+<!-- 基本插值 -->
+<h1>欢迎来到 {name} 世界！</h1>
+
+<!-- 对象属性 -->
+<p>用户名：{user.name}</p>
+<p>角色：{user.role}</p>
+
+<!-- 表达式计算 -->
+<p>2 + 3 = {2 + 3}</p>
+<p>最大值：{Math.max(...numbers)}</p>
+
+<!-- 条件渲染 -->
+{isLoggedIn ? <button>退出</button> : <button>登录</button>}
+
+<!-- 逻辑与（AND） -->
+{isLoggedIn && <p>您已登录</p>}
+
+<!-- 逻辑非（NOT） -->
+{!isLoggedIn && <a href="/login">请先登录</a>}
+```
+
+### 循环渲染
+
+```astro
+---
+const skills = [
+  { id: 1, name: 'Vue', level: '熟练' },
+  { id: 2, name: 'React', level: '精通' },
+  { id: 3, name: 'Astro', level: '学习中' },
+];
+---
+
+<ul class="skill-list">
+  {skills.map(skill => (
+    <li key={skill.id} class={`skill-${skill.level}`}>
+      {skill.name} — {skill.level}
+    </li>
+  ))}
+</ul>
+```
+
+> **提示**：Astro 要求在列表渲染时提供 `key` 属性，类似于 React 的列表渲染最佳实践。
+
+## 组件 Props 定义与传递
+
+Astro 组件通过 `Props` 接口定义可接收的属性，父组件通过 HTML 属性语法传递数据。
+
+### 定义 Props
+
+```astro
+---
+// src/components/Button.astro
+
+// 使用 TypeScript 定义 Props 接口（推荐）
+interface Props {
+  text: string;
+  href?: string;           // 可选属性用 ? 标记
+  variant?: 'primary' | 'secondary' | 'danger';
+  disabled?: boolean;
+}
+
+// 解构赋值从 Astro.props 获取
+const { text, href = '#', variant = 'primary', disabled = false } = Astro.props;
+---
+
+{href !== '#' ? (
+  <a href={href} class={`btn btn-${variant}`} aria-disabled={disabled}>
+    {text}
+  </a>
+) : (
+  <button class={`btn btn-${variant}`} disabled={disabled}>
+    {text}
+  </button>
+)}
+```
+
+### 传递 Props
+
+```astro
+---
+import Button from '../components/Button.astro';
+import Card from '../components/Card.astro';
+---
+
+<!-- 基础用法 -->
+<Button text="点击我" href="/about" />
+
+<!-- 动态传递 -->
+<Button text={isLoggedIn ? '个人中心' : '登录'} variant="primary" />
+
+<!-- 传递对象（使用 spread） -->
+<Card
+  title="文章标题"
+  description="文章描述"
+  image="/cover.jpg"
+  tags={['Astro', 'Web']}
+/>
+```
+
+### 获取剩余 Props
+
+```astro
+---
+const { title, ...rest } = Astro.props;
+---
+
+<div class="card" {...rest}>
+  <h2>{title}</h2>
+</div>
+```
+
+## 插槽（Slot）机制
+
+插槽是 Astro 组件化设计的重要一环，允许父组件向子组件注入动态内容。
+
+### 默认插槽
+
+```astro
+---
+// src/components/Modal.astro
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+---
+
+<div class="modal-overlay">
+  <div class="modal">
+    <header class="modal-header">
+      <h2>{title}</h2>
+      <button aria-label="关闭">×</button>
+    </header>
+    <!-- 插槽：接收父组件传入的内容 -->
+    <div class="modal-body">
+      <slot />
+    </div>
+    <footer class="modal-footer">
+      <slot name="footer" />
+    </footer>
+  </div>
+</div>
+```
+
+### 具名插槽
+
+```astro
+---
+// src/pages/index.astro
+import Modal from '../components/Modal.astro';
+---
+
+<Modal title="用户协议">
+  <p>这里是协议正文内容...</p>
+
+  <!-- 具名插槽：使用 slot="name" 指令 -->
+  <div slot="footer">
+    <button>拒绝</button>
+    <button>同意</button>
+  </div>
+</Modal>
+```
+
+### 插槽回退内容
+
+```astro
+---
+// 如果父组件没有传入插槽内容，显示默认内容
+---
+
+<div class="content">
+  <slot>
+    <p>默认内容（父组件未传入时显示）</p>
+  </slot>
+</div>
+```
+
+## 导入子组件与静态资源
+
+### 导入 Astro 组件
+
+```astro
+---
+// src/layouts/BaseLayout.astro
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import '../styles/global.css';  // 导入全局样式
+---
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><slot name="title">默认标题</slot></title>
+  </head>
+  <body>
+    <Header />
+    <main>
+      <slot />  <!-- 默认插槽 -->
+    </main>
+    <Footer />
+  </body>
+</html>
+```
+
+### 导入静态资源
+
+```astro
+---
+// src/components/Logo.astro
+
+// 导入图片（Vite 会自动处理，返回优化后的 URL）
+import logo from '../assets/logo.png';
+import heroImage from '../assets/hero.jpg';
+
+// 导入 SVG 图标（内联使用）
+import iconArrow from '../icons/arrow.svg?raw';  // ?raw 返回原始字符串
+---
+
+<!-- 图片：使用导入的变量 -->
+<img src={logo.src} alt="Logo" width={logo.width} height={logo.height} />
+
+<!-- Hero 图片 -->
+<img src={heroImage.src} alt="Hero" class="hero-img" />
+
+<!-- SVG 内联 -->
+<Fragment set:html={iconArrow} />
+```
+
+> **注意**：Astro 5 推荐使用 `?raw` 查询参数来内联 SVG，而不是直接作为 `<img>` 标签使用，这样可以更好地控制样式。
+
+## 样式作用域
+
+Astro 组件中的 `<style>` 标签默认是**作用域化**的，样式只对当前组件生效，不会污染全局。
+
+### 基本用法
+
+```astro
+---
+const theme = 'blue';
+---
+
+<div class={`container theme-${theme}`}>
+  <h1>标题</h1>
+  <p>正文内容</p>
+</div>
+
+<style>
+  /* 作用域样式 */
+  .container {
+    padding: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 2rem;
+    color: #1040C0;
+    font-family: 'Outfit', sans-serif;
+  }
+
+  p {
+    line-height: 1.6;
+    color: #333;
+  }
+
+  /* 使用 CSS 变量 */
+  .theme-blue h1 { color: #1040C0; }
+  .theme-red h1 { color: #D02020; }
+  .theme-yellow h1 { color: #F0C020; }
+</style>
+```
+
+### 全局样式
+
+```astro
+<style>
+  /* 使用 :global() 让样式穿透到全局 */
+  :global(body) {
+    margin: 0;
+    font-family: 'Outfit', sans-serif;
+    background: #f5f5f5;
+  }
+
+  /* 全局 CSS 变量 */
+  :global(:root) {
+    --primary-color: #1040C0;
+    --accent-color: #D02020;
+  }
+</style>
+```
+
+### 导入外部样式
+
+```astro
+---
+// 在 frontmatter 中导入 CSS 文件
+import '../styles/components.css';
+import '../styles/utilities.css';
+---
+
+<div class="utilities-demo">
+  <p class="text-primary">主色文字</p>
+  <p class="text-accent">强调色文字</p>
+</div>
+```
+
+## 完整示例：文章卡片组件
+
+```astro
+---
+// src/components/ArticleCard.astro
+interface Props {
+  title: string;
+  description: string;
+  pubDate: Date;
+  url: string;
+  category: string;
+}
+
+const { title, description, pubDate, url, category } = Astro.props;
+
+// 格式化日期
+const formattedDate = pubDate.toLocaleDateString('zh-CN', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+---
+
+<article class="article-card">
+  <div class="card-header">
+    <span class="category-tag">{category}</span>
+    <time datetime={pubDate.toISOString()}>{formattedDate}</time>
+  </div>
+
+  <h2 class="card-title">
+    <a href={url}>{title}</a>
+  </h2>
+
+  <p class="card-description">{description}</p>
+
+  <a href={url} class="read-more">
+    阅读全文
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M5 12h14M12 5l7 7-7 7"/>
+    </svg>
+  </a>
+</article>
+
+<style>
+  .article-card {
+    background: white;
+    border: 3px solid #121212;
+    box-shadow: 6px 6px 0 0 #121212;
+    padding: 1.5rem;
+    transition: transform 0.15s ease;
+  }
+
+  .article-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 8px 8px 0 0 #121212;
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+  }
+
+  .category-tag {
+    background: #1040C0;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+
+  .card-title {
+    margin: 0 0 0.75rem;
+    font-size: 1.25rem;
+    line-height: 1.3;
+  }
+
+  .card-title a {
+    color: #121212;
+    text-decoration: none;
+  }
+
+  .card-title a:hover {
+    color: #D02020;
+  }
+
+  .card-description {
+    color: #555;
+    line-height: 1.6;
+    margin: 0 0 1rem;
+  }
+
+  .read-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #1040C0;
+    text-decoration: none;
+    font-weight: bold;
+  }
+
+  .read-more:hover {
+    color: #D02020;
+  }
+</style>
+```
+
+## 总结
+
+本文深入讲解了 Astro 组件的核心概念：
+
+- **三要素结构**：Frontmatter（构建时执行）、模板（JSX 类语法）、样式（作用域化）
+- **Props 机制**：TypeScript 接口定义、`Astro.props` 解构、具名插槽与默认插槽
+- **模板语法**：表达式插值 `{}`、条件渲染、列表渲染
+- **样式隔离**：`<style>` 作用域化、`:global()` 全局穿透
+
+掌握这些基础后，你已经可以构建功能完整的 Astro 页面组件。下一篇文章我们将学习 **内容集合（Content Collections）**，掌握 Astro 5 强大的结构化内容管理能力。

@@ -1,0 +1,543 @@
+---
+title: API 端点与后端集成
+description: 掌握 Astro API 端点的创建与 HTTP 方法处理、动态路由参数、JSON/FormData 请求接收、SSR 与 prerender 配置、CORS 设置、统一错误响应格式，以及 Stripe、邮件发送等第三方集成实践。
+pubDate: 2026-04-12
+category: Astro
+tags: [astro, 前端, api]
+author: AI-Writer
+readingTime: 22
+planId: astro5-api-endpoints
+---
+
+# API 端点与后端集成
+
+Astro 支持构建 API 端点，通过 `src/pages/api/` 目录下的 TypeScript 文件提供 REST API 功能。结合 SSR 或 Hybrid 模式，可以实现表单处理、数据存储、第三方 API 集成等后端能力。
+
+## 基本 API 端点
+
+### 创建 API 文件
+
+API 端点文件放在 `src/pages/api/` 目录下，默认支持 SSR 模式。
+
+```typescript
+// src/pages/api/hello.ts
+import type { APIRoute } from 'astro';
+
+export const GET: APIRoute = async () => {
+  return new Response(
+    JSON.stringify({ message: 'Hello, Astro API!' }),
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+};
+```
+
+访问 `/api/hello` 将返回 JSON 响应。
+
+### 路由文件命名
+
+```
+src/pages/api/
+├── hello.ts          → /api/hello
+├── users.ts          → /api/users
+├── users/
+│   └── [id].ts       → /api/users/:id
+└── [...path].ts      → /api/*
+```
+
+## HTTP 方法处理
+
+### 多方法处理
+
+```typescript
+// src/pages/api/users.ts
+import type { APIRoute } from 'astro';
+
+// 模拟数据库
+const users = [
+  { id: 1, name: 'Alice', email: 'alice@example.com' },
+  { id: 2, name: 'Bob', email: 'bob@example.com' },
+];
+
+export const GET: APIRoute = async () => {
+  return new Response(JSON.stringify(users), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+
+export const POST: APIRoute = async ({ request }) => {
+  try {
+    const body = await request.json();
+    const newUser = {
+      id: users.length + 1,
+      name: body.name,
+      email: body.email,
+    };
+    users.push(newUser);
+
+    return new Response(JSON.stringify(newUser), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch {
+    return new Response(
+      JSON.stringify({ error: 'Invalid request body' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+};
+```
+
+### 动态路由参数
+
+```typescript
+// src/pages/api/users/[id].ts
+import type { APIRoute } from 'astro';
+
+const users = [
+  { id: '1', name: 'Alice', email: 'alice@example.com' },
+  { id: '2', name: 'Bob', email: 'bob@example.com' },
+];
+
+export const GET: APIRoute = async ({ params }) => {
+  const { id } = params;
+  const user = users.find(u => u.id === id);
+
+  if (!user) {
+    return new Response(
+      JSON.stringify({ error: 'User not found' }),
+      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  return new Response(JSON.stringify(user), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+
+export const PUT: APIRoute = async ({ params, request }) => {
+  const { id } = params;
+  const body = await request.json();
+
+  const userIndex = users.findIndex(u => u.id === id);
+  if (userIndex === -1) {
+    return new Response(
+      JSON.stringify({ error: 'User not found' }),
+      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  users[userIndex] = { ...users[userIndex], ...body };
+
+  return new Response(JSON.stringify(users[userIndex]), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+
+export const DELETE: APIRoute = async ({ params }) => {
+  const { id } = params;
+  const userIndex = users.findIndex(u => u.id === id);
+
+  if (userIndex === -1) {
+    return new Response(
+      JSON.stringify({ error: 'User not found' }),
+      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  users.splice(userIndex, 1);
+
+  return new Response(null, { status: 204 });
+};
+```
+
+## 处理请求数据
+
+### 接收 JSON
+
+```typescript
+// src/pages/api/submit.ts
+import type { APIRoute } from 'astro';
+
+export const POST: APIRoute = async ({ request }) => {
+  try {
+    const data = await request.json();
+
+    // 验证必填字段
+    if (!data.email || !data.name) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: email, name' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 处理数据
+    await saveToDatabase(data);
+
+    return new Response(
+      JSON.stringify({ success: true, message: 'Data saved' }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid JSON' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+};
+```
+
+### 接收 FormData
+
+```typescript
+// src/pages/api/contact.ts
+import type { APIRoute } from 'astro';
+
+export const POST: APIRoute = async ({ request }) => {
+  try {
+    const formData = await request.formData();
+
+    const name = formData.get('name')?.toString() ?? '';
+    const email = formData.get('email')?.toString() ?? '';
+    const message = formData.get('message')?.toString() ?? '';
+
+    // 验证
+    if (!name || !email || !message) {
+      return new Response(
+        JSON.stringify({ error: 'All fields are required' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 发送邮件或保存数据
+    await sendEmail({ name, email, message });
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: 'Failed to process form' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+};
+```
+
+### 接收 URL 参数
+
+```typescript
+// src/pages/api/search.ts
+import type { APIRoute } from 'astro';
+
+export const GET: APIRoute = async ({ url }) => {
+  const query = url.searchParams.get('q') ?? '';
+  const page = parseInt(url.searchParams.get('page') ?? '1', 10);
+  const limit = parseInt(url.searchParams.get('limit') ?? '10', 10);
+
+  if (!query) {
+    return new Response(
+      JSON.stringify({ error: 'Missing query parameter: q' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // 模拟搜索
+  const results = await searchArticles({ query, page, limit });
+
+  return new Response(
+    JSON.stringify({
+      results,
+      pagination: { page, limit, hasMore: results.length === limit },
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+    }
+  );
+};
+```
+
+## SSR 与 Prerender
+
+### API 端点的渲染模式
+
+```typescript
+// src/pages/api/data.ts
+import type { APIRoute } from 'astro';
+
+// 强制 SSR（按需渲染）
+export const prerender = false;
+
+export const GET: APIRoute = async () => {
+  const data = await fetchFromDatabase();
+
+  return new Response(JSON.stringify(data), {
+    headers: {
+      'Content-Type': 'application/json',
+      // 缓存 5 分钟
+      'Cache-Control': 'public, max-age=300',
+    },
+  });
+};
+```
+
+### 与 Hybrid 模式配合
+
+```javascript
+// astro.config.mjs
+export default defineConfig({
+  output: 'hybrid',  // 默认静态
+  adapter: node({ mode: 'standalone' }),
+});
+```
+
+```typescript
+// src/pages/api/analytics.ts
+// 明确声明为 SSR
+export const prerender = false;
+
+export const POST: APIRoute = async ({ request }) => {
+  const data = await request.json();
+  await analytics.track(data);
+
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+```
+
+## CORS 配置
+
+### 手动设置 CORS 头
+
+```typescript
+// src/pages/api/public-data.ts
+import type { APIRoute } from 'astro';
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export const GET: APIRoute = async () => {
+  return new Response(
+    JSON.stringify({ message: 'Public data' }),
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        ...CORS_HEADERS,
+      },
+    }
+  );
+};
+
+// 处理 OPTIONS 预检请求
+export const OPTIONS: APIRoute = async () => {
+  return new Response(null, {
+    status: 204,
+    headers: CORS_HEADERS,
+  });
+};
+```
+
+### 全局 CORS 中间件
+
+```typescript
+// src/middleware.ts
+import { defineMiddleware } from 'astro:middleware';
+
+export const onRequest = defineMiddleware(async (context, next) => {
+  // API 路由添加 CORS 头
+  if (context.url.pathname.startsWith('/api/')) {
+    const response = await next();
+
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    return response;
+  }
+
+  return next();
+});
+```
+
+## 错误处理
+
+### 统一错误响应格式
+
+```typescript
+// src/utils/api.ts
+export function jsonResponse<T>(data: T, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+export function errorResponse(message: string, status = 400): Response {
+  return jsonResponse({ error: message }, status);
+}
+
+export function notFound(message = 'Resource not found'): Response {
+  return errorResponse(message, 404);
+}
+
+export function serverError(message = 'Internal server error'): Response {
+  return errorResponse(message, 500);
+}
+```
+
+### 在端点中使用
+
+```typescript
+// src/pages/api/users/[id].ts
+import type { APIRoute } from 'astro';
+import { jsonResponse, errorResponse, notFound } from '../../utils/api';
+
+export const GET: APIRoute = async ({ params }) => {
+  const { id } = params;
+
+  try {
+    const user = await getUserById(id);
+
+    if (!user) {
+      return notFound('User not found');
+    }
+
+    return jsonResponse(user);
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return errorResponse('Failed to fetch user', 500);
+  }
+};
+```
+
+## 第三方 API 集成
+
+### 集成示例：Stripe 支付
+
+```typescript
+// src/pages/api/create-payment-intent.ts
+import type { APIRoute } from 'astro';
+import Stripe from 'stripe';
+
+export const prerender = false;
+
+const stripe = new Stripe(import.meta.env.STRIPE_SECRET_KEY);
+
+export const POST: APIRoute = async ({ request }) => {
+  try {
+    const { amount, currency = 'cny' } = await request.json();
+
+    if (!amount || amount <= 0) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid amount' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100), // Stripe 使用分
+      currency,
+    });
+
+    return new Response(
+      JSON.stringify({
+        clientSecret: paymentIntent.client_secret,
+      }),
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Stripe error:', error);
+    return new Response(
+      JSON.stringify({ error: 'Failed to create payment intent' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+};
+```
+
+### 集成示例：发送邮件
+
+```typescript
+// src/pages/api/contact.ts
+import type { APIRoute } from 'astro';
+import nodemailer from 'nodemailer';
+
+export const prerender = false;
+
+export const POST: APIRoute = async ({ request }) => {
+  try {
+    const { name, email, message } = await request.json();
+
+    // 配置邮件发送
+    const transporter = nodemailer.createTransport({
+      host: import.meta.env.SMTP_HOST,
+      port: parseInt(import.meta.env.SMTP_PORT ?? '587', 10),
+      auth: {
+        user: import.meta.env.SMTP_USER,
+        pass: import.meta.env.SMTP_PASS,
+      },
+    });
+
+    // 发送邮件
+    await transporter.sendMail({
+      from: import.meta.env.SMTP_FROM,
+      to: import.meta.env.CONTACT_EMAIL,
+      subject: `新联系表单消息：${name}`,
+      html: `
+        <h2>收到新消息</h2>
+        <p><strong>姓名：</strong>${name}</p>
+        <p><strong>邮箱：</strong>${email}</p>
+        <p><strong>内容：</strong></p>
+        <p>${message}</p>
+      `,
+    });
+
+    return new Response(
+      JSON.stringify({ success: true, message: 'Email sent' }),
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Email error:', error);
+    return new Response(
+      JSON.stringify({ error: 'Failed to send email' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+};
+```
+
+## 与 Next.js API Routes 对比
+
+| 特性 | Astro API 端点 | Next.js API Routes |
+|------|--------------|-------------------|
+| 文件位置 | `src/pages/api/*.ts` | `pages/api/*.ts` 或 `app/api/*.ts` |
+| 方法导出 | `GET`, `POST` 等命名导出 | `GET`, `POST` 等命名导出 |
+| 响应方式 | `Response` 对象 | `NextResponse` 对象 |
+| Prerender | `export const prerender = false` | 取决于路由配置 |
+| 静态生成 | 不支持（API 需 SSR）| 取决于配置 |
+| 请求上下文 | 通过参数解构获取 | 通过参数解构获取 |
+
+## 总结
+
+本文全面介绍了 Astro API 端点的使用方法：
+
+- **基本端点**：RESTful API 的创建与 HTTP 方法处理
+- **动态路由**：`[id].ts` 和 `[...path].ts` 实现参数化路由
+- **请求处理**：JSON、FormData、URL 参数的接收与验证
+- **渲染模式**：`prerender = false` 启用 SSR
+- **CORS 配置**：通过响应头或中间件处理跨域
+- **错误处理**：统一错误响应格式
+- **第三方集成**：Stripe、邮件发送等真实场景示例
+
+下一篇文章我们将学习本系列的最后一篇：**部署与适配器**，掌握将 Astro 项目部署到各种托管平台的方法。

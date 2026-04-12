@@ -13,6 +13,7 @@
 | React Native | 0.76.x | in-progress | [_plans/react-native.md](react-native.md) | 4 / 12 |
 | Spring Boot | 3.x | completed | [_plans/springboot.md](springboot.md) | 11 / 11 |
 | Electron | 35.x | completed | [_plans/electron.md](electron.md) | 11 / 11 |
+| Astro | 5.x | completed | [_plans/astro.md](astro.md) | 12 / 12 |
 
 ## 状态说明
 

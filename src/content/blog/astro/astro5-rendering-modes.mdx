@@ -1,0 +1,406 @@
+---
+title: 渲染模式：SSG / SSR / 混合渲染
+description: 深入解析 Astro 的三种渲染模式：静态生成 SSG、服务器端渲染 SSR、混合渲染 Hybrid，以及 prerender 配置、适配器体系和混合模式下的缓存策略。
+pubDate: 2026-04-12
+category: Astro
+tags: [astro, 前端, 渲染模式]
+author: AI-Writer
+readingTime: 18
+planId: astro5-rendering-modes
+---
+
+# 渲染模式：SSG / SSR / 混合渲染
+
+Astro 支持三种渲染模式，决定页面是在构建时预渲染为静态 HTML，还是在收到请求时动态生成。Astro 5 的混合模式（Hybrid）让静态和动态页面可以在同一项目中和谐共存。
+
+## 三种渲染模式概述
+
+| 模式 | `output` 值 | 渲染时机 | 适用场景 |
+|------|------------|---------|---------|
+| **静态（SSG）** | `'static'` | 构建时 | 内容为主的网站、博客、文档 |
+| **服务器（SSR）** | `'server'` | 请求时 | 需要实时数据的应用、电商、用户面板 |
+| **混合（Hybrid）** | `'hybrid'` | 混合 | 大部分静态 + 少量动态页面 |
+
+## 静态生成（output: 'static'）
+
+静态生成是 Astro 的默认渲染模式，所有页面在构建时预渲染为 HTML 文件。
+
+### 配置
+
+```javascript
+// astro.config.mjs
+export default defineConfig({
+  output: 'static', // 默认值，可省略
+});
+```
+
+### 特点
+
+- **构建时渲染**：所有页面在 `pnpm build` 时生成
+- **极快的加载速度**：服务器只需提供静态文件
+- **无限的可扩展性**：适合 CDN 分发
+- **不适合动态内容**：无法访问请求上下文（cookies、headers）
+
+### 使用场景
+
+- 博客、个人网站、公司官网
+- 文档站点（GitBook、VuePress 替代品）
+- 营销落地页
+
+## 服务器端渲染（output: 'server'）
+
+SSR 模式下，页面在收到用户请求时实时渲染。需要配置**适配器**（Adapter）来指定服务器运行环境。
+
+### 安装适配器
+
+```bash
+# Node.js 适配器
+pnpm add @astrojs/node
+
+# Vercel 适配器
+pnpm add @astrojs/vercel
+
+# Netlify 适配器
+pnpm add @astrojs/netlify
+
+# Cloudflare Pages 适配器
+pnpm add @astrojs/cloudflare
+```
+
+### Node.js 适配器配置
+
+```javascript
+// astro.config.mjs
+import node from '@astrojs/node';
+
+export default defineConfig({
+  output: 'server',
+  adapter: node({
+    mode: 'standalone', // standalone 或 middleware
+  }),
+});
+```
+
+### SSR 页面示例
+
+```astro
+---
+// src/pages/api/user-profile.ts
+// 这是一个 SSR 端点
+
+export const prerender = false; // 明确声明为 SSR（可选，因为 server 模式下默认即为 SSR）
+---
+
+import type { APIRoute } from 'astro';
+
+export const GET: APIRoute = async ({ params, request }) => {
+  // 读取请求头
+  const authHeader = request.headers.get('Authorization');
+
+  // 获取 URL 参数
+  const url = new URL(request.url);
+  const userId = url.searchParams.get('id');
+
+  // 获取 cookie
+  const cookies = request.headers.get('cookie');
+
+  // 从数据库或 API 获取数据
+  const userData = await fetchUserById(userId);
+
+  return new Response(JSON.stringify(userData), {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+};
+```
+
+## 混合渲染（output: 'hybrid'）
+
+混合模式是 Astro 5 的核心优势之一：在同一个项目中，大部分页面静态预渲染，少数页面按需 SSR。
+
+### 配置
+
+```javascript
+// astro.config.mjs
+import node from '@astrojs/node';
+
+export default defineConfig({
+  output: 'hybrid', // 默认所有页面静态
+  adapter: node({
+    mode: 'standalone',
+  }),
+});
+```
+
+### 单页面控制渲染策略
+
+```astro
+---
+// src/pages/index.astro
+// 默认静态，无需额外配置
+
+const posts = await getCollection('blog');
+---
+
+<h1>博客列表（静态预渲染）</h1>
+<ul>
+  {posts.map(post => <li>{post.data.title}</li>)}
+</ul>
+```
+
+```astro
+---
+// src/pages/dashboard.astro
+// 需要 SSR，按需渲染
+
+export const prerender = false; // 覆盖默认配置，启用 SSR
+
+const { user } = await getUserFromSession(Astro.request);
+if (!user) {
+  return Astro.redirect('/login');
+}
+---
+
+<h1>用户面板</h1>
+<p>欢迎，{user.name}！</p>
+```
+
+```astro
+---
+// src/pages/api/analytics.ts
+// API 端点必须 SSR
+
+export const prerender = false;
+---
+
+import type { APIRoute } from 'astro';
+
+export const POST: APIRoute = async ({ request }) => {
+  const data = await request.json();
+
+  // 记录访问数据
+  await analyticsService.track(data);
+
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+```
+
+## prerender 配置详解
+
+### 页面级别配置
+
+```astro
+---
+// src/pages/about.astro
+// 静态（默认行为）
+export const prerender = true; // 显式声明
+---
+
+<h1>关于我们（静态）</h1>
+```
+
+```astro
+---
+// src/pages/profile.astro
+// 动态（按需渲染）
+export const prerender = false;
+---
+
+<h1>用户资料（SSR）</h1>
+```
+
+### API 路由配置
+
+```typescript
+// src/pages/api/submit.ts
+import type { APIRoute } from 'astro';
+
+export const prerender = false;
+
+export const POST: APIRoute = async ({ request }) => {
+  const formData = await request.formData();
+  const email = formData.get('email');
+
+  // 处理表单提交
+  await saveSubscription(email);
+
+  return new Response(JSON.stringify({ success: true }), {
+    status: 200,
+  });
+};
+```
+
+### 中间件级别配置
+
+```typescript
+// src/middleware.ts
+import { defineMiddleware } from 'astro:middleware';
+
+export const onRequest = defineMiddleware(async (context, next) => {
+  // 在 SSR 模式下，可以访问完整的请求上下文
+  const { pathname } = context.url;
+  const session = context.cookies.get('session');
+
+  // 为需要认证的页面添加保护
+  if (pathname.startsWith('/admin') && !session) {
+    return context.redirect('/login');
+  }
+
+  return next();
+});
+```
+
+## 适配器概念
+
+适配器将 Astro 的 SSR 输出适配到不同的服务器环境。
+
+### 常用适配器
+
+| 适配器 | 包名 | 运行环境 |
+|-------|------|---------|
+| Node.js | `@astrojs/node` | Node.js 服务器 |
+| Vercel | `@astrojs/vercel` | Vercel Serverless |
+| Netlify | `@astrojs/netlify` | Netlify Functions/Edge |
+| Cloudflare | `@astrojs/cloudflare` | Cloudflare Workers/Pages |
+| Deno | `@astrojs/deno` | Deno Deploy |
+
+### Vercel 适配器配置
+
+```javascript
+// astro.config.mjs
+import vercel from '@astrojs/vercel/serverless';
+
+export default defineConfig({
+  output: 'hybrid',
+  adapter: vercel({
+    // 边缘函数（Edge Functions）
+    edgeMiddleware: true,
+    // 图像优化服务
+    imageService: true,
+  }),
+});
+```
+
+### Netlify 适配器配置
+
+```javascript
+import netlify from '@astrojs/netlify';
+
+export default defineConfig({
+  output: 'hybrid',
+  adapter: netlify(),
+});
+```
+
+## 缓存策略
+
+在混合模式下，合理配置缓存策略对性能至关重要。
+
+### 静态资源缓存
+
+```javascript
+// astro.config.mjs
+export default defineConfig({
+  build: {
+    // 静态资源在构建时生成
+    assets: 'assets',
+  },
+});
+```
+
+### SSR 页面缓存（通过响应头）
+
+```typescript
+// src/pages/api/data.ts
+export const prerender = false;
+
+export const GET: APIRoute = async ({ request }) => {
+  const data = await fetchData();
+
+  return new Response(JSON.stringify(data), {
+    headers: {
+      'Content-Type': 'application/json',
+      // 缓存 5 分钟
+      'Cache-Control': 'public, max-age=300',
+    },
+  });
+};
+```
+
+### 动态页面不缓存
+
+```astro
+---
+// src/pages/dashboard.astro
+export const prerender = false;
+
+// 动态页面不应该被缓存
+// Cache-Control 头在中间件中设置为 no-cache
+---
+
+<h1>用户面板</h1>
+```
+
+### CDN 边缘缓存
+
+```javascript
+// 使用 Vercel 适配器时的边缘缓存
+// vercel.json
+{
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    }
+  ]
+}
+```
+
+## 与 Next.js 的对比
+
+| 特性 | Astro | Next.js |
+|------|-------|---------|
+| 默认渲染 | SSG（静态） | SSG |
+| SSR 配置 | `output: 'server'` | `getServerSideProps` |
+| ISR/混合 | `output: 'hybrid'` | `output: 'standalone'` |
+| 静态页面中的 SSR | `prerender = false` | 不支持 |
+| 适配器 | 外部适配器 | 内置 |
+
+> **关键区别**：Astro 的 `hybrid` 模式允许同一项目中部分页面静态、部分页面动态，而 Next.js 的 App Router 默认采用不同的架构策略。
+
+## 选择渲染模式的建议
+
+```
+项目类型                    推荐模式
+─────────────────────────────────────────────────
+博客 / 文档 / 文档站点         static（默认）
+营销页面 / 落地页             static（默认）
+电商产品列表                  hybrid（分类筛选 SSR）
+电商产品详情                  static（数据在构建时获取）
+用户面板 / 仪表盘             server
+实时数据 / API               server
+社区论坛                     hybrid
+```
+
+## 总结
+
+本文深入解析了 Astro 的三种渲染模式：
+
+- **SSG（static）**：构建时预渲染，适合内容为主的网站，性能最优
+- **SSR（server）**：按需渲染，适合需要实时数据的应用
+- **Hybrid（hybrid）**：静态 + 动态共存，Astro 的核心优势
+- **prerender**：`export const prerender = false` 控制单页渲染策略
+- **适配器**：适配不同服务器环境（Vercel、Netlify、Cloudflare、Node.js）
+
+下一篇文章我们将学习 **岛屿架构与部分水合**，理解 Astro "默认零 JS" 的设计哲学和交互组件的集成方式。
