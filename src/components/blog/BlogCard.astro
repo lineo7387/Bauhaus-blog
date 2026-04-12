@@ -5,20 +5,20 @@ interface Props {
   title: string;
   excerpt: string;
   date: Date;
-  slug: string;
+  id: string;
   image?: string;
   category: string;
   categoryIndex?: number;
 }
 
-const { title, excerpt, date, slug, image, category, categoryIndex } = Astro.props;
+const { title, excerpt, date, id, image, category, categoryIndex } = Astro.props;
 ---
 
 <Card
   title={title}
   excerpt={excerpt}
   date={date}
-  slug={slug}
+  id={id}
   image={image}
   category={category}
   categoryIndex={categoryIndex}

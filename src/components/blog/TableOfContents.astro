@@ -37,9 +37,9 @@ const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
   }
 
   .toc-inner {
-    background: #fff;
-    border: 2px solid #121212;
-    border-left: 4px solid #1040C0;
+    background: var(--color-white);
+    border: 2px solid var(--color-foreground);
+    border-left: 4px solid var(--color-primary-blue);
     padding: 1rem;
     max-height: calc(100vh - 8rem);
     overflow-y: auto;
@@ -51,28 +51,28 @@ const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
   }
 
   .toc-inner::-webkit-scrollbar-track {
-    background: #F0C020;
-    border-left: 1px solid #121212;
+    background: var(--color-primary-yellow);
+    border-left: 1px solid var(--color-foreground);
   }
 
   .toc-inner::-webkit-scrollbar-thumb {
-    background: #121212;
+    background: var(--color-foreground);
   }
 
   .toc .toc-inner::-webkit-scrollbar-thumb:hover {
-    background: #D02020;
+    background: var(--color-primary-red);
   }
 
   .toc-header {
-    font-family: 'Outfit', sans-serif;
+    font-family: var(--font-family-outfit);
     font-size: 0.75rem;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: #121212;
+    color: var(--color-foreground);
     margin-bottom: 0.75rem;
     padding-bottom: 0.5rem;
-    border-bottom: 2px solid #121212;
+    border-bottom: 2px solid var(--color-foreground);
   }
 
   .toc-list {
@@ -86,27 +86,27 @@ const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
     padding: 0.375rem 0.75rem;
     font-size: 0.875rem;
     font-weight: 600;
-    color: #121212;
+    color: var(--color-foreground);
     text-decoration: none;
     border-left: 3px solid transparent;
     transition: all 0.15s ease;
   }
 
   .toc-link:hover {
-    background-color: #F0C020;
-    border-left-color: #1040C0;
+    background-color: var(--color-primary-yellow);
+    border-left-color: var(--color-primary-blue);
   }
 
   .toc-link.active {
-    background-color: #F0C020;
-    border-left-color: #D02020;
+    background-color: var(--color-primary-yellow);
+    border-left-color: var(--color-primary-red);
     font-weight: 800;
   }
 
   .toc-depth-3 .toc-link {
     padding-left: 1.5rem;
     font-size: 0.8rem;
-    color: #121212cc;
+    color: color-mix(in srgb, var(--color-foreground) 80%, transparent);
   }
 </style>
 

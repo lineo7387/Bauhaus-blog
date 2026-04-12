@@ -1,6 +1,6 @@
 ---
-import { getCollection } from "astro:content";
 import BlogCard from "./BlogCard.astro";
+import { getCategoryIndex } from "../../utils/post";
 
 interface PostItem {
   id: string;
@@ -28,42 +28,31 @@ const gridCols = {
   3: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
 };
 
-const planEntries = await getCollection("plans");
-
-function getCategoryIndex(
-  postId: string,
-  planId: string | undefined,
-  category: string,
-): number {
-  const plan = planEntries.find((p) => p.data.skill === category);
-  if (plan?.data.planOrder && planId) {
-    const idx = plan.data.planOrder.indexOf(planId);
-    if (idx !== -1) return idx + 1;
-  }
-  // fallback: 按 pubDate 排序位置
-  return (
-    allPosts
-      .filter((p) => p.data.category === category)
-      .findIndex((p) => p.id === postId) + 1
-  );
-}
+// Pre-compute category indices in frontmatter (where await is allowed)
+const postsWithIndex = await Promise.all(
+  posts.map(async (post) => ({
+    post,
+    categoryIndex: await getCategoryIndex(
+      post.id,
+      post.data.planId,
+      post.data.category,
+      allPosts,
+    ),
+  }))
+);
 ---
 
 <div class={`grid ${gridCols[columns]} gap-8`}>
   {
-    posts.map((post) => (
+    postsWithIndex.map(({ post, categoryIndex }) => (
       <BlogCard
         title={post.data.title}
         excerpt={post.data.description}
         date={post.data.pubDate}
-        slug={post.id}
+        id={post.id}
         image={post.data.heroImage}
         category={post.data.category}
-        categoryIndex={getCategoryIndex(
-          post.id,
-          post.data.planId,
-          post.data.category,
-        )}
+        categoryIndex={categoryIndex}
       />
     ))
   }

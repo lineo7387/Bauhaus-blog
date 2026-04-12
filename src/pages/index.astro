@@ -34,15 +34,14 @@ const recentPosts = sortedPosts
           <h1
             class="text-5xl sm:text-6xl lg:text-8xl font-black uppercase tracking-tighter leading-[0.9] text-black mb-6"
           >
-            Form<br />
-            <span class="text-primary-red">Follows</span><br />
-            Function
+            Code<br />
+            <span class="text-primary-red">Meets</span><br />
+            Design
           </h1>
           <p
             class="text-lg font-medium text-black/70 leading-relaxed mb-8 max-w-md"
           >
-            Explore the timeless principles of Bauhaus design. Where geometric
-            purity meets modern web craft.
+            A personal tech blog exploring web development, design systems, and the craft of building modern applications.
           </p>
           <div class="flex flex-wrap gap-4">
             <Button href={`${BASE}/blog`} variant="primary" size="lg">
@@ -117,7 +116,7 @@ const recentPosts = sortedPosts
             title={featuredPost.data.title}
             excerpt={featuredPost.data.description}
             date={featuredPost.data.pubDate}
-            slug={featuredPost.id}
+            id={featuredPost.id}
             image={featuredPost.data.heroImage}
             category={featuredPost.data.category}
             author={featuredPost.data.author}
@@ -155,13 +154,11 @@ const recentPosts = sortedPosts
           <h2
             class="text-4xl md:text-5xl font-black uppercase tracking-tight text-black mb-6 leading-[0.95]"
           >
-            Design Meets<br />
-            <span class="text-primary-blue">Code</span>
+            Building<br />
+            <span class="text-primary-blue">with Care</span>
           </h2>
           <p class="text-lg font-medium text-black/70 leading-relaxed mb-8">
-            We explore the intersection of timeless design principles and modern
-            web development. Every article is crafted to help you create better,
-            more meaningful digital experiences.
+            I write about web development, design systems, and the craft of building meaningful digital experiences. Every article is crafted to help you create better, more thoughtful applications.
           </p>
           <Button href={`${BASE}/about`} variant="secondary" size="lg">
             Our Story
@@ -213,8 +210,7 @@ const recentPosts = sortedPosts
         Stay Updated
       </h2>
       <p class="text-lg font-medium text-white/80 mb-8">
-        Get the latest design insights delivered to your inbox. No spam, just
-        thoughtful content.
+        Get the latest articles on web development and design delivered to your inbox. No spam, just thoughtful content.
       </p>
       <form id="newsletter-form" class="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
         <input
@@ -226,7 +222,7 @@ const recentPosts = sortedPosts
         <Button type="submit" variant="yellow" size="lg"> Subscribe </Button>
       </form>
       <p class="text-sm font-medium text-white/60 mt-4">
-        Join 1,000+ designers and developers
+        Join developers learning together
       </p>
     </div>
   </section>

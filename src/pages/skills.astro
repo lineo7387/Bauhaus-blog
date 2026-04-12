@@ -1,286 +1,161 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Button from '../components/ui/Button.astro';
+import { getCollection } from 'astro:content';
 import { BASE } from '../utils/base';
+import { CATEGORY_COLORS } from '../config/category-colors';
+import { getSkillDisplayName } from '../utils/post';
 
-const skillCategories = [
-  {
-    name: 'Design',
-    color: 'primary-red',
-    skills: [
-      { name: 'UI Design', level: 5 },
-      { name: 'Typography', level: 5 },
-      { name: 'Color Theory', level: 4 },
-      { name: 'Layout Design', level: 5 }
-    ]
-  },
-  {
-    name: 'Development',
-    color: 'primary-blue',
-    skills: [
-      { name: 'Astro', level: 4 },
-      { name: 'Tailwind CSS', level: 5 },
-      { name: 'JavaScript', level: 4 },
-      { name: 'TypeScript', level: 3 }
-    ]
-  },
-  {
-    name: 'Tools',
-    color: 'primary-yellow',
-    skills: [
-      { name: 'Figma', level: 4 },
-      { name: 'VS Code', level: 5 },
-      { name: 'Git', level: 4 },
-      { name: 'Design Systems', level: 4 }
-    ]
+const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+const plans = await getCollection('plans');
+
+// 构建栏目数据（含进度）
+const categories = allPosts.reduce((acc, post) => {
+  const cat = post.data.category;
+  if (!acc[cat]) {
+    acc[cat] = { count: 0, planIds: new Set<string>() };
   }
-];
-
-const expertiseAreas = [
-  {
-    title: 'Design Systems',
-    description: 'Building scalable, consistent design systems that align with brand identity and user needs.',
-    icon: 'square'
-  },
-  {
-    title: 'Responsive Web',
-    description: 'Creating fluid layouts that work flawlessly across all devices and screen sizes.',
-    icon: 'circle'
-  },
-  {
-    title: 'Performance',
-    description: 'Optimizing websites for speed and efficiency without sacrificing visual quality.',
-    icon: 'triangle'
-  },
-  {
-    title: 'Accessibility',
-    description: 'Ensuring digital products are usable by everyone, regardless of ability.',
-    icon: 'square'
+  acc[cat].count++;
+  if (post.data.planId) {
+    acc[cat].planIds.add(post.data.planId);
   }
-];
+  return acc;
+}, {} as Record<string, { count: number; planIds: Set<string> }>);
 
-const timeline = [
-  {
-    type: 'education',
-    title: 'Design Fundamentals',
-    organization: 'Bauhaus School',
-    year: '2019',
-    description: 'Studied core principles of form follows function and geometric design'
-  },
-  {
-    type: 'work',
-    title: 'Frontend Developer',
-    organization: 'Creative Agency',
-    year: '2020 - 2022',
-    description: 'Built responsive websites and design systems for clients'
-  },
-  {
-    type: 'work',
-    title: 'Design Engineer',
-    organization: 'Current Role',
-    year: '2022 - Present',
-    description: 'Bridging design and development to create exceptional web experiences'
-  }
-];
+// 按名称排序
+const sortedCategories = Object.entries(categories)
+  .map(([name, data]) => {
+    const plan = plans.find(p => p.data.skill?.toLowerCase() === name.toLowerCase());
+    // completedInPlan: 有 planId 且在路线图计划内的文章数
+    // totalInPlan: 路线图计划的总项目数
+    const completedInPlan = plan
+      ? [...data.planIds].filter(id => plan.data.planOrder?.includes(id)).length
+      : 0;
+    const totalInPlan = plan ? (plan.data.total ?? plan.data.planOrder?.length ?? 0) : 0;
+    return {
+      name,
+      count: data.count,
+      completedInPlan,
+      totalInPlan,
+      hasPlan: !!plan,
+    };
+  })
+  .sort((a, b) => a.name.localeCompare(b.name));
 
-const getShapeClass = (shape: string) => {
-  switch(shape) {
-    case 'circle': return 'shape-circle';
-    case 'square': return 'shape-square';
-    case 'triangle': return 'shape-triangle';
-    default: return 'shape-square';
-  }
-};
-
-const getLevelBars = (level: number) => {
-  return Array.from({ length: 5 }, (_, i) => i < level);
-};
 ---
 
-<BaseLayout title="Skills" description="Explore our expertise in design and development, from UI design to modern web technologies.">
+<BaseLayout title="Skills" description="Browse all skill categories and their articles.">
   <!-- Hero Section -->
-  <section class="relative bg-primary-yellow border-b-4 border-black overflow-hidden">
+  <section class="relative bg-foreground border-b-4 border-black overflow-hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
-      <div class="grid lg:grid-cols-2 gap-12 items-center">
+      <div class="grid lg:grid-cols-2 gap-12 items-end">
         <div>
-          <span class="inline-block bg-black text-xs font-bold uppercase tracking-widest text-white px-3 py-1 mb-6">
-            Expertise
+          <span class="inline-block bg-primary-yellow text-xs font-bold uppercase tracking-widest text-black px-3 py-1 mb-6">
+            All Categories
           </span>
-          <h1 class="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter text-black leading-[0.9]">
-            Our<br/>
-            <span class="text-primary-red">Skills</span>
+          <h1 class="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter text-white leading-[0.9]">
+            Skill<br />
+            <span class="text-primary-yellow">Categories</span>
           </h1>
         </div>
-        <div class="text-black/80">
-          <p class="text-lg font-medium leading-relaxed">
-            From geometric design principles to modern web technologies, we bring a multidisciplinary
-            approach to every project. Explore our expertise below.
+        <div class="text-white/70">
+          <p class="text-lg font-medium">
+            {sortedCategories.length} skill{sortedCategories.length !== 1 ? 's' : ''} · {allPosts.length} article{allPosts.length !== 1 ? 's' : ''} total
           </p>
         </div>
       </div>
     </div>
     <!-- Geometric decorations -->
-    <div class="absolute top-8 right-8 w-16 h-16 bg-primary-red shape-circle border-4 border-black"></div>
-    <div class="absolute bottom-8 left-1/4 w-12 h-12 bg-primary-blue shape-square border-4 border-black rotate-12"></div>
-    <div class="absolute top-1/3 right-1/4 w-8 h-8 bg-foreground shape-triangle"></div>
+    <div class="absolute top-8 right-8 w-16 h-16 bg-primary-red shape-circle border-2 border-white/20"></div>
+    <div class="absolute bottom-8 left-1/4 w-12 h-12 bg-primary-yellow shape-square border-2 border-white/20 rotate-45"></div>
   </section>
 
-  <!-- Skills Grid Section -->
+  <!-- Categories Grid -->
   <section class="bg-white border-b-4 border-black py-16 lg:py-24">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {skillCategories.map((category) => (
-          <div class="relative">
-            <!-- Category Header -->
-            <div class={`mb-6 pb-4 border-b-4 border-black
-              ${category.color === 'primary-red' ? 'bg-primary-red' : ''}
-              ${category.color === 'primary-blue' ? 'bg-primary-blue' : ''}
-              ${category.color === 'primary-yellow' ? 'bg-primary-yellow' : ''}
-            `}>
-              <h2 class={`text-2xl font-black uppercase tracking-tight p-4
-                ${category.color === 'primary-yellow' ? 'text-black' : 'text-white'}
-              `}>
-                {category.name}
-              </h2>
-            </div>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {sortedCategories.map((cat) => {
+          const colors = CATEGORY_COLORS[cat.name.toLowerCase()] ?? CATEGORY_COLORS['python'];
+          const displayName = getSkillDisplayName(cat.name);
+          const progress = cat.hasPlan
+            ? Math.round((cat.completedInPlan / cat.totalInPlan) * 100)
+            : 100;
 
-            <!-- Skills List -->
-            <div class="space-y-4">
-              {category.skills.map((skill) => (
-                <div class="bg-background border-4 border-black p-4 shadow-hard-md card-lift relative">
-                  <!-- Corner decoration -->
-                  <div class={`absolute top-2 right-2 w-3 h-3
-                    ${category.color === 'primary-red' ? 'bg-primary-red' : ''}
-                    ${category.color === 'primary-blue' ? 'bg-primary-blue' : ''}
-                    ${category.color === 'primary-yellow' ? 'bg-primary-yellow' : ''}
-                    ${category.color === 'primary-red' ? 'shape-circle' : ''}
-                    ${category.color === 'primary-blue' ? 'shape-square' : ''}
-                    ${category.color === 'primary-yellow' ? 'shape-triangle' : ''}
-                  `}></div>
+          return (
+            <a
+              href={`${BASE}/skills/${cat.name}`}
+              class={`group relative border-4 border-black p-6 shadow-hard-md card-lift overflow-hidden flex flex-col
+                ${colors.bg}
+                ${colors.text.includes('foreground') ? 'text-foreground' : 'text-white'}
+              `}
+            >
+              <!-- Geometric decoration (top-right) -->
+              <div class="absolute top-3 right-3 w-5 h-5 border-2 border-current opacity-20 shape-circle"></div>
 
-                  <div class="flex justify-between items-center mb-2">
-                    <span class="font-bold uppercase tracking-wide text-sm">{skill.name}</span>
-                  </div>
-
-                  <!-- Level indicator -->
-                  <div class="flex gap-1">
-                    {getLevelBars(skill.level).map((filled) => (
-                      <div class={`w-6 h-3 border-2 border-black ${filled ? (category.color === 'primary-red' ? 'bg-primary-red' : category.color === 'primary-blue' ? 'bg-primary-blue' : 'bg-primary-yellow') : 'bg-white'}`}></div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  </section>
-
-  <!-- Expertise Highlights Section -->
-  <section class="bg-primary-blue border-b-4 border-black py-16 lg:py-24">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <h2 class="text-3xl md:text-4xl font-black uppercase tracking-tight text-white mb-12">
-        What We Do Best
-      </h2>
-      <div class="grid md:grid-cols-2 gap-8">
-        {expertiseAreas.map((area, index) => (
-          <article class="bg-white border-4 border-black shadow-hard-lg p-8 card-lift">
-            <div class="flex items-start gap-6">
-              <div class={`w-16 h-16 flex-shrink-0 border-4 border-black flex items-center justify-center
-                ${area.icon === 'circle' ? 'bg-primary-yellow shape-circle' : ''}
-                ${area.icon === 'square' ? 'bg-primary-red shape-square' : ''}
-                ${area.icon === 'triangle' ? 'bg-white shape-triangle' : ''}
-              `}>
-                <span class="font-black text-2xl text-black">
-                  {index + 1}
-                </span>
-              </div>
-              <div>
-                <h3 class="text-xl font-black uppercase tracking-tight text-black mb-3">
-                  {area.title}
-                </h3>
-                <p class="text-sm font-medium text-black/70 leading-relaxed">
-                  {area.description}
+              <!-- Content -->
+              <div class="flex-1">
+                <h2 class="text-xl md:text-2xl font-black uppercase tracking-tight mb-1">
+                  {displayName}
+                </h2>
+                <p class={`text-xs font-medium opacity-70 mb-4`}>
+                  {cat.count} article{cat.count !== 1 ? 's' : ''}
                 </p>
               </div>
-            </div>
-          </article>
-        ))}
-      </div>
-    </div>
-  </section>
 
-  <!-- Timeline Section -->
-  <section class="bg-white border-b-4 border-black py-16 lg:py-24">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <h2 class="text-3xl md:text-4xl font-black uppercase tracking-tight text-black mb-12 text-center">
-        Experience
-      </h2>
-
-      <div class="relative">
-        <!-- Timeline line -->
-        <div class="absolute left-4 md:left-1/2 top-0 bottom-0 w-4 bg-muted border-2 border-black transform md:-translate-x-1/2"></div>
-
-        <!-- Timeline items -->
-        <div class="space-y-12">
-          {timeline.map((item, index) => (
-            <div class={`relative flex flex-col md:flex-row gap-8 items-start md:items-center
-              ${index % 2 === 0 ? 'md:flex-row-reverse' : ''}
-            `}>
-              <!-- Content -->
-              <div class={`flex-1 ml-12 md:ml-0
-                ${index % 2 === 0 ? 'md:pr-12 md:text-right' : 'md:pl-12'}
-              `}>
-                <div class="bg-background border-4 border-black shadow-hard-md p-6 card-lift">
-                  <span class="inline-block bg-black text-xs font-bold uppercase tracking-widest text-white px-2 py-1 mb-2">
-                    {item.type}
-                  </span>
-                  <h3 class="text-lg font-black uppercase tracking-tight text-black mb-1">
-                    {item.title}
-                  </h3>
-                  <p class="text-sm font-bold text-black/70 mb-2">
-                    {item.organization} • {item.year}
-                  </p>
-                  <p class="text-sm font-medium text-black/60 leading-relaxed">
-                    {item.description}
-                  </p>
+              <!-- Progress section (at bottom, with space for arrow) -->
+              {cat.hasPlan ? (
+                <div class="mt-auto pr-8">
+                  <!-- Segmented progress bar (always 10 blocks) -->
+                  <div class="flex gap-1 mb-2">
+                    {Array.from({ length: 10 }, (_, i) => {
+                      const filled = i < Math.round((cat.completedInPlan / cat.totalInPlan) * 10);
+                      return (
+                        <div
+                          class={`flex-1 h-3 border-2 border-black transition-all duration-300
+                            ${filled ? 'bg-current' : 'bg-transparent'}
+                          `}
+                        ></div>
+                      );
+                    })}
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class={`text-xs font-bold uppercase tracking-wider opacity-70`}>
+                      {cat.completedInPlan}/{cat.totalInPlan}
+                    </span>
+                    <span class={`text-xs font-black opacity-90`}>
+                      {progress}%
+                    </span>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div class="mt-auto h-6"></div>
+              )}
 
-              <!-- Marker -->
-              <div class={`absolute left-4 md:left-1/2 w-8 h-8 border-4 border-black transform md:-translate-x-1/2 z-10
-                ${item.type === 'education' ? 'bg-primary-yellow shape-circle' : 'bg-primary-red shape-square'}
-              `}>
-                <div class={`absolute inset-1 border-2 border-black
-                  ${item.type === 'education' ? 'bg-white shape-circle' : 'bg-white shape-square rotate-45'}
-                `}></div>
+              <!-- Arrow indicator (positioned in the reserved right space) -->
+              <div class="absolute bottom-4 right-4 w-6 h-6 border-2 border-current flex items-center justify-center group-hover:bg-black group-hover:border-black transition-all">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="square" stroke-width="3" d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
               </div>
-
-              <!-- Spacer for alternating layout -->
-              <div class="hidden md:block flex-1"></div>
-            </div>
-          ))}
-        </div>
+            </a>
+          );
+        })}
       </div>
     </div>
   </section>
 
   <!-- CTA Section -->
-  <section class="bg-foreground border-b-4 border-black py-16 lg:py-24">
+  <section class="bg-muted border-b-4 border-black py-16 lg:py-24">
     <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-      <h2 class="text-3xl md:text-4xl font-black uppercase tracking-tight text-white mb-6">
-        Interested in Working Together?
+      <h2 class="text-3xl md:text-4xl font-black uppercase tracking-tight text-black mb-6">
+        Looking for Something Specific?
       </h2>
-      <p class="text-lg font-medium text-white/70 mb-8">
-        Whether you need a stunning website or a complete design system, let's create something exceptional.
+      <p class="text-lg font-medium text-black/70 mb-8">
+        Browse all articles or search by keyword.
       </p>
       <div class="flex flex-wrap justify-center gap-4">
-        <Button href={`${BASE}/contact`} variant="yellow" size="lg">
-          Get in Touch
-        </Button>
-        <Button href={`${BASE}/blog`} variant="outline" size="lg">
-          Read the Blog
+        <Button href={`${BASE}/blog`} variant="primary" size="lg">
+          Browse All Articles
         </Button>
       </div>
     </div>

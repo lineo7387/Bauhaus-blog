@@ -1,0 +1,92 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import BlogList from '../../components/blog/BlogList.astro';
+import { getCollection } from 'astro:content';
+import { BASE } from '../../utils/base';
+import { getSkillDisplayName } from '../../utils/post';
+
+export async function getStaticPaths() {
+  const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+  const categories = [...new Set(allPosts.map((post) => post.data.category))];
+
+  return categories.map((category) => ({
+    params: { skill: category },
+  }));
+}
+
+const { skill } = Astro.params;
+
+if (!skill) {
+  return Astro.redirect(`${BASE}/skills`);
+}
+
+// 获取该栏目下的所有文章
+const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+const skillPosts = allPosts
+  .filter((post) => post.data.category.toLowerCase() === skill.toLowerCase())
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+
+const displayName = getSkillDisplayName(skill);
+const pageTitle = `${displayName} Articles`;
+---
+
+<BaseLayout title={pageTitle} description={`Browse all ${displayName} articles and tutorials.`}>
+  <!-- Hero Section -->
+  <section class="relative bg-foreground border-b-4 border-black overflow-hidden">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
+      <div class="grid lg:grid-cols-2 gap-12 items-end">
+        <div>
+          <a
+            href={`${BASE}/skills`}
+            class="inline-flex items-center gap-2 text-white/60 hover:text-primary-yellow transition-colors text-sm font-bold uppercase tracking-wider mb-6"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="square" stroke-width="3" d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            All Skills
+          </a>
+          <h1 class="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter text-white leading-[0.9]">
+            {displayName}
+          </h1>
+        </div>
+        <div class="text-white/70">
+          <p class="text-lg font-medium">
+            {skillPosts.length} article{skillPosts.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      </div>
+    </div>
+    <!-- Geometric decorations -->
+    <div class="absolute top-8 right-8 w-16 h-16 bg-primary-yellow shape-circle border-2 border-white/20"></div>
+    <div class="absolute bottom-8 left-1/4 w-12 h-12 bg-primary-red shape-square border-2 border-white/20 rotate-12"></div>
+  </section>
+
+  <!-- Posts Grid -->
+  <section class="bg-white border-b-4 border-black py-16 lg:py-24">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {skillPosts.length > 0 ? (
+        <BlogList posts={skillPosts} columns={3} allPosts={skillPosts} />
+      ) : (
+        <div class="text-center py-24">
+          <div class="w-24 h-24 mx-auto mb-8 bg-muted border-4 border-black shape-circle flex items-center justify-center">
+            <svg class="w-12 h-12 text-black/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="square" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h2 class="text-2xl font-black uppercase tracking-tight text-black mb-4">
+            No Articles Yet
+          </h2>
+          <p class="text-lg font-medium text-black/60 mb-8">
+            This skill category doesn't have any articles yet.
+          </p>
+          <a
+            href={`${BASE}/skills`}
+            class="inline-block px-8 py-4 bg-primary-blue text-white border-4 border-black font-bold uppercase text-sm hover:bg-primary-blue/90 transition-colors shadow-hard"
+          >
+            Browse Other Skills
+          </a>
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>

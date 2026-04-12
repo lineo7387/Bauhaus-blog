@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import BlogCard from './BlogCard.astro';
+import { getCategoryIndex } from '../../utils/post';
 
 interface Props {
   currentCategory: string;
@@ -16,17 +17,6 @@ const relatedPosts = allPosts
   .sort(() => Math.random() - 0.5)
   .slice(0, 3);
 
-const planEntries = await getCollection("plans");
-
-function getCatIndex(postId: string, planId: string | undefined, category: string): number {
-  const plan = planEntries.find(p => p.data.skill === category);
-  if (plan?.data.planOrder && planId) {
-    const idx = plan.data.planOrder.indexOf(planId);
-    if (idx !== -1) return idx + 1;
-  }
-  return allPosts.filter(p => p.data.category === category).findIndex(p => p.id === postId) + 1;
-}
-
 // If not enough, get other posts
 if (relatedPosts.length < 2) {
   const otherPosts = allPosts
@@ -35,25 +25,33 @@ if (relatedPosts.length < 2) {
     .slice(0, 3 - relatedPosts.length);
   relatedPosts.push(...otherPosts);
 }
+
+// Pre-compute category indices in frontmatter (where await is allowed)
+const postsWithIndex = await Promise.all(
+  relatedPosts.map(async (post) => ({
+    post,
+    categoryIndex: await getCategoryIndex(post.id, post.data.planId, post.data.category, allPosts),
+  }))
+);
 ---
 
-{relatedPosts.length > 0 && (
+{postsWithIndex.length > 0 && (
   <section class="bg-primary-blue py-16 border-b-4 border-black">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <h2 class="text-2xl md:text-3xl font-black uppercase tracking-tight text-white mb-8">
         Related Articles
       </h2>
       <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {relatedPosts.map(post => (
+        {postsWithIndex.map(({ post, categoryIndex }) => (
           <div class="blog-card">
             <BlogCard
               title={post.data.title}
               excerpt={post.data.description}
               date={post.data.pubDate}
-              slug={post.id}
+              id={post.id}
               image={post.data.heroImage}
               category={post.data.category}
-              categoryIndex={getCatIndex(post.id, post.data.planId, post.data.category)}
+              categoryIndex={categoryIndex}
             />
           </div>
         ))}
