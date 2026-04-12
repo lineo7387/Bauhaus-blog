@@ -95,6 +95,39 @@
 }
 
 /* ============================================
+   View Transitions 页面切换动画
+   ============================================ */
+
+/* 旧页面：淡出 */
+::view-transition-old(root) {
+  animation: 200ms ease-out both fade-out;
+}
+
+/* 新页面：淡入 */
+::view-transition-new(root) {
+  animation: 250ms ease-in both fade-in;
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+/* ============================================
    Markdown / Prose 元素自定义样式 (Bauhaus)
    ============================================ */
 

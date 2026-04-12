@@ -14,29 +14,36 @@ const buildUrl = (category: string) => {
   }
   return `${BASE}/blog/${category.toLowerCase()}`;
 };
+
+const isAllActive = !activeCategory;
 ---
 
 <div class="flex flex-wrap gap-3" id="category-filter">
-  <a
-    href={buildUrl('all')}
-    class={`font-bold uppercase text-sm px-4 py-2 border-2 border-black transition-all btn-press
-      ${!activeCategory
-        ? 'bg-primary-yellow text-black shadow-hard-sm'
-        : 'bg-white text-black hover:bg-muted shadow-hard-sm'
-      }`}
-  >
-    All
-  </a>
-  {categories.map(category => (
+  {isAllActive ? (
+    <span class="font-bold uppercase text-sm px-4 py-2 border-2 border-black bg-primary-yellow text-black shadow-hard-sm cursor-default">
+      All
+    </span>
+  ) : (
     <a
-      href={buildUrl(category)}
-      class={`font-bold uppercase text-sm px-4 py-2 border-2 border-black transition-all btn-press
-        ${activeCategory.toLowerCase() === category.toLowerCase()
-          ? 'bg-primary-yellow text-black shadow-hard-sm'
-          : 'bg-white text-black hover:bg-muted shadow-hard-sm'
-        }`}
+      href={buildUrl('all')}
+      class="font-bold uppercase text-sm px-4 py-2 border-2 border-black bg-white text-black hover:bg-muted shadow-hard-sm transition-all btn-press"
     >
-      {category}
+      All
     </a>
-  ))}
+  )}
+  {categories.map(category => {
+    const isActive = activeCategory.toLowerCase() === category.toLowerCase();
+    return isActive ? (
+      <span class="font-bold uppercase text-sm px-4 py-2 border-2 border-black bg-primary-yellow text-black shadow-hard-sm cursor-default">
+        {category}
+      </span>
+    ) : (
+      <a
+        href={buildUrl(category)}
+        class="font-bold uppercase text-sm px-4 py-2 border-2 border-black bg-white text-black hover:bg-muted shadow-hard-sm transition-all btn-press"
+      >
+        {category}
+      </a>
+    );
+  })}
 </div>

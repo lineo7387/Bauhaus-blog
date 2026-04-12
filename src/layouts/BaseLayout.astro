@@ -1,6 +1,7 @@
 ---
 import Header from "../components/layout/Header.astro";
 import Footer from "../components/layout/Footer.astro";
+import { ClientRouter } from "astro:transitions";
 import "../styles/global.css";
 import { BASE } from "../utils/base";
 
@@ -30,6 +31,7 @@ const {
     <link rel="canonical" href={Astro.url.href} />
     <link rel="icon" type="image/svg+xml" href={`${BASE}/favicon.svg`} />
     <title>{title} | Bauhaus Blog</title>
+    <ClientRouter />
   </head>
   <body>
     <Header />
@@ -37,5 +39,29 @@ const {
       <slot />
     </main>
     <Footer />
+    <script is:inline define:vars={{ BASE }}>
+      // 阻止点击同页面链接触发 ClientRouter 导航
+      // 在 astro:page-load 时注册，保证只在首次加载时添加一次
+      function blockSamePageNav(e) {
+        var target = e.target.closest ? e.target.closest('a') : null;
+        if (!target) return;
+        var href = target.href;
+        if (!href) return;
+        try {
+          var url = new URL(href, location.href);
+          if (url.pathname === location.pathname && url.search === location.search) {
+            e.preventDefault();
+            if (url.hash) {
+              var el = document.querySelector(url.hash);
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }
+          }
+        } catch (err) {}
+      }
+      document.addEventListener('astro:page-load', function () {
+        // 首次加载时注册
+        document.addEventListener('click', blockSamePageNav, true);
+      }, { once: true });
+    </script>
   </body>
 </html>
