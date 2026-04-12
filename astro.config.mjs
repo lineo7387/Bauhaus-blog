@@ -11,7 +11,7 @@ import remarkDirectiveRehype from 'remark-directive-rehype';
 export default defineConfig({
   output: 'static',
   site: 'https://lineo7387.github.io',
-  base: '/Bauhaus-blog',
+  base: '/',
   integrations: [
     mdx({
       remarkPlugins: [remarkDirective, remarkDirectiveRehype],

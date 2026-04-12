@@ -26,6 +26,7 @@ const plans = defineCollection({
     title: z.string().optional(),
     skill: z.string().optional(),
     planOrder: z.array(z.string()).optional(),
+    total: z.number().optional(),
   }),
 });
 

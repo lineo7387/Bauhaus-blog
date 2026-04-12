@@ -1,0 +1,83 @@
+#!/usr/bin/env node
+/**
+ * post-commit hook: 每次 git commit 后自动同步 _index.md 的文章计数和状态
+ *
+ * 安装方法：
+ *   cp .git-hooks/post-commit .git/hooks/post-commit
+ *   chmod +x .git/hooks/post-commit
+ *
+ * 或在 .git/hooks/ 目录创建符号链接：
+ *   ln -s ../../.git-hooks/post-commit .git/hooks/post-commit
+ */
+
+import { readFileSync, writeFileSync, readdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PLANS_DIR = join(__dirname, '../src/content/_plans');
+const INDEX_FILE = join(PLANS_DIR, '_index.md');
+
+function countPlanItems(skillFile) {
+  const content = readFileSync(skillFile, 'utf-8');
+  const totalMatches = content.match(/^- \[.\] /gm) || [];
+  const completedMatches = content.match(/^- \[✅\] /gm) || [];
+  const planOrderMatch = content.match(/^planOrder:$/m);
+
+  // 从 planOrder 数组计算总数（更精确）
+  let planOrderTotal = 0;
+  if (planOrderMatch) {
+    const afterPlanOrder = content.slice(content.indexOf(planOrderMatch[0]));
+    const items = afterPlanOrder.match(/^\s+-\s+\S+/gm) || [];
+    // 只取 planOrder 数组内的项，遇到下一个顶级标题停止
+    let stopped = false;
+    for (const item of items) {
+      if (stopped) break;
+      if (item.match(/^\s+-\s+\S+/)) planOrderTotal++;
+    }
+  }
+
+  const total = planOrderTotal > 0 ? planOrderTotal : totalMatches.length;
+  const completed = completedMatches.length;
+
+  return { total, completed };
+}
+
+function getStatus(completed, total) {
+  if (completed === 0) return 'planning';
+  if (completed === total) return 'completed';
+  return 'in-progress';
+}
+
+function syncIndex() {
+  const indexContent = readFileSync(INDEX_FILE, 'utf-8');
+
+  // 读取所有 plan 文件（排除 _index.md 自身）
+  const files = readdirSync(PLANS_DIR).filter(f => f.endsWith('.md') && f !== '_index.md');
+
+  // 更新每行的计数和状态
+  let updated = indexContent;
+
+  for (const file of files) {
+    const skillName = file.replace('.md', '');
+    const skillFile = join(PLANS_DIR, file);
+    const { total, completed } = countPlanItems(skillFile);
+    const status = getStatus(completed, total);
+
+    // 匹配表格中该技能的行（格式：| 技能名 | 版本 | 状态 | ... | N / M |）
+    const lineRegex = new RegExp(
+      `(\\| ${skillName} \\| [^|]+\\| )([^|]+)(\\| [^|]+\\| )(\\d+)( / \\d+\\|)`,
+      'g'
+    );
+
+    updated = updated.replace(lineRegex, (match, beforeStatus, oldStatus, afterCount, oldCompleted, afterTotal) => {
+      const newCount = `${completed} / ${total}`;
+      return `${beforeStatus}${status}${afterCount}${newCount}`;
+    });
+  }
+
+  writeFileSync(INDEX_FILE, updated, 'utf-8');
+  console.log('[post-commit] _index.md 已同步');
+}
+
+syncIndex();

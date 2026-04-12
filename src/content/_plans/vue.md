@@ -4,6 +4,7 @@ description: 从基础到进阶的系统化学习路径，涵盖 Vue 3 核心概
 skill: vue
 version: "3.x"
 status: completed
+total: 12
 createdAt: 2026-04-08
 updatedAt: 2026-04-11
 planOrder:

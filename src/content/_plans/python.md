@@ -4,6 +4,7 @@ description: 从基础到进阶的系统化学习路径，涵盖 Python 3 核心
 skill: python
 version: "3.13"
 status: completed
+total: 16
 updatedAt: 2026-04-10
 planOrder:
   - python-environment-setup
