@@ -1,0 +1,365 @@
+---
+title: 接口与类型别名
+description: 深入讲解 TypeScript 中接口的声明合并、可选属性、只读属性，以及类型别名与接口的选择策略
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, interfaces, type-aliases]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: interfaces-type-aliases
+---
+
+# 接口与类型别名
+
+**接口**（Interface）和**类型别名**（Type Alias）是 TypeScript 中描述对象结构的两种主要方式。虽然它们在很多场景下可以互换，但各有特点和适用场景。
+
+## 接口基础
+
+接口用于定义对象的**结构契约**：
+
+```typescript
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  age?: number;      // 可选属性
+  readonly createdAt: Date; // 只读属性
+}
+
+const alice: User = {
+  id: 1,
+  name: "Alice",
+  email: "alice@example.com",
+  createdAt: new Date()
+};
+
+// alice.createdAt = new Date(); // ❌ 错误：readonly 属性
+```
+
+### 可选属性
+
+用 `?` 标记可选属性：
+
+```typescript
+interface Config {
+  host: string;
+  port: number;
+  database?: string;    // 可选
+  ssl?: boolean;        // 可选，默认 undefined
+  timeout?: number;    // 可选，默认 undefined
+}
+
+// ✅ 不需要提供所有可选属性
+const config: Config = {
+  host: "localhost",
+  port: 5432
+};
+```
+
+### 只读属性
+
+用 `readonly` 标记不可修改的属性：
+
+```typescript
+interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
+const origin: Point = { x: 0, y: 0 };
+// origin.x = 10; // ❌ 错误
+
+// 但可以将整个对象替换
+const anotherOrigin: Point = { x: 5, y: 5 }; // ✅ 重新赋值
+```
+
+## 类型别名
+
+类型别名使用 `type` 关键字，为任意类型起一个别名：
+
+```typescript
+// 基本语法
+type ID = string | number;
+type Point = { x: number; y: number };
+type StringArray = string[];
+
+// 联合类型别名
+type Status = "pending" | "approved" | "rejected";
+type Result<T> = { success: true; data: T } | { success: false; error: string };
+
+function handle<T>(result: Result<T>) {
+  if (result.success) {
+    console.log(result.data); // ✅ 类型收窄
+  } else {
+    console.error(result.error);
+  }
+}
+```
+
+## 接口 vs 类型别名
+
+| 特性 | 接口 | 类型别名 |
+|------|------|----------|
+| 对象结构 | ✅ | ✅ |
+| 联合类型 | ❌ | ✅ |
+| 交叉类型 | ❌（需 extends） | ✅ |
+| 声明合并 | ✅ | ❌ |
+| 计算属性 | ✅ | ✅ |
+| 扩展（extends） | ✅ | ✅（需 &） |
+
+### 接口的优势：声明合并
+
+多个同名接口会自动合并，这在扩展第三方库类型时非常有用：
+
+```typescript
+// 首次定义
+interface Window {
+  ga: (command: string, ...args: any[]) => void;
+}
+
+// 后续扩展（不会覆盖，而是合并）
+interface Window {
+  plausible: (command: string, ...args: any[]) => void;
+}
+
+// 最终 Window 包含两个属性
+window.ga("trackPageView");
+window.plausible("pageview");
+
+// 类型别名无法合并
+// type Window = { ... } // ❌ 重复标识符错误
+```
+
+> **实战应用**：扩展第三方模块时必须使用接口。
+
+### 类型别名的优势：联合类型与复杂类型
+
+```typescript
+// 联合类型（接口做不到）
+type StringOrNumber = string | number;
+type Callback = () => void | Promise<void>;
+
+// 条件类型（别名专长）
+type NonNullable<T> = T extends null | undefined ? never : T;
+
+// 映射类型（别名专长）
+type Readonly<T> = { readonly [P in keyof T]: T[P] };
+```
+
+## 接口扩展（extends）
+
+接口可以继承其他接口，实现代码复用：
+
+```typescript
+interface Animal {
+  name: string;
+}
+
+interface Dog extends Animal {
+  breed: string;
+  bark(): void;
+}
+
+interface GuideDog extends Dog {
+  certified: boolean;
+  owner: string;
+}
+
+const rex: GuideDog = {
+  name: "Rex",
+  breed: "German Shepherd",
+  certified: true,
+  owner: "Alice",
+  bark() {
+    console.log("Woof!");
+  }
+};
+```
+
+### 多重继承
+
+```typescript
+interface A {
+  a: string;
+}
+
+interface B {
+  b: number;
+}
+
+interface C extends A, B {
+  c: boolean;
+}
+
+const c: C = {
+  a: "hello",
+  b: 42,
+  c: true
+};
+```
+
+## 类型别名与接口的交叉组合
+
+```typescript
+// 类型别名 + 交叉类型
+type Base = {
+  id: number;
+  createdAt: Date;
+};
+
+type Admin = Base & {
+  permissions: string[];
+};
+
+type Guest = Base & {
+  invitationCode: string;
+};
+
+type User = Admin | Guest;
+```
+
+## 函数签名
+
+### 接口中的函数类型
+
+```typescript
+interface CompareFunction {
+  (a: number, b: number): number;
+}
+
+const ascending: CompareFunction = (a, b) => a - b;
+const descending: CompareFunction = (a, b) => b - a;
+```
+
+### 调用签名（Callable Interface）
+
+```typescript
+interface Counter {
+  (start: number): string;    // 调用签名
+  reset(): void;              // 方法
+  value: number;              // 属性
+}
+
+function createCounter(): Counter {
+  let value = 0;
+  const counter = ((start: number) => {
+    value = start;
+    return String(value);
+  }) as Counter;
+
+  counter.reset = () => { value = 0; };
+  counter.value = value;
+
+  return counter;
+}
+
+const counter = createCounter();
+counter(10);       // 调用
+counter.reset();  // 方法调用
+console.log(counter.value); // 属性访问
+```
+
+## 索引签名
+
+当对象的属性名动态变化时，使用**索引签名**：
+
+```typescript
+// 字符串索引签名
+interface StringMap {
+  [key: string]: string;
+}
+
+const map: StringMap = {
+  name: "Alice",
+  email: "alice@example.com",
+  // 可以添加任意字符串键
+  custom: "value"
+};
+
+// 数字索引签名（数组的基础）
+interface NumberArray {
+  [index: number]: string;
+}
+
+const arr: NumberArray = ["a", "b", "c"];
+console.log(arr[0]); // "a"
+```
+
+### 混合索引签名
+
+```typescript
+interface Hybrid {
+  [key: string]: string | number; // 索引签名类型
+  length: number;                  // 特定属性
+  name: string;                   // 特定属性
+  // TypeScript 会自动推断 length/name 与索引签名兼容
+}
+
+function describe(h: Hybrid): string {
+  return `${h.name} (length: ${h.length})`;
+}
+```
+
+## 映射属性修饰符
+
+在接口定义中使用 `readonly` 和 `?` 修饰索引签名：
+
+```typescript
+interface ReadonlyStringMap {
+  readonly [key: string]: string; // 只读
+}
+
+interface OptionalStringMap {
+  [key: string]?: string; // ❌ 索引签名不能是可选的
+}
+```
+
+## 最佳实践
+
+### 选择接口的场景
+
+```typescript
+// 1. 需要声明合并（扩展第三方库）
+// 2. 需要被类 implements
+// 3. 定义公开 API 的结构
+interface ComponentProps {
+  className?: string;
+  onClick?: () => void;
+}
+
+// 4. 需要描述一个「对象形状」
+interface User {
+  id: number;
+  name: string;
+}
+```
+
+### 选择类型别名的场景
+
+```typescript
+// 1. 联合类型
+type Status = "loading" | "success" | "error";
+
+// 2. 元组
+type RGB = [number, number, number];
+
+// 3. 函数类型
+type Handler = (event: Event) => void;
+
+// 4. 条件类型、映射类型
+type KeysOf<T> = keyof T;
+
+// 5. 复杂计算类型
+type DeepReadonly<T> = {
+  readonly [P in keyof T]: T[P] extends object ? DeepReadonly<T[P]> : T[P];
+};
+```
+
+## 总结
+
+- **接口**擅长描述对象结构，支持**声明合并**，适合公开 API 和需要被 `implements` 的场景
+- **类型别名**更灵活，可表达联合类型、元组、函数类型、条件类型等复杂类型
+- **实战经验**：大部分场景两者可互换，优先选择语义上更清晰的写法
+- **扩展规则**：被类 `implements` 时用接口；组合联合类型时用类型别名

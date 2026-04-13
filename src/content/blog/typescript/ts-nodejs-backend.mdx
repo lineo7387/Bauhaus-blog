@@ -1,0 +1,440 @@
+---
+title: TypeScript + Node.js 后端实践
+description: 深入讲解 Node.js 类型定义、Express/Koa 类型扩展、环境变量类型化、zod 数据校验与 drizzle-orm 类型安全等后端实践
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, nodejs, express, koa, drizzle-orm]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 18
+planId: ts-nodejs-backend
+---
+
+# TypeScript + Node.js 后端实践
+
+TypeScript 在 Node.js 后端开发中能显著提升代码质量与可维护性。本文涵盖类型定义、环境变量、主流框架集成与 ORM 类型安全等核心实践。
+
+## Node.js 内置类型
+
+### 安装类型定义
+
+```bash
+npm install --save-dev @types/node
+```
+
+### process.env 类型化
+
+```typescript
+// env.ts
+import 'dotenv/config'
+
+// 定义环境变量接口
+interface Env {
+  NODE_ENV: 'development' | 'production' | 'test'
+  PORT: string
+  DATABASE_URL: string
+  JWT_SECRET: string
+  JWT_EXPIRES_IN: string
+  REDIS_URL: string
+}
+
+// 通过 ProcessEnv 扩展
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv extends Env {}
+  }
+}
+
+// 安全地访问环境变量
+const config = {
+  nodeEnv: process.env.NODE_ENV ?? 'development',
+  port: parseInt(process.env.PORT ?? '3000', 10),
+  isProduction: process.env.NODE_ENV === 'production'
+}
+
+export { config }
+```
+
+### module 类型
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
+  }
+}
+```
+
+```typescript
+// utils/logger.ts
+export function formatDate(date: Date): string {
+  return date.toISOString()
+}
+
+// 调用方
+import { formatDate } from './utils/logger.js'
+```
+
+## Express 类型扩展
+
+### 基本类型
+
+```typescript
+// app.ts
+import express, { Request, Response, NextFunction } from 'express'
+
+const app = express()
+
+// Request 泛型参数：params、query、body、headers
+app.get('/users/:id', (req: Request, res: Response) => {
+  const userId = req.params.id // string
+  res.json({ userId })
+})
+
+// 带类型的 Request
+interface UserParams { id: string }
+interface UserQuery { page?: string; limit?: string }
+
+app.get<UserParams, any, any, UserQuery>(
+  '/users/:id',
+  (req, res) => {
+    const { id } = req.params // string
+    const { page = '1', limit = '10' } = req.query // string | undefined
+  }
+)
+```
+
+### 响应类型
+
+```typescript
+import { Request, Response } from 'express'
+
+// 统一的 API 响应类型
+interface ApiResponse<T> {
+  success: boolean
+  data?: T
+  error?: string
+  timestamp: string
+}
+
+function success<T>(res: Response, data: T): Response {
+  return res.json({
+    success: true,
+    data,
+    timestamp: new Date().toISOString()
+  } as ApiResponse<T>)
+}
+
+function error(res: Response, message: string, status = 500): Response {
+  return res.status(status).json({
+    success: false,
+    error: message,
+    timestamp: new Date().toISOString()
+  } as ApiResponse<never>)
+}
+
+// 使用
+app.get('/users/:id', async (req: Request, res: Response) => {
+  const user = await findUserById(req.params.id)
+  if (!user) return error(res, 'User not found', 404)
+  return success(res, user)
+})
+```
+
+### 中间件类型
+
+```typescript
+// middleware/auth.ts
+import { Request, Response, NextFunction } from 'express'
+
+interface AuthenticatedRequest extends Request {
+  userId?: string
+  userRole?: 'admin' | 'user'
+}
+
+export function authMiddleware(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void {
+  const token = req.headers.authorization?.replace('Bearer ', '')
+
+  if (!token) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  try {
+    const payload = verifyToken(token)
+    req.userId = payload.sub
+    req.userRole = payload.role
+    next()
+  } catch {
+    res.status(401).json({ error: 'Invalid token' })
+  }
+}
+
+// 使用中间件
+app.get('/profile', authMiddleware, (req: AuthenticatedRequest, res) => {
+  res.json({ userId: req.userId, role: req.userRole })
+})
+```
+
+## Koa 类型扩展
+
+```typescript
+// app.ts
+import Koa from 'koa'
+import Router from '@koa/router'
+
+const app = new Koa()
+const router = new Router()
+
+// 自定义上下文扩展
+interface AppState {
+  userId?: string
+}
+
+interface AppContext extends Koa.DefaultState, AppState {}
+interface AppBody extends Koa.DefaultState {}
+
+app.use(async (ctx: Koa.Context, next: Koa.Next) => {
+  try {
+    await next()
+  } catch (err: any) {
+    ctx.status = err.status ?? 500
+    ctx.body = { error: err.message }
+  }
+})
+
+router.get('/health', (ctx) => {
+  ctx.body = { status: 'ok', timestamp: new Date().toISOString() }
+})
+
+app.use(router.routes())
+app.listen(3000)
+```
+
+## 数据校验：zod
+
+zod 是 TypeScript 首选的数据校验库，与 TypeScript 类型深度集成：
+
+```typescript
+import { z } from 'zod'
+
+// 定义 schema，类型自动推断
+const UserSchema = z.object({
+  name: z.string().min(2).max(50),
+  email: z.string().email(),
+  age: z.number().int().positive().optional(),
+  role: z.enum(['admin', 'user', 'guest']).default('user')
+})
+
+// 推断 TypeScript 类型
+type User = z.infer<typeof UserSchema>
+// {
+//   name: string;
+//   email: string;
+//   age?: number;
+//   role: 'admin' | 'user' | 'guest';
+// }
+
+// 从现有类型推断 schema
+const UserSchemaFromType = z.object({
+  name: z.string(),
+  email: z.string()
+})
+
+// 解析与校验
+const result = UserSchema.safeParse({
+  name: 'Alice',
+  email: 'alice@example.com'
+})
+
+if (result.success) {
+  const user: User = result.data // ✅ 推断为 User 类型
+} else {
+  console.error(result.error.issues)
+}
+
+// 异步校验（用于 API 请求）
+app.post('/users', async (req, res) => {
+  const result = UserSchema.safeParse(req.body)
+  if (!result.success) {
+    res.status(400).json({ errors: result.error.issues })
+    return
+  }
+  const user = result.data // ✅ 类型安全
+  await createUser(user)
+})
+```
+
+### zod 常用校验
+
+```typescript
+// 嵌套对象
+const AddressSchema = z.object({
+  street: z.string(),
+  city: z.string(),
+  country: z.string()
+})
+
+const CompanySchema = z.object({
+  name: z.string(),
+  address: AddressSchema
+})
+
+// 数组
+const IDsSchema = z.array(z.string().uuid()).min(1).max(100)
+
+// 联合类型
+const StatusSchema = z.union([
+  z.object({ type: z.literal('success'), data: z.record(z.any()) }),
+  z.object({ type: z.literal('error'), message: z.string() })
+])
+
+// 可辨识联合（推荐）
+const EventSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('userCreated'), userId: z.string() }),
+  z.object({ type: z.literal('userDeleted'), userId: z.string() }),
+  z.object({ type: z.literal('roleChanged'), userId: z.string(), role: z.string() })
+])
+
+type Event = z.infer<typeof EventSchema>
+```
+
+## ORM 类型安全：Drizzle ORM
+
+Drizzle ORM 是 TypeScript 友好的轻量级 ORM：
+
+```typescript
+// db/schema.ts
+import { pgTable, serial, varchar, timestamp, boolean, integer } from 'drizzle-orm/pg-core'
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  passwordHash: varchar('password_hash').notNull(),
+  isAdmin: boolean('is_admin').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+})
+
+export const posts = pgTable('posts', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  content: varchar('content').notNull(),
+  publishedAt: timestamp('published_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull()
+})
+```
+
+### 类型安全的查询
+
+```typescript
+// db/index.ts
+import { drizzle } from 'drizzle-orm/node-postgres'
+import pool from './pool'
+import { users, posts } from './schema'
+
+const db = drizzle(pool)
+
+// 查询结果类型自动推断
+const allUsers = await db.select().from(users)
+// type: (typeof users.$inferSelect)[]
+
+// 单行查询
+const user = await db.select().from(users).where(eq(users.email, 'alice@example.com'))
+// type: (typeof users.$inferSelect) | undefined
+
+// 插入数据（类型安全）
+const [newUser] = await db.insert(users).values({
+  name: 'Alice',
+  email: 'alice@example.com',
+  passwordHash: await hash('password123')
+}).returning()
+// type: typeof users.$inferInsert
+
+// 更新数据
+await db.update(users)
+  .set({ updatedAt: new Date() })
+  .where(eq(users.id, 1))
+```
+
+### 关系查询
+
+```typescript
+import { relations } from 'drizzle-orm'
+
+// 定义关系
+export const usersRelations = relations(users, ({ many }) => ({
+  posts: many(posts)
+}))
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: one(users, {
+    fields: [posts.userId],
+    references: [users.id]
+  })
+}))
+
+// 使用关系查询
+const userWithPosts = await db.query.users.findFirst({
+  where: eq(users.email, 'alice@example.com'),
+  with: {
+    posts: {
+      where: isNotNull(posts.publishedAt),
+      orderBy: desc(posts.publishedAt)
+    }
+  }
+})
+
+// userWithPosts.posts 是完整的 posts 类型
+userWithPosts?.posts.forEach(post => {
+  console.log(post.title) // ✅ 类型安全
+})
+```
+
+## 环境变量与配置
+
+### dotenv 配置
+
+```typescript
+// config/index.ts
+import 'dotenv/config'
+import { z } from 'zod'
+
+const EnvSchema = z.object({
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: z.string().default('3000').transform(Number).pipe(z.number().positive()),
+  DATABASE_URL: z.string().url(),
+  JWT_SECRET: z.string().min(32),
+  CORS_ORIGIN: z.string().url()
+})
+
+const env = EnvSchema.parse(process.env)
+
+export const config = {
+  nodeEnv: env.NODE_ENV,
+  port: env.PORT,
+  databaseUrl: env.DATABASE_URL,
+  jwtSecret: env.JWT_SECRET,
+  corsOrigin: env.CORS_ORIGIN
+}
+```
+
+## 总结
+
+- **环境变量**：使用 zod schema 定义和校验，`process.env` 自动类型化
+- **Express**：使用 `Request<Params, ResBody, ReqBody, Query>` 泛型指定参数类型
+- **Koa**：扩展 `AppState` 接口，为上下文添加自定义字段
+- **zod**：schema 即类型定义，`safeParse` 返回类型安全的 `result.data`
+- **Drizzle ORM**：schema 定义自动推断 insert/select 类型，query 结果类型化
+- **关系**：使用 `relations` 定义表关系，`.with()` 实现类型安全的关联查询
+
+TypeScript 让 Node.js 后端代码同样拥有前端级别的类型安全保障。

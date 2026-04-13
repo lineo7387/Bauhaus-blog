@@ -1,0 +1,372 @@
+---
+title: 函数类型与泛型基础
+description: 详细讲解 TypeScript 函数类型签名、rest 参数、泛型函数、泛型约束与泛型默认值的使用方法与最佳实践
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, functions, generics]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 14
+planId: functions-generics
+---
+
+# 函数类型与泛型基础
+
+函数是 TypeScript 类型系统中最核心的概念之一。本文将系统讲解函数类型签名、参数处理，以及泛型这一强大抽象工具。
+
+## 函数类型签名
+
+### 基本语法
+
+TypeScript 中函数的类型签名描述了参数和返回值的类型：
+
+```typescript
+// 函数声明的类型签名
+function add(a: number, b: number): number {
+  return a + b;
+}
+
+// 箭头函数的类型签名
+const multiply = (a: number, b: number): number => a * b;
+
+// 函数类型的变量声明
+let combine: (a: string, b: string) => string;
+combine = (a, b) => a + b;
+combine = (a, b) => `${a} ${b}`;
+```
+
+### void 返回类型
+
+`void` 表示函数不返回有意义的结果：
+
+```typescript
+// void vs undefined（两者在返回类型上有微妙区别）
+function logger(message: string): void {
+  console.log(message);
+  // 没有 return 语句，或 return; 或 return undefined;
+}
+
+function failSilently(): undefined {
+  if (Math.random() > 0.5) {
+    return; // 提前退出
+  }
+  console.log("This ran");
+  // 隐式返回 undefined
+}
+```
+
+## 参数类型
+
+### 可选参数
+
+```typescript
+// 用 ? 标记可选参数（必须在必选参数之后）
+function greet(name: string, greeting?: string): string {
+  if (greeting) {
+    return `${greeting}, ${name}!`;
+  }
+  return `Hello, ${name}!`;
+}
+
+greet("Alice");              // ✅
+greet("Alice", "Hi");        // ✅
+greet();                     // ❌ 错误：name 是必选
+```
+
+### 默认参数
+
+```typescript
+// TypeScript 推断默认参数的类型
+function createUser(
+  name: string,
+  role: string = "user",
+  active: boolean = true
+): { name: string; role: string; active: boolean } {
+  return { name, role, active };
+}
+
+const user1 = createUser("Alice");           // role="user", active=true
+const user2 = createUser("Bob", "admin");    // role="admin", active=true
+const user3 = createUser("Carol", "guest", false);
+```
+
+### Rest 参数
+
+```typescript
+// rest 参数必须是数组类型
+function sum(...numbers: number[]): number {
+  return numbers.reduce((acc, n) => acc + n, 0);
+}
+
+sum(1, 2, 3, 4, 5); // 15
+
+// 混合使用
+function logger(prefix: string, ...messages: string[]): void {
+  console.log(`[${prefix}]`, ...messages);
+}
+
+logger("INFO", "Server started", "Port: 3000");
+```
+
+## 泛型函数
+
+**泛型**允许函数在调用时决定类型，保持类型安全：
+
+### 基本泛型函数
+
+```typescript
+// 泛型参数用 <T> 声明，T 在函数体内可用
+function identity<T>(value: T): T {
+  return value;
+}
+
+// 调用时指定类型
+const str = identity<string>("hello");   // 推断为 string
+const num = identity(42);                // 推断为 number（自动推断）
+const bool = identity(true);              // 推断为 boolean
+
+// 手动指定类型
+function firstElement<T>(arr: T[]): T | undefined {
+  return arr[0];
+}
+
+const first = firstElement([1, 2, 3]);       // number | undefined
+const firstStr = firstElement<string>(["a", "b"]); // string | undefined
+```
+
+### 多泛型参数
+
+```typescript
+// 多个泛型参数
+function pair<T, U>(first: T, second: U): [T, U] {
+  return [first, second];
+}
+
+const p1 = pair("age", 28);         // [string, number]
+const p2 = pair(true, "active");    // [boolean, string]
+const p3 = pair<number, string[]>(1, ["a", "b"]); // [number, string[]]
+```
+
+### 泛型约束
+
+使用 `extends` 约束泛型必须满足某种结构：
+
+```typescript
+// 约束 T 必须有 length 属性
+interface Lengthwise {
+  length: number;
+}
+
+function logLength<T extends Lengthwise>(value: T): T {
+  console.log(value.length);
+  return value;
+}
+
+logLength("hello");              // ✅ string 有 length
+logLength([1, 2, 3]);             // ✅ 数组有 length
+logLength({ length: 10 });       // ✅ 对象有 length
+// logLength(42);                 // ❌ number 没有 length
+
+// 约束 T 必须是 K 的键
+function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
+  return obj[key];
+}
+
+const user = { name: "Alice", age: 28, email: "alice@example.com" };
+const name = getProperty(user, "name");    // string
+const age = getProperty(user, "age");      // number
+// getProperty(user, "address");            // ❌ 不存在该键
+```
+
+### 泛型默认值
+
+```typescript
+// 为泛型参数提供默认值
+interface Response<T = any, E = Error> {
+  data: T;
+  error: E | null;
+  timestamp: Date;
+}
+
+// 使用默认
+const ok: Response = {
+  data: { id: 1 },
+  error: null,
+  timestamp: new Date()
+};
+
+// 覆盖第一个类型
+const withCustomError: Response<string, TypeError> = {
+  data: "success message",
+  error: new TypeError("custom error"),
+  timestamp: new Date()
+};
+```
+
+## 泛型接口与类型
+
+```typescript
+// 泛型接口
+interface Container<T> {
+  value: T;
+  getValue(): T;
+  map<U>(fn: (value: T) => U): Container<U>;
+}
+
+class Box<T> implements Container<T> {
+  constructor(public value: T) {}
+
+  getValue(): T {
+    return this.value;
+  }
+
+  map<U>(fn: (value: T) => U): Box<U> {
+    return new Box(fn(this.value));
+  }
+}
+
+const box = new Box(10);
+const doubled = box.map(x => x * 2);      // Box<number>
+const asString = box.map(x => String(x)); // Box<string>
+```
+
+## 函数重载
+
+TypeScript 支持**函数重载**——同一个函数名有多个类型签名：
+
+```typescript
+// 重载签名
+function format(value: string): string;
+function format(value: number, precision?: number): string;
+function format(value: boolean): string;
+
+// 实现签名（必须兼容所有重载）
+function format(value: string | number | boolean, precision?: number): string {
+  if (typeof value === "string") {
+    return value.trim().toUpperCase();
+  }
+  if (typeof value === "number") {
+    return value.toFixed(precision ?? 2);
+  }
+  return value ? "YES" : "NO";
+}
+
+format("  hello  ");   // "HELLO"
+format(3.14159, 2);    // "3.14"
+format(true);          // "YES"
+```
+
+### 构造函数签名
+
+```typescript
+// 使用 new 调用签名描述构造函数
+interface DateConstructor {
+  new (year: number, month: number, day: number): Date;
+}
+
+function createDate(ctor: DateConstructor, year: number, month: number, day: number): Date {
+  return new ctor(year, month, day);
+}
+
+createDate(Date, 2026, 3, 13); // 2026-04-13
+```
+
+## this 类型
+
+TypeScript 可以显式声明 `this` 的类型：
+
+```typescript
+// 显式 this 类型
+function delay<T>(this: (value: T) => void, ms: number): (value: T) => void {
+  return function (this: unknown, value: T) {
+    setTimeout(() => {
+      this(value);
+    }, ms);
+  } as (value: T) => void;
+}
+
+const delayed = delay(console.log, 1000);
+delayed("Hello after 1 second");
+```
+
+## 泛型类
+
+```typescript
+class Stack<T> {
+  private items: T[] = [];
+
+  push(item: T): void {
+    this.items.push(item);
+  }
+
+  pop(): T | undefined {
+    return this.items.pop();
+  }
+
+  peek(): T | undefined {
+    return this.items[this.items.length - 1];
+  }
+
+  get size(): number {
+    return this.items.length;
+  }
+
+  isEmpty(): boolean {
+    return this.items.length === 0;
+  }
+}
+
+const numberStack = new Stack<number>();
+numberStack.push(1);
+numberStack.push(2);
+numberStack.pop(); // 2
+
+const stringStack = new Stack<string>();
+stringStack.push("a");
+stringStack.push("b");
+stringStack.pop(); // "b"
+```
+
+## 泛型约束实战
+
+### 要求对象包含特定属性
+
+```typescript
+function merge<T extends object, U extends object>(target: T, source: U): T & U {
+  return { ...target, ...source };
+}
+
+const merged = merge(
+  { name: "Alice", age: 28 },
+  { email: "alice@example.com", role: "admin" }
+);
+// 推断为：{ name: string; age: number; email: string; role: string }
+```
+
+### 要求数组长度关系
+
+```typescript
+// 约束两个数组长度相同
+function zip<T, U>(a: T[], b: U[]): Array<[T, U]> {
+  if (a.length !== b.length) {
+    throw new Error("Arrays must have the same length");
+  }
+  return a.map((item, index) => [item, b[index]]);
+}
+
+const pairs = zip([1, 2, 3], ["a", "b", "c"]);
+// 推断为：Array<[number, string]>
+```
+
+## 总结
+
+- **函数类型签名**：`function add(a: number, b: number): number`
+- **可选参数**用 `?`，**默认参数**直接赋值
+- **Rest 参数**：`...args: T[]`，收集剩余参数为数组
+- **泛型函数**：`<T>(value: T): T`，在调用时确定类型
+- **泛型约束**：`T extends Constraint`，确保 T 满足特定结构
+- **泛型默认值**：`T = DefaultType`，不指定时使用默认值
+- **函数重载**：多个签名 + 一个实现，合理组织函数类型
+
+泛型是 TypeScript 类型系统的精髓，掌握它将让你能够写出既灵活又安全的代码。

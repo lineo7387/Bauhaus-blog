@@ -1,0 +1,386 @@
+---
+title: 映射类型与内置工具类型
+description: 深入讲解 TypeScript 映射类型的语法与修饰符，以及 Partial、Required、Readonly、Pick、Omit 等内置工具类型的实现原理
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, mapped-types, utility-types]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 14
+planId: mapped-types-builtin-utilities
+---
+
+# 映射类型与内置工具类型
+
+**映射类型**（Mapped Types）是 TypeScript 中一种从已有类型创建新类型的语法，是构建**内置工具类型**的基础。
+
+## 映射类型基础
+
+### 基本语法
+
+```typescript
+// 语法：[P in K] — 遍历 K 中的每个键
+typeflags<T> = { [P in keyof T]?: boolean };
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+// 全部属性变为可选的布尔标志
+type UserFlags = flags<User>;
+// { id?: boolean; name?: boolean; email?: boolean }
+```
+
+### keyof 与映射
+
+```typescript
+// keyof T 获取 T 的所有键
+type Keys = keyof { name: string; age: number };
+// "name" | "age"
+
+// 遍历所有键创建新类型
+type Getters<T> = { [P in keyof T]: () => T[P] };
+
+interface User {
+  name: string;
+  age: number;
+}
+
+type LazyUser = Getters<User>;
+// { name: () => string; age: () => number }
+```
+
+## 映射修饰符
+
+映射类型支持两个修饰符：
+
+- `readonly`：将属性变为只读
+- `?`：将属性变为可选
+
+可以在映射时添加或删除这些修饰符：
+
+```typescript
+// 添加 readonly
+type Readonly<T> = { readonly [P in keyof T]: T[P] };
+
+// 删除 readonly（使用 -readonly）
+type Mutable<T> = { -readonly [P in keyof T]: T[P] };
+
+// 添加 ?
+type Optional<T> = { [P in keyof T]?: T[P] };
+
+// 删除 ?（使用 -?）
+type Required<T> = { [P in keyof T]-?: T[P] };
+```
+
+## 内置工具类型详解
+
+### Partial<T> — 全部属性可选
+
+```typescript
+// 定义
+type Partial<T> = { [P in keyof T]?: T[P] };
+
+// 使用
+interface Config {
+  host: string;
+  port: number;
+  ssl: boolean;
+}
+
+function updateConfig(updates: Partial<Config>): void {
+  // 只更新部分配置
+}
+
+updateConfig({ port: 8080 }); // ✅ 只更新 port
+updateConfig({ host: "0.0.0.0", ssl: true }); // ✅ 更新多个
+```
+
+### Required<T> — 全部属性必选
+
+```typescript
+// 定义
+type Required<T> = { [P in keyof T]-?: T[P] };
+
+// 使用
+interface Props {
+  name?: string;
+  age?: number;
+  active?: boolean;
+}
+
+function validateProps(props: Required<Props>): boolean {
+  // 这里 name、age、active 都是必选的
+  return props.name.length > 0; // ✅ 不会报错
+}
+```
+
+### Readonly<T> — 全部属性只读
+
+```typescript
+// 定义
+type Readonly<T> = { readonly [P in keyof T]: T[P] };
+
+// 使用
+interface Point {
+  x: number;
+  y: number;
+}
+
+const origin: Readonly<Point> = { x: 0, y: 0 };
+// origin.x = 10; // ❌ 错误
+```
+
+### Pick<T, K> — 挑选属性
+
+```typescript
+// 定义
+type Pick<T, K extends keyof T> = { [P in K]: T[P] };
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  password: string;
+}
+
+// 只暴露 id 和 name（隐藏敏感信息）
+type PublicUser = Pick<User, "id" | "name">;
+// { id: number; name: string }
+
+// 用户列表中不需要密码
+function renderUserList(users: PublicUser[]): void {
+  users.forEach(u => {
+    // u.email // ❌ 不存在
+    // u.password // ❌ 不存在
+  });
+}
+```
+
+### Omit<T, K> — 排除属性
+
+```typescript
+// 定义
+type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+
+// 使用：创建不含密码的用户类型
+type SafeUser = Omit<User, "password">;
+// 等价于 Pick<User, "id" | "name" | "email">
+```
+
+### Record<K, V> — 创建键值映射
+
+```typescript
+// 定义
+type Record<K extends keyof any, V> = { [P in K]: V };
+
+// 使用
+type Role = "admin" | "editor" | "viewer";
+type Permission = "read" | "write" | "delete";
+
+const permissions: Record<Role, Permission[]> = {
+  admin: ["read", "write", "delete"],
+  editor: ["read", "write"],
+  viewer: ["read"]
+};
+
+// 函数重载的替代方案
+type Handler = Record<string, (value: unknown) => void>;
+
+const handlers: Handler = {
+  onClick: (e) => console.log(e),
+  onChange: (e) => console.log(e),
+  onSubmit: (e) => console.log(e),
+};
+```
+
+## Exclude 与 Extract
+
+这两个工具类型基于条件类型的分发机制：
+
+```typescript
+// Exclude<T, U> — 从 T 中排除可以赋值给 U 的类型
+type Exclude<T, U> = T extends U ? never : T;
+
+type A = Exclude<"a" | "b" | "c", "a" | "b">; // "c"
+type B = Exclude<number | string | boolean, string | number>; // boolean
+type C = Exclude<Error | TypeError | ReferenceError, Error>; // TypeError | ReferenceError
+
+// Extract<T, U> — 从 T 中提取可以赋值给 U 的类型
+type Extract<T, U> = T extends U ? T : never;
+
+type D = Extract<"a" | "b" | "c", "a" | "b">; // "a" | "b"
+type E = Extract<number | string | boolean, string | number>; // number | string
+```
+
+### 在映射类型中使用
+
+```typescript
+// 从对象中提取特定类型的值
+type StringKeys<T> = {
+  [P in keyof T]: T[P] extends string ? P : never;
+}[keyof T];
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  age: number;
+}
+
+type StringKey = StringKeys<User>; // "name" | "email"
+```
+
+## NonNullable 与 Parameters
+
+```typescript
+// NonNullable<T> — 移除 null 和 undefined
+type NonNullable<T> = T extends null | undefined ? never : T;
+
+type A = NonNullable<string | null | undefined | number>; // string | number
+type B = NonNullable<string[]>; // string[]
+type C = NonNullable<{ name: string } | null>; // { name: string }
+
+// Parameters<T> — 提取函数参数类型为元组
+type Parameters<T extends (...args: any) => any> =
+  T extends (...args: infer P) => any ? P : never;
+
+function fetchUser(id: number, token: string): Promise<User> {
+  return Promise.resolve({ id, name: "" });
+}
+
+type FetchParams = Parameters<typeof fetchUser>;
+// [id: number, token: string]
+```
+
+## ReturnType 与 InstanceType
+
+```typescript
+// ReturnType<T> — 提取函数返回值类型
+type ReturnType<T extends (...args: any) => any> =
+  T extends (...args: any) => infer R ? R : any;
+
+type User = ReturnType<typeof fetchUser>; // Promise<User>
+
+// InstanceType<T> — 提取类构造函数的实例类型
+type InstanceType<T extends new (...args: any) => any> =
+  T extends new (...args: any) => infer R ? R : any;
+
+class UserClass {
+  constructor(public name: string) {}
+}
+
+type UserInstance = InstanceType<typeof UserClass>; // UserClass
+```
+
+## 自定义映射类型
+
+### 深度Partial（递归）
+
+```typescript
+type DeepPartial<T> = T extends object
+  ? { [P in keyof T]?: DeepPartial<T[P]> }
+  : T;
+
+interface NestedConfig {
+  server: {
+    host: string;
+    port: number;
+  };
+  database: {
+    url: string;
+    options: {
+      timeout: number;
+      retries: number;
+    };
+  };
+}
+
+// 允许部分更新
+function updateConfig(updates: DeepPartial<NestedConfig>): void {
+  // 任意深度的可选属性
+}
+```
+
+### 只读递归
+
+```typescript
+type DeepReadonly<T> = T extends object
+  ? { readonly [P in keyof T]: DeepReadonly<T[P]> }
+  : T;
+
+type ImmutableConfig = DeepReadonly<NestedConfig>;
+// server.host 只读，server.port 只读，database.options.timeout 只读...
+```
+
+### 属性值类型变换
+
+```typescript
+// 将所有属性值类型转换为另一种类型
+type ValueToPromise<T> = {
+  [P in keyof T]: Promise<T[P]>;
+};
+
+interface SyncUser {
+  id: number;
+  name: string;
+}
+
+type AsyncUser = ValueToPromise<SyncUser>;
+// { id: Promise<number>; name: Promise<string> }
+
+// 另一种实用工具：类型守卫
+type WritableKeys<T> = {
+  [P in keyof T]-?: {} extends Pick<T, P> ? P : never;
+}[keyof T];
+
+type MutableUserKeys = WritableKeys<User>; // 不含 readonly 属性的键
+```
+
+## 键重映射（Key Remapping）
+
+TypeScript 4.1 引入了键重映射，通过 `as` 子句变换键名：
+
+```typescript
+// 使用 as 重新映射键
+type Getters<T> = {
+  [P in keyof T as `get${Capitalize<string & P>}`]: () => T[P];
+};
+
+interface User {
+  name: string;
+  age: number;
+}
+
+type UserGetters = Getters<User>;
+// { getName: () => string; getAge: () => number }
+
+// 过滤不需要的键
+type RemoveReadonly<T> = {
+  [P in keyof T as {} extends Pick<T, P> ? never : P]: T[P];
+};
+
+// 将特定属性变为可选
+type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+
+type UserWithOptionalName = PartialBy<User, "name">;
+// { age: number; name?: string }
+```
+
+## 总结
+
+- **映射类型**：`{ [P in keyof T]: ... }`，遍历键创建新类型
+- **修饰符**：`readonly` 和 `?`，可用 `-` 前缀删除
+- **Partial**：全部属性可选
+- **Required**：删除可选变为必选
+- **Readonly**：全部属性只读
+- **Pick<K, T>**：从 T 中挑选 K 个属性
+- **Omit<T, K>**：从 T 中排除 K 个属性
+- **Record<K, V>**：创建 K 到 V 的映射
+- **Exclude / Extract**：联合类型过滤
+- **NonNullable / Parameters / ReturnType / InstanceType**：其他常用内置工具类型
+
+映射类型是 TypeScript 类型系统的核心语法，掌握它就能构建出符合任何需求的工具类型。

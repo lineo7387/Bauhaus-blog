@@ -1,0 +1,435 @@
+---
+title: 装饰器与 TypeScript 配置
+description: 深入讲解 TypeScript 装饰器提案历史、类装饰器、方法装饰器、参数装饰器的使用，以及 tsconfig.json 核心选项的解析
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, decorators, tsconfig]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 15
+planId: decorators
+---
+
+# 装饰器与 TypeScript 配置
+
+**装饰器**（Decorators）是 TypeScript 的一项重要实验性功能，为类及其成员提供声明式的元编程语法。在深入装饰器之前，我们需要了解 tsconfig 的配置。
+
+## 装饰器概述
+
+装饰器目前处于**Stage 3**，需要显式启用。TypeScript 支持四种装饰器：
+
+- **类装饰器**：`@ClassDecorator`
+- **方法装饰器**：`@MethodDecorator`
+- **访问器装饰器**：`@AccessorDecorator`
+- **属性装饰器**：`@PropertyDecorator`
+- **参数装饰器**：`@ParameterDecorator`
+
+### 启用装饰器
+
+```json
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
+}
+```
+
+> **注意**：`experimentalDecorators` 启用旧版装饰器语法，`emitDecoratorMetadata` 启用装饰器元数据反射（需要 `reflect-metadata` 包）。
+
+## 类装饰器
+
+类装饰器在类定义前调用，接收构造函数作为参数：
+
+```typescript
+// 类装饰器
+function sealed(constructor: Function): void {
+  Object.seal(constructor);
+  Object.seal(constructor.prototype);
+}
+
+@sealed
+class Person {
+  name: string;
+
+  constructor(name: string) {
+    this.name = name;
+  }
+}
+
+// 带参数的装饰器工厂
+function logger(prefix: string) {
+  return function (constructor: Function) {
+    const original = constructor.prototype.constructor;
+    constructor.prototype.constructor = function (...args: any[]) {
+      console.log(`[${prefix}] Creating instance with args:`, args);
+      return original.apply(this, args);
+    };
+  };
+}
+
+@logger("INFO")
+class User {
+  constructor(public name: string) {}
+}
+
+new User("Alice"); // [INFO] Creating instance with args: ["Alice"]
+```
+
+## 方法装饰器
+
+方法装饰器应用于类方法的 `prototype` 上，接收三个参数：
+
+```typescript
+// 方法装饰器
+function readonly(
+  target: any,
+  propertyKey: string,
+  descriptor: PropertyDescriptor
+): PropertyDescriptor {
+  const original = descriptor.value;
+  return {
+    ...descriptor,
+    writable: false
+  };
+}
+
+// 更实际的例子：方法执行时间计时器
+function logExecutionTime(
+  target: any,
+  propertyKey: string,
+  descriptor: PropertyDescriptor
+): PropertyDescriptor {
+  const original = descriptor.value;
+
+  descriptor.value = function (...args: any[]) {
+    const start = performance.now();
+    const result = original.apply(this, args);
+    const end = performance.now();
+    console.log(`${propertyKey} executed in ${(end - start).toFixed(2)}ms`);
+    return result;
+  };
+
+  return descriptor;
+}
+
+class Calculator {
+  @logExecutionTime
+  add(a: number, b: number): number {
+    return a + b;
+  }
+}
+```
+
+## 访问器装饰器
+
+TypeScript 4.9+ 支持 `get`/`set` 访问器装饰器：
+
+```typescript
+function clamp(
+  target: any,
+  propertyKey: string,
+  descriptor: PropertyDescriptor
+): PropertyDescriptor {
+  const originalSetter = descriptor.set;
+
+  descriptor.set = function (value: number) {
+    if (value < 0) value = 0;
+    if (value > 100) value = 100;
+    originalSetter?.call(this, value);
+  };
+
+  return descriptor;
+}
+
+class Progress {
+  private _percent = 0;
+
+  get percent(): number {
+    return this._percent;
+  }
+
+  @clamp
+  set percent(value: number) {
+    this._percent = value;
+  }
+}
+
+const p = new Progress();
+p.percent = 150; // 自动 clamp 到 100
+p.percent = -10; // 自动 clamp 到 0
+```
+
+## 属性装饰器
+
+属性装饰器应用于类的属性定义：
+
+```typescript
+// 属性装饰器
+function defaultValue(value: any) {
+  return function (target: any, propertyKey: string): void {
+    target[propertyKey] = value;
+  };
+}
+
+// 另一个实际例子：追踪属性访问
+function tracked(target: any, propertyKey: string): void {
+  let value = target[propertyKey];
+
+  Object.defineProperty(target, propertyKey, {
+    get() {
+      console.log(`Reading ${propertyKey}:`, value);
+      return value;
+    },
+    set(newValue) {
+      console.log(`Setting ${propertyKey}:`, newValue);
+      value = newValue;
+    }
+  });
+}
+
+class User {
+  @tracked
+  name = "Anonymous";
+}
+
+const user = new User();
+console.log(user.name); // Reading name: Anonymous
+user.name = "Alice";    // Setting name: Alice
+```
+
+## 参数装饰器
+
+参数装饰器应用于方法或构造函数的参数：
+
+```typescript
+// 参数装饰器
+function required(
+  target: any,
+  propertyKey: string | symbol,
+  parameterIndex: number
+): void {
+  // 可以存储元数据
+  const existingRequired: number[] =
+    Reflect.getMetadata("required", target, propertyKey) || [];
+  existingRequired.push(parameterIndex);
+  Reflect.defineMetadata("required", existingRequired, target, propertyKey);
+}
+
+// 结合 emitDecoratorMetadata 使用
+function validate(
+  target: any,
+  propertyKey: string,
+  descriptor: PropertyDescriptor
+): PropertyDescriptor {
+  const original = descriptor.value;
+
+  descriptor.value = function (...args: any[]) {
+    const requiredParams: number[] =
+      Reflect.getMetadata("required", target, propertyKey) || [];
+
+    for (const index of requiredParams) {
+      if (args[index] === undefined) {
+        throw new Error(`Argument at position ${index} is required`);
+      }
+    }
+
+    return original.apply(this, args);
+  };
+
+  return descriptor;
+}
+
+class UserService {
+  @validate
+  createUser(@required name: string, @required email: string): void {
+    console.log(`Creating user: ${name}, ${email}`);
+  }
+}
+```
+
+## 装饰器组合
+
+可以在同一目标上使用多个装饰器：
+
+```typescript
+function first() {
+  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+    console.log("first decorator");
+    return descriptor;
+  };
+}
+
+function second() {
+  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+    console.log("second decorator");
+    return descriptor;
+  };
+}
+
+class Example {
+  @first()
+  @second()
+  method(): void {}
+}
+
+// 输出顺序（从上到下执行）：second decorator, first decorator
+```
+
+## 装饰器与依赖注入实战
+
+装饰器最广泛的应用场景是**依赖注入**框架（如 Angular、NestJS）：
+
+```typescript
+// 简单的依赖注入容器
+const Injectable = (): ClassDecorator => target => target;
+
+// 服务注册装饰器
+const Service = (token?: string): ClassDecorator =>
+  (target: any) => {
+    Container.register(token || target, target);
+  };
+
+class Container {
+  private static providers = new Map<any, any>();
+
+  static register(token: any, provider: any): void {
+    this.providers.set(token, provider);
+  }
+
+  static resolve<T>(token: any): T {
+    const Provider = this.providers.get(token);
+    if (!Provider) throw new Error(`No provider for ${token}`);
+    return new Provider();
+  }
+}
+
+// 使用
+@Service("UserService")
+class UserService {
+  getUsers() {
+    return [{ name: "Alice" }];
+  }
+}
+
+@Service("ConfigService")
+class ConfigService {
+  get apiUrl(): string {
+    return "https://api.example.com";
+  }
+}
+
+const userService = Container.resolve<UserService>("UserService");
+console.log(userService.getUsers());
+```
+
+## tsconfig.json 核心选项
+
+### 严格模式（strict）
+
+```json
+{
+  "compilerOptions": {
+    "strict": true
+  }
+}
+```
+
+`strict: true` 等价于同时启用：
+
+```json
+{
+  "strictNullChecks": true,
+  "strictFunctionTypes": true,
+  "strictBindCallApply": true,
+  "strictPropertyInitialization": true,
+  "noImplicitAny": true,
+  "noImplicitThis": true,
+  "alwaysStrict": true
+}
+```
+
+### 严格空检查
+
+```json
+{
+  "compilerOptions": {
+    "strictNullChecks": true
+  }
+}
+```
+
+```typescript
+function getLength(str: string | null): number {
+  // str.length; // ❌ 错误
+  return str?.length ?? 0; // ✅ 安全处理
+}
+```
+
+### noImplicitAny
+
+禁止隐式 `any` 类型：
+
+```typescript
+// tsconfig.json: { "noImplicitAny": true }
+function process(value) { // ❌ 错误：参数隐式具有 "any" 类型
+  return value.length;
+}
+```
+
+### strictPropertyInitialization
+
+确保类的属性在构造函数中初始化：
+
+```typescript
+// tsconfig.json: { "strictPropertyInitialization": true }
+class User {
+  name: string; // ❌ 错误：属性未在构造函数中初始化
+  // 需要添加 ! 或在构造函数中赋值
+  name!: string;
+}
+```
+
+## 模块与输出配置
+
+### ES 模块与 CommonJS
+
+```json
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ES2020",
+    "moduleResolution": "bundler"
+  }
+}
+```
+
+### 路径别名
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"]
+    }
+  }
+}
+```
+
+```typescript
+// 使用路径别名
+import Button from "@/components/Button"; // 等价于 ./src/components/Button
+```
+
+## 总结
+
+- **装饰器**是声明式的元编程语法，需要 `experimentalDecorators: true`
+- **四种装饰器**：类、方法/访问器、属性、参数
+- **装饰器工厂**：返回装饰器的高阶函数，支持传参
+- **执行顺序**：参数装饰器 → 方法/访问器/属性装饰器 → 类装饰器
+- **`strict` 模式**：启用全部严格检查，是生产项目的推荐配置
+- **路径别名**：`paths` 配合 `baseUrl`，简化模块导入路径
+- **严格空检查** `strictNullChecks`：要求显式处理 null/undefined

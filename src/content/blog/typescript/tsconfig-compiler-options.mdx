@@ -1,0 +1,363 @@
+---
+title: tsconfig.json 编译器选项详解
+description: 深入讲解 TypeScript 编译器选项中 strict 模式详解、路径别名、declaration、sourceMap、project references 等核心配置
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, tsconfig, compiler-options]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 12
+planId: tsconfig-compiler-options
+---
+
+# tsconfig.json 编译器选项详解
+
+`tsconfig.json` 是 TypeScript 项目的核心配置文件。本章系统讲解关键编译器选项，帮助你配置出高效、严谨的项目。
+
+## 基础配置结构
+
+```json
+{
+  "compilerOptions": {
+    /* 编译目标与模块 */
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM"],
+
+    /* 输出控制 */
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationDir": "./types",
+
+    /* 严格模式 */
+    "strict": true,
+
+    /* 模块解析 */
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+
+    /* 高级选项 */
+    "skipLibCheck": true,
+    "esModuleInterop": true
+  },
+
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+## 编译目标与模块
+
+### target 与 lib
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"]
+  }
+}
+```
+
+- **`target`**：指定编译后的 JavaScript 版本
+- **`lib`**：指定内置 API 类型定义（如 Promise、Map 等）
+
+> `lib` 不包含 DOM 类型定义。如果只写 Node.js 代码，不需要 `"DOM"`。
+
+### module 与 moduleResolution
+
+```json
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler"
+  }
+}
+```
+
+| moduleResolution | 适用场景 |
+|-----------------|----------|
+| `bundler` | Vite、Webpack 5、esbuild 等现代打包工具 |
+| `node16` | Node.js 16+ 原生 ESM 支持 |
+| `node` | Node.js 旧版本 CommonJS |
+| `nodenext` | Node.js 最新版本 |
+
+### esModuleInterop
+
+```json
+{
+  "compilerOptions": {
+    "esModuleInterop": true
+  }
+}
+```
+
+启用后，可以更自然地导入 CommonJS 模块：
+
+```typescript
+// 不启用：需要命名空间导入
+import * as fs from "fs";
+
+// 启用后：可以直接默认导入
+import fs from "fs";
+```
+
+## 输出控制
+
+### outDir 与 rootDir
+
+```json
+{
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist"
+  }
+}
+```
+
+```
+src/
+  utils/
+    helpers.ts    →  dist/utils/helpers.js
+  index.ts         →  dist/index.js
+```
+
+### declaration 与 declarationDir
+
+```json
+{
+  "compilerOptions": {
+    "declaration": true,
+    "declarationDir": "./types"
+  }
+}
+```
+
+开启后，TypeScript 会为每个 `.ts` 文件生成对应的 `.d.ts` 类型声明文件：
+
+```
+src/utils/helpers.ts  →  dist/utils/helpers.js
+                        dist/types/utils/helpers.d.ts
+```
+
+### sourceMap
+
+```json
+{
+  "compilerOptions": {
+    "sourceMap": true
+  }
+}
+```
+
+生成 `.map` 文件，调试时可以追踪到原始 TypeScript 源码位置。
+
+## 严格模式
+
+### strict
+
+```json
+{
+  "compilerOptions": {
+    "strict": true
+  }
+}
+```
+
+`strict: true` 是 TypeScript 的最佳实践，它一次性启用 7 个严格检查：
+
+| 选项 | 作用 |
+|------|------|
+| `strictNullChecks` | 禁止 `null`/`undefined` 隐式赋值 |
+| `strictFunctionTypes` | 函数参数双向协变检查 |
+| `strictBindCallApply` | `bind`/`call`/`apply` 返回类型检查 |
+| `strictPropertyInitialization` | 类属性必须在构造函数初始化 |
+| `noImplicitAny` | 禁止隐式 `any` 类型 |
+| `noImplicitThis` | `this` 隐式 `any` 时报错 |
+| `alwaysStrict` | 输出文件使用 `"use strict"` |
+
+### noUncheckedIndexedAccess
+
+```json
+{
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true
+  }
+}
+```
+
+数组/索引访问返回的类型包含 `undefined`：
+
+```typescript
+const arr = [1, 2, 3];
+const item = arr[0]; // number | undefined（而非 number）
+const fifth = arr[4]; // undefined
+```
+
+## 路径别名
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"],
+      "@utils/*": ["src/utils/*"]
+    }
+  }
+}
+```
+
+```typescript
+// 使用路径别名
+import Button from "@/components/Button";
+import { formatDate } from "@utils/date";
+import { store } from "@/store";
+```
+
+> 路径别名需要在打包工具（Vite/Webpack）中配置相同的别名映射。
+
+## Project References
+
+项目引用允许将 TypeScript 项目拆分为多个可引用的子项目：
+
+```json
+// packages/shared/tsconfig.json
+{
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "outDir": "./dist"
+  }
+}
+
+// packages/app/tsconfig.json
+{
+  "compilerOptions": {
+    "outDir": "./dist"
+  },
+  "references": [
+    { "path": "../shared" }
+  ]
+}
+```
+
+使用 `tsc --build`（或 `tsc -b`）执行增量构建。
+
+## 跳过类型检查
+
+### skipLibCheck
+
+```json
+{
+  "compilerOptions": {
+    "skipLibCheck": true
+  }
+}
+```
+
+跳过 `.d.ts` 文件的类型检查，大幅提升大型项目的编译速度。**强烈建议开启**。
+
+### noEmit
+
+```json
+{
+  "compilerOptions": {
+    "noEmit": true
+  }
+}
+```
+
+不生成任何输出文件，仅进行类型检查。打包工具（如 Vite）通常使用此模式，由 esbuild 负责转译。
+
+## 其他实用选项
+
+```json
+{
+  "compilerOptions": {
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true,
+    "useUnknownInCatchVariables": true
+  }
+}
+```
+
+| 选项 | 作用 |
+|------|------|
+| `forceConsistentCasingInFileNames` | 禁止大小写不一致的文件引用 |
+| `noUnusedLocals` | 禁止未使用的局部变量 |
+| `noUnusedParameters` | 禁止未使用的函数参数 |
+| `noImplicitReturns` | 函数必须有明确的返回 |
+| `noFallthroughCasesInSwitch` | switch 必须处理每个 case |
+| `exactOptionalPropertyTypes` | 可选属性和显式 `undefined` 有区别 |
+| `useUnknownInCatchVariables` | catch 变量默认为 `unknown` 而非 `any` |
+
+## extends 配置继承
+
+```json
+// tsconfig.base.json（基础配置）
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2020",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true
+  }
+}
+
+// tsconfig.json（继承并扩展）
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "baseUrl": "."
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}
+```
+
+## 最佳实践配置
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "useUnknownInCatchVariables": true
+  }
+}
+```
+
+## 总结
+
+- **target / module**：指定编译输出目标
+- **moduleResolution**：根据打包工具选择 `bundler` / `node16` / `node`
+- **strict**：`true` 是生产项目的标准配置
+- **declaration / declarationMap**：生成类型声明文件，便于第三方使用
+- **paths**：路径别名简化导入，配合打包工具使用
+- **skipLibCheck**：大型项目建议开启，加速编译
+- **extends**：配置继承，避免重复
+
+合理配置 tsconfig 是 TypeScript 项目质量的基础。

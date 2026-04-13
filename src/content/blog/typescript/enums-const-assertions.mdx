@@ -1,0 +1,346 @@
+---
+title: 枚举与 const 断言
+description: 详细讲解 TypeScript 数字枚举、字符串枚举、枚举反向映射，以及 const 断言在对象和数组中的高级用法
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, enums, const-assertions]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 9
+planId: enums-const-assertions
+---
+
+# 枚举与 const 断言
+
+枚举和 const 断言是 TypeScript 中处理固定集合的两种方式。它们各有特点，合理选择可以让代码更清晰、更安全。
+
+## 枚举（Enum）
+
+枚举用于定义一组命名的常量值。
+
+### 数字枚举
+
+```typescript
+// 默认从 0 开始递增
+enum Direction {
+  Up,    // 0
+  Down,  // 1
+  Left,  // 2
+  Right  // 3
+}
+
+// 可以指定起始值
+enum Status {
+  Pending = 1,
+  Approved,   // 2
+  Rejected,   // 3
+}
+
+// 手动赋值
+enum HTTPStatus {
+  OK = 200,
+  NotFound = 404,
+  ServerError = 500
+}
+
+// 使用
+function move(direction: Direction): void {
+  // ...
+}
+
+move(Direction.Up);
+console.log(Direction.Down); // 1
+```
+
+### 字符串枚举
+
+```typescript
+enum Direction {
+  Up = "UP",
+  Down = "DOWN",
+  Left = "LEFT",
+  Right = "RIGHT"
+}
+
+// 字符串枚举没有反向映射（只支持单向）
+console.log(Direction.Up);    // "UP"
+// console.log(Direction["UP"]); // ❌ 错误
+
+function handleDirection(dir: Direction): string {
+  return dir; // 返回 "UP" | "DOWN" | "LEFT" | "RIGHT"
+}
+```
+
+### 异构枚举（不推荐）
+
+```typescript
+// 混合数字和字符串（不推荐使用）
+enum BooleanLike {
+  No = 0,
+  Yes = "YES"
+}
+```
+
+### 枚举反向映射
+
+数字枚举支持从值到名称的反向映射：
+
+```typescript
+enum Enum {
+  A = 0,
+  B = 1,
+  C = 2
+}
+
+console.log(Enum.A);    // 0
+console.log(Enum[0]);    // "A"（反向映射）
+console.log(Enum[Enum.A]); // "A"（Enum.A = 0，再映射回 "A"）
+
+// 字符串枚举没有反向映射
+enum StringEnum {
+  A = "a",
+  B = "b"
+}
+
+console.log(StringEnum.A); // "a"
+// console.log(StringEnum["a"]); // ❌ 错误
+```
+
+### 枚举成员类型
+
+枚举成员可以用作类型：
+
+```typescript
+enum FileAccess {
+  Read = 1,
+  Write = 2,
+  Execute = 4,
+  All = Read | Write | Execute
+}
+
+// 使用枚举成员作为类型
+function checkAccess(granted: number, requested: FileAccess): boolean {
+  return (granted & requested) === requested;
+}
+
+// 枚举本身可以用作联合类型
+type FileAccessType = FileAccess.Read | FileAccess.Write | FileAccess.Execute;
+const access: FileAccessType = FileAccess.Read;
+```
+
+## const 对象替代枚举
+
+TypeScript 3.4 引入的 `as const` 断言是枚举的强大替代方案：
+
+### as const 基本用法
+
+```typescript
+// 替代数字枚举
+const Direction = {
+  Up: 0,
+  Down: 1,
+  Left: 2,
+  Right: 3
+} as const;
+
+type Direction = typeof Direction[keyof typeof Direction];
+// type Direction = 0 | 1 | 2 | 3
+
+// 替代字符串枚举
+const HTTPStatus = {
+  OK: 200,
+  NotFound: 404,
+  ServerError: 500
+} as const;
+
+type HTTPStatus = typeof HTTPStatus[keyof typeof HTTPStatus];
+// type HTTPStatus = 200 | 404 | 500
+```
+
+### 完整替代示例
+
+```typescript
+// 枚举版本
+enum HttpError {
+  NotFound = 404,
+  Unauthorized = 401,
+  ServerError = 500
+}
+
+// const 对象版本
+const HttpError = {
+  NotFound: 404,
+  Unauthorized: 401,
+  ServerError: 500
+} as const;
+
+type HttpError = (typeof HttpError)[keyof typeof HttpError];
+
+// 使用时完全等价
+function handleError(code: HttpError): string {
+  switch (code) {
+    case HttpError.NotFound:
+      return "Resource not found";
+    case HttpError.Unauthorized:
+      return "Please login";
+    case HttpError.ServerError:
+      return "Server error";
+  }
+}
+```
+
+## const 断言详解
+
+`as const` 将表达式推断为**最窄的类型**（字面量类型），并使所有属性 `readonly`：
+
+```typescript
+// 没有 as const：类型会被放宽
+const config = {
+  port: 3000,
+  host: "localhost",
+  debug: true
+};
+// 类型：{ port: number; host: string; debug: boolean }
+
+// 有 as const：保持字面量类型
+const configConst = {
+  port: 3000,
+  host: "localhost",
+  debug: true
+} as const;
+// 类型：{ readonly port: 3000; readonly host: "localhost"; readonly debug: true }
+
+// 数组的 as const
+const fruits = ["apple", "banana", "orange"] as const;
+// 类型：readonly ["apple", "banana", "orange"]
+```
+
+### as const vs readonly
+
+```typescript
+// readonly 修饰符：只读属性
+interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
+// as const：整个对象/数组变成字面量 + readonly
+const point = { x: 10, y: 20 } as const;
+// 类型：{ readonly x: 10; readonly y: 20 }
+// 值是精确的 10 和 20（字面量），而不是 number
+```
+
+### 泛型推断中的 as const
+
+```typescript
+function createRoute<T extends Record<string, string | number>>(route: T) {
+  return route;
+}
+
+const route = createRoute({
+  path: "/users/:id",
+  method: "GET",
+  timeout: 5000
+} as const);
+// route.method 是精确的 "GET"，而不是 string
+// route.timeout 是精确的 5000，而不是 number
+```
+
+## 枚举 vs const 对象（最佳实践）
+
+| 特性 | 枚举 | const 对象 + as const |
+|------|------|----------------------|
+| 编译产物 | 运行时真实对象 | 原始值（内联） |
+| 命名空间 | 支持 | 不支持 |
+| 计算值 | 支持 | 不支持 |
+| 反向映射 | 数字枚举支持 | 不支持 |
+| 对象属性 | 否 | 是（天然支持） |
+| tree-shaking | 差（运行时对象） | 好（编译时常量） |
+| 类型推断 | 枚举成员类型 | 字面量联合类型 |
+
+### 推荐：优先使用 const 对象
+
+```typescript
+// 现代 TypeScript 推荐方式
+const Colors = {
+  Red: "#D02020",
+  Blue: "#1040C0",
+  Yellow: "#F0C020"
+} as const;
+
+type Color = (typeof Colors)[keyof typeof Colors];
+// type Color = "#D02020" | "#1040C0" | "#F0C020"
+
+function setColor(color: Color): void {
+  document.body.style.color = color;
+}
+
+setColor(Colors.Red);    // ✅
+setColor("#FFFFFF");     // ❌ 只有三种颜色可选
+```
+
+## 运行时枚举的注意事项
+
+枚举在编译后会保留运行时对象，这既是优势也是劣势：
+
+```typescript
+enum Runtime {
+  Value = 1
+}
+
+// 编译后：var Runtime = { Value: 1, 1: "Value" }
+// 这意味着可以通过数字索引访问
+console.log(Runtime[1]); // "Value"
+
+// 使用 const 修饰符可以让编译产物更精简（仅保留使用到的值）
+const enum ConstEnum {
+  Value = 1
+}
+
+// 编译后：直接内联，删除整个枚举定义
+// constEnum 会被替换为 1
+console.log(ConstEnum.Value);
+```
+
+## 实战：API 状态管理
+
+```typescript
+// 使用 const 对象管理 API 状态（推荐）
+const ApiState = {
+  IDLE: "idle",
+  LOADING: "loading",
+  SUCCESS: "success",
+  ERROR: "error"
+} as const;
+
+type ApiState = (typeof ApiState)[keyof typeof ApiState];
+
+// 在状态机中使用
+type AsyncState<T> =
+  | { status: typeof ApiState.IDLE }
+  | { status: typeof ApiState.LOADING }
+  | { status: typeof ApiState.SUCCESS; data: T }
+  | { status: typeof ApiState.ERROR; error: Error };
+
+function renderState<T>(state: AsyncState<T>) {
+  if (state.status === ApiState.LOADING) {
+    return "加载中...";
+  }
+  if (state.status === ApiState.SUCCESS) {
+    return `数据：${JSON.stringify(state.data)}`;
+  }
+  if (state.status === ApiState.ERROR) {
+    return `错误：${state.error.message}`;
+  }
+  return "待处理";
+}
+```
+
+## 总结
+
+- **数字枚举**：自动递增，支持反向映射 `Enum[0]`，编译后保留运行时对象
+- **字符串枚举**：无反向映射，适合固定的字符串常量集合
+- **const 枚举**：`const enum` 直接内联，性能最佳但失去运行时访问能力
+- **as const 断言**：将对象/数组推断为最窄的只读字面量类型
+- **最佳实践**：现代 TypeScript 项目优先使用 `const 对象 + as const`，枚举仅在需要运行时反射时才使用

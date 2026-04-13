@@ -1,0 +1,297 @@
+---
+title: TypeScript 基础类型与类型推断
+description: 深入讲解 TypeScript 的原始类型、数组、元组、unknown、never 等基础类型，以及类型推断机制与类型注解的使用方法
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, types, type-inference]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: typescript-basics
+---
+
+# TypeScript 基础类型与类型推断
+
+TypeScript 是 JavaScript 的超集，它在 JavaScript 之上添加了**静态类型系统**。本文将从基础类型讲起，探讨类型推断的工作原理，帮助你建立扎实的 TypeScript 基础。
+
+## 为什么需要类型
+
+JavaScript 是一门**动态类型**语言，变量可以随时持有任何类型的值：
+
+```javascript
+// JavaScript - 运行时不检查类型
+let message = "hello";
+message = 42; // 完全合法，但容易引发 bug
+```
+
+TypeScript 在编译阶段就能发现这些潜在问题：
+
+```typescript
+// TypeScript - 编译时类型检查
+let message: string = "hello";
+message = 42; // ❌ 错误：不能将类型 'number' 分配给类型 'string'
+```
+
+## 原始类型
+
+TypeScript 支持 JavaScript 的所有原始类型：
+
+```typescript
+// 字符串
+const name: string = "Alice";
+const greeting: string = `Hello, ${name}`;
+
+// 数字
+const age: number = 28;
+const pi: number = 3.14159;
+const binary: number = 0b1010; // 二进制
+const hex: number = 0xff;       // 十六进制
+
+// 布尔值
+const isActive: boolean = true;
+const hasPermission: boolean = false;
+
+// undefined 与 null
+let u: undefined = undefined;
+let n: null = null;
+```
+
+> **注意**：`undefined` 和 `null` 在 TypeScript 中既是类型也是值，可显式标注。
+
+## 数组类型
+
+数组类型有两种等价的声明方式：
+
+```typescript
+// 方式一：类型 + 方括号
+const numbers: number[] = [1, 2, 3, 4, 5];
+const names: string[] = ["Alice", "Bob", "Carol"];
+
+// 方式二：Array<类型> 泛型语法
+const scores: Array<number> = [98, 85, 92];
+const users: Array<{ name: string; age: number }> = [
+  { name: "Alice", age: 28 },
+  { name: "Bob", age: 34 }
+];
+
+// 只读数组（不能修改）
+const readonlyNumbers: readonly number[] = [1, 2, 3];
+// readonlyNumbers.push(4); // ❌ 错误：readonly 属性
+```
+
+## 元组（Tuple）
+
+**元组**是固定长度、每元素类型已知的数组：
+
+```typescript
+// 定义坐标：第一个是 number，第二个也是 number
+const point: [number, number] = [10, 20];
+
+// 定义 HTTP 响应：[状态码, 消息, 数据]
+type HttpResponse = [number, string, any];
+const response: HttpResponse = [200, "OK", { id: 1 }];
+
+// 解构赋值
+const [statusCode, message, data] = response;
+console.log(statusCode); // 200
+
+// 可选元素（TypeScript 4.0+）
+type OptionalTuple = [string, number?];
+const t1: OptionalTuple = ["hello"];
+const t2: OptionalTuple = ["world", 42];
+
+// rest 元素
+type RestTuple = [string, ...number[]];
+const r1: RestTuple = ["hello"];
+const r2: RestTuple = ["hello", 1, 2, 3];
+```
+
+> **元组 vs 数组**：数组是「同类型的有序集合」，元组是「不同类型固定长度的有序集合」。
+
+## any 与 unknown
+
+`any` 和 `unknown` 都用于表示不确定的类型，但安全等级不同：
+
+```typescript
+// any：绕过所有类型检查（危险但灵活）
+function processAny(value: any) {
+  console.log(value.toString()); // ❌ 运行时不报错，但 TS 不推荐
+  value.foo();                   // ❌ 静默失败
+}
+
+// unknown：类型安全的不确定类型（推荐）
+function processUnknown(value: unknown) {
+  // value.toString(); // ❌ 错误：Object is of type 'unknown'
+
+  // 必须先收窄类型
+  if (typeof value === "string") {
+    console.log(value.toUpperCase()); // ✅ 安全
+  }
+
+  if (typeof value === "number") {
+    console.log(value.toFixed(2)); // ✅ 安全
+  }
+}
+```
+
+> **经验法则**：永远不要用 `any`，优先使用 `unknown`。必须处理时通过类型守卫进行收窄。
+
+## void 与 never
+
+```typescript
+// void：函数没有显式返回值（返回 undefined）
+function logMessage(message: string): void {
+  console.log(message);
+  // 隐式返回 undefined
+}
+
+// never：函数永远不会返回（抛出异常或死循环）
+function throwError(message: string): never {
+  throw new Error(message);
+}
+
+function infiniteLoop(): never {
+  while (true) {
+    // 永不返回
+  }
+}
+```
+
+类型层级关系：`never` 是所有类型的子类型，`unknown` 是所有类型的父类型（除了自身）：
+
+```typescript
+// never 的特殊性
+type Test1 = never extends string ? true : false; // true
+
+// unknown 的特殊性
+type Test2 = string extends unknown ? true : false; // true
+type Test3 = unknown extends string ? true : false; // false
+```
+
+## 类型推断机制
+
+TypeScript 拥有强大的**类型推断**能力，很多情况下不需要显式标注类型：
+
+```typescript
+// 变量声明时推断类型
+const name = "Alice";        // 推断为：string
+const age = 28;              // 推断为：number
+const isActive = true;       // 推断为：boolean
+
+// 对象字面量推断
+const user = {
+  name: "Bob",
+  age: 34,
+  email: "bob@example.com"
+};
+// 推断为：{ name: string; age: number; email: string }
+
+// 数组字面量推断
+const numbers = [1, 2, 3];    // 推断为：number[]
+const mixed = [1, "two", true]; // 推断为：(string | number | boolean)[]
+```
+
+### 最佳赋值原则
+
+TypeScript 遵循「只能将窄类型赋值给宽类型」的原则：
+
+```typescript
+let num: number = 42;
+let str: string = "hello";
+
+// num = str; // ❌ 错误
+// str = num; // ❌ 错误
+
+// 但字面量可以赋值给兼容的类型
+let numOrStr: number | string = "hello";
+numOrStr = 42; // ✅
+
+// 字面量类型的特殊行为
+const literal: "success" | "error" = "success";
+// literal = "pending"; // ❌ 错误：不在字面量联合类型中
+```
+
+## 类型注解（Type Annotation）
+
+显式标注类型用于增强可读性和文档化：
+
+```typescript
+// 函数参数和返回值标注
+function add(a: number, b: number): number {
+  return a + b;
+}
+
+// 复杂对象标注
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: "admin" | "user" | "guest";
+  createdAt: Date;
+}
+
+const currentUser: User = {
+  id: 1,
+  name: "Alice",
+  email: "alice@example.com",
+  role: "admin",
+  createdAt: new Date()
+};
+```
+
+## 类型断言（Type Assertion）
+
+当你比 TypeScript 更了解值的类型时，使用**类型断言**：
+
+```typescript
+// 尖括号语法
+const value: unknown = "hello world";
+const strLength: number = (value as string).length;
+
+// as 语法（更常用，推荐）
+const htmlElement = document.getElementById("app") as HTMLDivElement;
+htmlElement.classList.add("active");
+
+// 非空断言（确定值不为 null/undefined）
+const maybeString: string | null = getString();
+const definitelyString: string = maybeString!;
+
+// DOM 元素类型断言示例
+const input = document.querySelector("input") as HTMLInputElement;
+input.value; // ✅ TS 知道这是 input，有 value 属性
+```
+
+> **警告**：类型断言是「欺骗」TypeScript，要确保你知道自己在做什么，否则可能导致运行时错误。
+
+## object 与 Object
+
+两者有微妙区别：
+
+```typescript
+// Object：所有非原始类型，包括函数和数组
+let obj: Object = { key: "value" };
+obj = [1, 2, 3];
+obj = function () {};
+
+// object：所有非原始类型，不包括原始值
+let o: object = { key: "value" };
+o = [1, 2, 3];
+// o = "string"; // ❌ 错误：string 是原始类型
+```
+
+> **最佳实践**：尽量使用具体的类型（如 `{ name: string }`），而不是宽泛的 `object` 或 `Object`。
+
+## 总结
+
+本文涵盖了 TypeScript 的核心基础类型：
+
+- **原始类型**：`string`、`number`、`boolean`、`null`、`undefined`
+- **数组**：`number[]` 或 `Array<number>`，以及只读数组
+- **元组**：固定长度、不同类型的数组
+- **`unknown`**：安全的「任意类型」，使用前必须收窄
+- **`never`**：永不返回的函数类型
+- **类型推断**：TypeScript 自动推导类型，减少显式标注
+- **类型断言**：在确定类型时覆盖推断结果
+
+掌握这些基础类型后，你已经为学习更高级的类型系统做好准备。

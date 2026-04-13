@@ -1,0 +1,348 @@
+---
+title: 联合类型与交叉类型
+description: 深入讲解 TypeScript 联合类型的分发行为、交叉类型的合并规则，以及它们与类型守卫的配合使用
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, union-types, intersection-types]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: union-intersection-types
+---
+
+# 联合类型与交叉类型
+
+**联合类型**和**交叉类型**是 TypeScript 中组合类型的两种基本操作。理解它们的行为差异是掌握高级类型系统的关键。
+
+## 联合类型（Union Types）
+
+联合类型用 `|` 表示「多种可能性之一」：
+
+```typescript
+// 基本联合类型
+type StringOrNumber = string | number;
+type Status = "pending" | "approved" | "rejected";
+
+let value: StringOrNumber = "hello";
+value = 42;
+value = true; // ❌ 错误：boolean 不在联合类型中
+
+// 多类型联合
+type ID = string | number | null;
+type Result<T> = { success: true; data: T } | { success: false; error: string };
+```
+
+### 访问联合类型的属性
+
+对于联合类型的值，只能访问所有成员共有的属性：
+
+```typescript
+interface Cat {
+  meow(): void;
+  name: string;
+}
+
+interface Dog {
+  bark(): void;
+  name: string;
+}
+
+type Pet = Cat | Dog;
+
+function describePet(pet: Pet): string {
+  // ✅ 两个接口都有 name
+  console.log(pet.name);
+
+  // ✅ 只有 Cat 有 meow，Dog 没有
+  // pet.meow();  // ❌ 错误
+
+  // ✅ 只有 Dog 有 bark，Cat 没有
+  // pet.bark();  // ❌ 错误
+
+  return `A pet named ${pet.name}`;
+}
+```
+
+### 联合类型的字面量
+
+```typescript
+// 字面量联合类型比通用类型更精确
+type Direction = "north" | "south" | "east" | "west";
+
+function move(direction: Direction): void {
+  switch (direction) {
+    case "north": console.log("Moving up"); break;
+    case "south": console.log("Moving down"); break;
+    case "east": console.log("Moving right"); break;
+    case "west": console.log("Moving left"); break;
+  }
+}
+
+move("north"); // ✅
+move("diagonal"); // ❌ 错误
+```
+
+## 交叉类型（Intersection Types）
+
+交叉类型用 `&` 表示「同时满足所有类型」：
+
+```typescript
+// 基本交叉类型
+interface Name {
+  name: string;
+}
+
+interface Age {
+  age: number;
+}
+
+type Person = Name & Age;
+
+const person: Person = {
+  name: "Alice",
+  age: 28
+};
+```
+
+### 合并接口属性
+
+当两个接口有同名属性时，交叉类型会合并它们：
+
+```typescript
+interface A {
+  x: string;
+  y: number;
+}
+
+interface B {
+  y: string; // 与 A 同名，类型不同
+  z: boolean;
+}
+
+type C = A & B;
+// C 的类型为：{ x: string; y: never; z: boolean }
+// 因为 y: string & number = never
+```
+
+> **重要**：当交叉类型的同名属性类型冲突时，结果类型是 `never`。
+
+### 实际应用：Mixins
+
+交叉类型常用于 Mixin 模式：
+
+```typescript
+function withTimestamp<T extends object>(Base: T) {
+  return class extends (Base as any) {
+    timestamp = new Date();
+  };
+}
+
+function withValidation<T extends object>(Base: T) {
+  return class extends (Base as any) {
+    isValid = true;
+    validate() {
+      return this.isValid;
+    }
+  };
+}
+
+class User {
+  name = "Guest";
+}
+
+const ValidatedTimestampedUser = withTimestamp(withValidation(User));
+const instance = new ValidatedTimestampedUser();
+console.log(instance.name);     // "Guest"
+console.log(instance.timestamp); // Date
+console.log(instance.validate()); // true
+```
+
+## 联合类型与交叉类型的区别
+
+```typescript
+type Union = { a: string } | { b: number };
+type Intersection = { a: string } & { b: number };
+
+// Union：值必须满足其中一个
+const u1: Union = { a: "hello" };       // ✅
+const u2: Union = { b: 42 };           // ✅
+const u3: Union = { a: "x", b: 1 };    // ✅（满足两者也可以）
+
+// Intersection：值必须同时满足两者
+const i1: Intersection = { a: "hello", b: 42 }; // ✅
+// const i2: Intersection = { a: "hello" };     // ❌
+```
+
+## 分发条件类型与联合类型
+
+**分发机制**是联合类型最重要的特性之一——当联合类型出现在泛型条件类型的 `extends` 左侧时，会被「展开」：
+
+```typescript
+// 分发机制演示
+type ToArray<T> = T extends any ? T[] : never;
+
+// 联合类型会被分发
+type StrOrNumArray = ToArray<string | number>;
+// 相当于：ToArray<string> | ToArray<number>
+// = string[] | number[]
+
+// 不带分发的版本
+type ToArrayNonDistributive<T> = [T] extends [any] ? T[] : never;
+
+type Combined = ToArrayNonDistributive<string | number>;
+// = (string | number)[]
+```
+
+> **分发机制**：`<T extends string | number>` 中的联合类型会在分发条件类型中展开。
+
+## 联合类型与类型收窄
+
+通过**类型守卫**（Type Guard）可以在分支中收窄联合类型：
+
+```typescript
+interface Cat {
+  type: "cat";
+  meow(): void;
+}
+
+interface Dog {
+  type: "dog";
+  bark(): void;
+}
+
+type Animal = Cat | Dog;
+
+function speak(animal: Animal): void {
+  if (animal.type === "cat") {
+    animal.meow(); // ✅ TypeScript 知道这是 Cat
+  } else {
+    animal.bark(); // ✅ TypeScript 知道这是 Dog
+  }
+}
+```
+
+## 可辨识联合（Discriminated Unions）
+
+使用「可辨识属性」（公共字面量字段）实现安全的类型收窄：
+
+```typescript
+// 每个成员都有相同的字面量类型属性作为"标签"
+interface Square {
+  kind: "square";
+  size: number;
+}
+
+interface Circle {
+  kind: "circle";
+  radius: number;
+}
+
+interface Triangle {
+  kind: "triangle";
+  base: number;
+  height: number;
+}
+
+type Shape = Square | Circle | Triangle;
+
+function area(shape: Shape): number {
+  switch (shape.kind) {
+    case "square":
+      return shape.size ** 2;
+    case "circle":
+      return Math.PI * shape.radius ** 2;
+    case "triangle":
+      return 0.5 * shape.base * shape.height;
+    default:
+      // exhaustive check：穷举检查
+      const _exhaustive: never = shape;
+      return _exhaustive;
+  }
+}
+```
+
+> **穷举检查**：在 `default` 分支将 `shape` 赋值给 `never`，如果后续添加新变体而忘记处理，TypeScript 会报错。
+
+## 联合类型与交叉类型配合
+
+```typescript
+// 同时使用联合和交叉
+type Draggable = {
+  drag(): void;
+};
+
+type Resizable = {
+  resize(): void;
+};
+
+// 既是 Draggable 又是 Resizable
+type Widget = Draggable & Resizable;
+
+// Draggable 或 Resizable（或两者）
+type MaybeWidget = Draggable | Resizable;
+
+class Panel implements Widget {
+  drag() { console.log("dragging"); }
+  resize() { console.log("resizing"); }
+}
+```
+
+## 实际应用示例
+
+### API 响应类型
+
+```typescript
+type ApiSuccess<T> = {
+  status: "success";
+  data: T;
+  message: string;
+};
+
+type ApiError = {
+  status: "error";
+  code: number;
+  message: string;
+};
+
+type ApiResponse<T> = ApiSuccess<T> | ApiError;
+
+function handleResponse<T>(response: ApiResponse<T>): void {
+  if (response.status === "success") {
+    console.log(response.data); // ✅ data 存在
+  } else {
+    console.error(`Error ${response.code}: ${response.message}`);
+  }
+}
+```
+
+### 可选功能组合
+
+```typescript
+type WithName = { name: string };
+type WithAge = { age: number };
+type WithEmail = { email: string };
+
+// 基础用户
+type BasicUser = WithName & { id: number };
+
+// 完整用户
+type FullUser = BasicUser & WithAge & WithEmail;
+
+const user: FullUser = {
+  id: 1,
+  name: "Alice",
+  age: 28,
+  email: "alice@example.com"
+};
+```
+
+## 总结
+
+- **联合类型** `|`：值可以是「A 或 B」之一，使用时只能访问共有的属性
+- **交叉类型** `&`：值必须「同时是 A 也是 B」，合并多个接口的属性
+- **分发机制**：联合类型在条件类型中会展开为多个分支
+- **可辨识联合**：用公共字面量属性作为「标签」，实现安全的 `switch/if` 收窄
+- **穷举检查**：将未处理的分支赋值给 `never`，防止遗漏新变体
+
+联合类型和交叉类型是 TypeScript 组合类型的基础，配合类型守卫使用可以实现强大而安全的类型系统。

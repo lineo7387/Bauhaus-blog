@@ -1,0 +1,335 @@
+---
+title: 泛型进阶：多泛型参数与 infer
+description: 深入讲解 TypeScript 多泛型约束、模板字面量类型、infer 关键字在条件类型中提取类型的技巧与实战应用
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, generics, infer, template-literals]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 16
+planId: advanced-generics
+---
+
+# 泛型进阶：多泛型参数与 infer
+
+泛型的力量不仅在于创建通用函数，更在于构建灵活的类型抽象。本章将深入讲解多泛型参数、模板字面量类型和 `infer` 关键字，这些是 TypeScript 类型工具库的核心。
+
+## 多泛型约束
+
+### 基本多约束
+
+```typescript
+// T 必须继承 U，同时继承 V
+type T = string & number; // never
+
+// 实际应用：确保 T 同时满足多个约束
+interface Serializable {
+  serialize(): string;
+}
+
+interface Comparable<T> {
+  compare(other: T): number;
+}
+
+function process<T extends Serializable & Comparable<T>>(item: T): string {
+  const serialized = item.serialize();
+  return serialized;
+}
+```
+
+### 泛型中的泛型约束
+
+```typescript
+// 返回类型依赖于输入类型的约束
+function getKeys<T extends object, K extends keyof T>(obj: T): K[] {
+  return Object.keys(obj) as K[];
+}
+
+const user = { name: "Alice", age: 28, active: true };
+const keys = getKeys(user, "name" | "age"); // ("name" | "age")[]
+```
+
+## 模板字面量类型
+
+TypeScript 4.1 引入的**模板字面量类型**允许在类型层面操作字符串：
+
+### 基本语法
+
+```typescript
+type World = `world`;
+type Greeting = `hello ${World}`; // "hello world"
+
+type EmailLocaleIds = "welcome_email" | "email_heading";
+type FooterLocaleIds = "footer_title" | "footer_sendoff";
+
+type AllLocaleIds = `${EmailLocaleIds}` | `${FooterLocaleIds}`;
+// "welcome_email" | "email_heading" | "footer_title" | "footer_sendoff"
+```
+
+### 插值类型
+
+```typescript
+type PropEventSource<T> = {
+  on(eventName: `${string & keyof T}Changed`, callback: (newValue: unknown) => void): void;
+};
+
+interface Toggleable {
+  isOn: boolean;
+  toggle(): void;
+}
+
+class Component extends Toggleable {
+  isOn = false;
+  toggle() { this.isOn = !this.isOn; }
+  on(eventName: "isOnChanged", callback: (newValue: boolean) => void) {
+    // 实现...
+  }
+}
+
+const comp = new Component();
+comp.on("isOnChanged", (newValue) => console.log("toggled:", newValue));
+comp.on("toggle", () => {}); // ❌ "toggleChanged" 不存在
+```
+
+### 字符串操作工具类型
+
+```typescript
+// 首字母大写
+type Capitalize<T extends string> = T extends `${infer First}${infer Rest}`
+  ? `${Uppercase<First>}${Rest}`
+  : T;
+
+type Caps = Capitalize<"hello">; // "Hello"
+type Caps2 = Capitalize<"world">; // "World"
+
+// 转换为驼峰命名
+type CamelCase<S extends string> =
+  S extends `${infer Part}_${infer Rest}`
+    ? `${Part}${Capitalize<Rest>}`
+    : S;
+
+type Camel = CamelCase<"hello_world">; // "helloWorld"
+type Camel2 = CamelCase<"my_property_name">; // "myPropertyName"
+type Camel3 = CamelCase<"api_endpoint_url">; // "apiEndpointUrl"
+
+// 下划线转大驼峰
+type SnakeToCamel<S extends string> =
+  S extends `${infer H}_${infer C}${infer R}`
+    ? `${H}${Uppercase<C>}${SnakeToCamel<R>}`
+    : S;
+
+type Snake = SnakeToCamel<"user_id">; // "userId"
+```
+
+## infer 关键字
+
+`infer` 是 TypeScript 类型系统中最强大的工具之一，它允许在条件类型中**推断**并**捕获**子类型：
+
+### 基本 infer
+
+```typescript
+// 从类型中提取元素类型
+type ElementType<T> = T extends Array<infer E> ? E : never;
+
+type A = ElementType<string[]>;  // string
+type B = ElementType<number[]>;  // number
+type C = ElementType<string>;    // never（不是数组）
+type D = ElementType<Array<string | number>>; // string | number
+```
+
+### 从函数类型提取参数和返回值
+
+```typescript
+// 提取函数参数类型
+type Parameters<T extends (...args: any) => any> =
+  T extends (...args: infer P) => any ? P : never;
+
+type A = Parameters<(x: string, y: number) => void>; // [x: string, y: number]
+
+// 提取返回值类型
+type ReturnType<T extends (...args: any) => any> =
+  T extends (...args: any) => infer R ? R : never;
+
+type B = ReturnType<() => string>;         // string
+type C = ReturnType<() => Promise<number>>; // Promise<number>
+
+// 提取构造函数参数
+type ConstructorParameters<T extends new (...args: any) => any> =
+  T extends new (...args: infer P) => any ? P : never;
+
+class Point {
+  constructor(x: number, y: number) {}
+}
+
+type PointParams = ConstructorParameters<typeof Point>; // [x: number, y: number]
+```
+
+### 递归 infer：提取嵌套类型
+
+```typescript
+// 提取 Promise 的嵌套值类型（递归）
+type DeepPromiseValue<T> = T extends Promise<infer V>
+  ? DeepPromiseValue<V>
+  : T;
+
+type A = DeepPromiseValue<Promise<string>>; // string
+type B = DeepPromiseValue<Promise<Promise<number>>>; // number
+type C = DeepPromiseValue<Promise<Promise<Promise<boolean>>>>; // boolean
+
+// 提取数组元素（任意嵌套深度）
+type DeepArrayElement<T> = T extends Array<infer E>
+  ? DeepArrayElement<E>
+  : T;
+
+type D = DeepArrayElement<number[][]>; // number
+type E = DeepArrayElement<string[][][]>; // string
+```
+
+### infer 在元组和元组尾部
+
+```typescript
+// 提取元组第一个元素
+type First<T extends any[]> = T extends [infer F, ...any[]] ? F : never;
+
+type A = First<[string, number, boolean]>; // string
+type B = First<[]>; // never
+
+// 提取元组最后一个元素
+type Last<T extends any[]> = T extends [...any[], infer L] ? L : never;
+
+type C = Last<[string, number, boolean]>; // boolean
+
+// 提取元组去掉最后一个元素的剩余部分
+type Pop<T extends any[]> = T extends [...infer Rest, any] ? Rest : never;
+
+type D = Pop<[string, number, boolean]>; // [string, number]
+
+// 提取元组去掉第一个元素的剩余部分
+type Shift<T extends any[]> = T extends [any, ...infer Rest] ? Rest : never;
+
+type E = Shift<[string, number, boolean]>; // [number, boolean]
+```
+
+### infer 实战：解构 API 响应
+
+```typescript
+// 从响应类型中提取 data 字段的类型
+type UnwrapData<T> = T extends { data: infer D } ? D : never;
+
+type UserData = UnwrapData<{ data: { id: number; name: string } }>;
+// { id: number; name: string }
+
+// 推断函数返回值中的类型
+type UnboxedPromise<T> = T extends Promise<infer R> ? R : T;
+
+async function fetchUser(): Promise<{ id: number; name: string }> {
+  return { id: 1, name: "Alice" };
+}
+
+type User = UnboxedPromise<ReturnType<typeof fetchUser>>;
+// { id: number; name: string }
+```
+
+## 复杂的条件类型与泛型组合
+
+### 联合分发与条件类型
+
+```typescript
+// 联合分发行为
+type ToString<T> = T extends string | number ? `${T}` : never;
+
+type A = ToString<string | number>; // string | number
+// 相当于：(string extends string | number ? `${string}` : never)
+//      | (number extends string | number ? `${number}` : never)
+//      = string | number
+
+// 非分发包裹
+type ToStringNonDistributive<T> = [T] extends [string | number] ? `${T}` : never;
+
+type B = ToStringNonDistributive<string | number>; // `${string | number}`
+```
+
+### 泛型工具函数实战
+
+```typescript
+// Partialize：将对象的所有属性变为可选
+type Partial<T> = { [P in keyof T]?: T[P] };
+
+// Requiredify：将对象的所有属性变为必选（自定义）
+type Required<T> = { [P in keyof T]-?: T[P] };
+
+// PickByValue：从对象中挑选出值为特定类型的属性
+type PickByValue<T, ValueType> = {
+  [P in keyof T as T[P] extends ValueType ? P : never]: T[P]
+};
+
+interface User {
+  id: number;
+  name: string;
+  age: number;
+  email: string;
+}
+
+type StringFields = PickByValue<User, string>;
+// { name: string; email: string }
+
+type NumberFields = PickByValue<User, number>;
+// { id: number; age: number }
+```
+
+## 实战：类型安全的 EventEmitter
+
+```typescript
+type EventMap = {
+  userCreated: { id: number; name: string };
+  userUpdated: { id: number; changes: Partial<{ name: string; email: string }> };
+  userDeleted: { id: number };
+};
+
+class TypedEventEmitter<Events extends Record<string, any>> {
+  private listeners = new Map<keyof Events, Set<Function>>();
+
+  on<K extends keyof Events>(event: K, listener: (data: Events[K]) => void): this {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(listener);
+    return this;
+  }
+
+  emit<K extends keyof Events>(event: K, data: Events[K]): void {
+    this.listeners.get(event)?.forEach(listener => listener(data));
+  }
+
+  off<K extends keyof Events>(event: K, listener: (data: Events[K]) => void): this {
+    this.listeners.get(event)?.delete(listener);
+    return this;
+  }
+}
+
+const emitter = new TypedEventEmitter<EventMap>();
+
+// ✅ 类型安全的事件监听
+emitter.on("userCreated", (data) => {
+  console.log(`User ${data.name} created with id ${data.id}`);
+});
+
+emitter.on("userDeleted", ({ id }) => {
+  console.log(`User ${id} deleted`);
+});
+
+// ❌ TypeScript 会报错：缺少/多余的属性
+emitter.emit("userCreated", { name: "Alice" }); // ❌ 缺少 id
+emitter.emit("userCreated", { id: 1, name: "Alice", extra: "field" }); // ❌ 多余字段
+```
+
+## 总结
+
+- **多泛型约束**：`T extends A & B`，T 必须同时满足 A 和 B
+- **模板字面量类型**：在类型层面拼接字符串，如 `type EventName = \`on\${Capitalize<string>}\``
+- **infer 关键字**：在条件类型中「捕获」未知子类型，如 `T extends Array<infer E> ? E : never`
+- **递归 infer**：处理嵌套结构（Promise、数组）的值类型提取
+- **分发机制**：联合类型在裸条件类型中会展开，配合 `[T]` 包裹可以禁止分发
+
+掌握这些高级泛型技巧，你就能构建出功能强大、类型安全的抽象类型工具库。

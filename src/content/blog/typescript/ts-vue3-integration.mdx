@@ -1,0 +1,403 @@
+---
+title: TypeScript + Vue 3 集成
+description: 深入讲解 Vue 3 组件类型化、defineProps 与 withDefaults、defineEmits 泛型、Pinia store 类型、模板 ref 类型推断等最佳实践
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, vue3, pinia, integration]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 15
+planId: ts-vue3-integration
+---
+
+# TypeScript + Vue 3 集成
+
+Vue 3 从一开始就为 TypeScript 提供了极佳的支持。本文系统讲解 Vue 3 组件、Composition API 和 Pinia Store 的类型化方法。
+
+## script setup 与类型推导
+
+Vue 3 的 `<script setup>` 语法糖与 TypeScript 深度集成：
+
+```vue
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+
+// TypeScript 自动推断类型
+const count = ref(0)           // Ref<number>
+const message = ref('hello')   // Ref<string>
+
+// computed 自动推导返回类型
+const doubled = computed(() => count.value * 2) // ComputedRef<number>
+
+// 显式类型注解
+const status = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
+</script>
+```
+
+## defineProps 与类型声明
+
+### 运行时声明 vs 类型声明
+
+Vue 3 支持两种 props 声明方式：
+
+```vue
+<script setup lang="ts">
+// 方式一：运行时声明（通过构造函数推断）
+defineProps({
+  title: String,
+  count: {
+    type: Number,
+    default: 0
+  },
+  items: {
+    type: Array,
+    default: () => []
+  }
+})
+
+// 方式二：类型声明（更强大，推荐）
+interface Props {
+  title: string
+  count?: number
+  items?: string[]
+  onClick?: () => void
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  count: 0,
+  items: () => []
+})
+
+// props.title 是 string（必选）
+// props.count 是 number（有默认值）
+</script>
+```
+
+### withDefaults 与默认值
+
+```vue
+<script setup lang="ts">
+interface Props {
+  name: string
+  age: number
+  email?: string
+  tags?: string[]
+  config?: { theme: string; debug: boolean }
+}
+
+// 使用 withDefaults 设置默认值
+const props = withDefaults(defineProps<Props>(), {
+  email: 'default@example.com',
+  tags: () => [],
+  config: () => ({ theme: 'light', debug: false })
+})
+
+// config.theme 是 string（有默认值）
+// tags 是 string[]（默认值空数组）
+</script>
+```
+
+### 仅响应式（构造）默认值
+
+```vue
+<script setup lang="ts">
+import { toRef } from 'vue'
+
+interface Props {
+  initialCount: number
+  multiplier: number
+}
+
+const props = defineProps<Props>()
+
+// 响应式引用默认值
+const multiplier = toRef(props, 'multiplier')
+</script>
+```
+
+## defineEmits 泛型
+
+```vue
+<script setup lang="ts">
+// 定义 emit 类型
+interface Emits {
+  (e: 'update', value: number): void
+  (e: 'delete', id: string): void
+  (e: 'submit', payload: { name: string; email: string }): void
+}
+
+const emit = defineEmits<Emits>()
+
+// 类型安全的 emit 调用
+function handleUpdate() {
+  emit('update', 42) // ✅
+  emit('update', 'wrong') // ❌ 应该是 number
+}
+
+function handleDelete() {
+  emit('delete', 'user-123') // ✅
+  emit('delete', 123) // ❌ 应该是 string
+}
+</script>
+```
+
+## 模板 ref 类型推断
+
+### 基本用法
+
+```vue
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+
+// DOM 元素 ref
+const inputRef = ref<HTMLInputElement | null>(null)
+
+onMounted(() => {
+  // inputRef.current 是 HTMLInputElement | null
+  inputRef.value?.focus()
+})
+
+// 组件 ref（需要组件暴露相应属性）
+const childRef = ref<InstanceType<typeof ChildComponent> | null>(null)
+
+childRef.value?.someMethod()
+</script>
+```
+
+### defineExpose 暴露方法
+
+```vue
+<!-- ChildComponent.vue -->
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const count = ref(0)
+const inputRef = ref<HTMLInputElement>(null)
+
+function reset() {
+  count.value = 0
+}
+
+function focus() {
+  inputRef.value?.focus()
+}
+
+// 显式暴露给父组件
+defineExpose({
+  count,
+  reset,
+  focus
+})
+</script>
+```
+
+```vue
+<!-- ParentComponent.vue -->
+<script setup lang="ts">
+import { ref } from 'vue'
+import ChildComponent from './ChildComponent.vue'
+
+const child = ref<InstanceType<typeof ChildComponent> | null>(null)
+
+function handleReset() {
+  child.value?.reset()
+}
+</script>
+```
+
+## Pinia Store 类型化
+
+### 基本 Store
+
+```typescript
+// stores/user.ts
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+
+export const useUserStore = defineStore('user', () => {
+  // State
+  const id = ref<number | null>(null)
+  const name = ref('')
+  const email = ref('')
+  const isAdmin = ref(false)
+
+  // Getters
+  const isLoggedIn = computed(() => id.value !== null)
+  const displayName = computed(() => name.value || email.value || 'Anonymous')
+
+  // Actions
+  async function fetchUser(userId: number) {
+    const response = await fetch(`/api/users/${userId}`)
+    const data = await response.json()
+    id.value = data.id
+    name.value = data.name
+    email.value = data.email
+    isAdmin.value = data.role === 'admin'
+  }
+
+  function logout() {
+    id.value = null
+    name.value = ''
+    email.value = ''
+    isAdmin.value = false
+  }
+
+  return {
+    // State
+    id,
+    name,
+    email,
+    isAdmin,
+    // Getters
+    isLoggedIn,
+    displayName,
+    // Actions
+    fetchUser,
+    logout
+  }
+})
+```
+
+### Store 类型导出
+
+```typescript
+// types/store.ts
+import { ReturnType } from 'vue'
+import { useUserStore } from '@/stores/user'
+
+export type UserStore = ReturnType<typeof useUserStore>
+```
+
+### 在组件中使用
+
+```vue
+<script setup lang="ts">
+import { storeToRefs } from 'pinia'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
+
+// 使用 storeToRefs 保持响应式（解构时必须用它）
+const { name, email, isAdmin, isLoggedIn } = storeToRefs(userStore)
+
+// 方法不需要 storeToRefs
+const { logout } = userStore
+</script>
+```
+
+## 泛型组件
+
+### 可复用的表格组件
+
+```vue
+<script setup lang="ts" generic="T extends Record<string, any>">
+interface Props {
+  columns: Array<{
+    key: keyof T
+    label: string
+  }>
+  data: T[]
+  loading?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  loading: false
+})
+
+defineEmits<{
+  rowClick: [item: T]
+}>()
+</script>
+```
+
+```vue
+<!-- 使用泛型表格 -->
+<GenericTable
+  :columns="[
+    { key: 'id', label: 'ID' },
+    { key: 'name', label: 'Name' },
+    { key: 'email', label: 'Email' }
+  ]"
+  :data="users"
+  @row-click="handleUserClick"
+/>
+```
+
+## 路由类型
+
+### 路由定义类型化
+
+```typescript
+// router/index.ts
+import { createRouter, createWebHistory } from 'vue-router'
+
+interface RouteRecordRaw {
+  path: string
+  name?: string
+  component?: any
+  children?: RouteRecordRaw[]
+}
+
+const routes: RouteRecordRaw[] = [
+  {
+    path: '/',
+    name: 'home',
+    component: () => import('@/views/Home.vue')
+  },
+  {
+    path: '/users/:id',
+    name: 'user-profile',
+    component: () => import('@/views/UserProfile.vue'),
+    props: true
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+})
+
+export default router
+```
+
+### useRoute 类型推断
+
+```typescript
+// views/UserProfile.vue
+<script setup lang="ts">
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+
+// route.params.id 是 string（路由参数）
+// route.query 是 Record<string, string | null>
+const userId = route.params.id as string
+</script>
+```
+
+## 常见类型定义
+
+```typescript
+// 全局组件类型声明
+declare module '@vue/runtime-core' {
+  interface GlobalComponents {
+    RouterLink: typeof import('vue-router').RouterLink
+    RouterView: typeof import('vue-router').RouterView
+  }
+}
+
+export {}
+```
+
+## 总结
+
+- **`<script setup lang="ts">`**：Vue 3 的 TypeScript 首选写法，类型推导更自然
+- **defineProps**：使用类型声明而非运行时声明，功能更强
+- **withDefaults**：为可选 props 设置默认值，支持对象和数组
+- **defineEmits**：使用泛型接口定义 emit 类型，实现类型安全的 emit
+- **defineExpose**：显式暴露组件属性，配合 `InstanceType<typeof Component>` 获取组件类型
+- **Pinia Store**：使用 setup 语法定义 store，类型自动推断
+- **storeToRefs**：解构 store 时使用，保留响应性
+
+Vue 3 + TypeScript 的组合让组件逻辑既灵活又类型安全。

@@ -1,0 +1,414 @@
+---
+title: 类型守卫与类型收窄
+description: 深入讲解 TypeScript 的 typeof、instanceof、in 操作符、自定义类型谓词、断言函数以及标签化类型收窄技巧
+pubDate: 2026-04-13
+category: typescript
+tags: [typescript, type-guards, narrowing]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 13
+planId: type-guards-narrowing
+---
+
+# 类型守卫与类型收窄
+
+**类型收窄**（Type Narrowing）是 TypeScript 根据代码中的条件逻辑，自动将宽类型变为窄类型的过程。**类型守卫**（Type Guard）是实现类型收窄的机制。
+
+## typeof 守卫
+
+`typeof` 是最基本的类型守卫，适用于原始类型：
+
+```typescript
+function padLeft(value: string | number, padding: string | number): string {
+  if (typeof padding === "number") {
+    // TypeScript 知道这里 padding 是 number
+    return " ".repeat(padding) + value;
+  }
+  // 这里 padding 是 string
+  return padding + value;
+}
+
+// 局限性：typeof 无法区分对象的具体结构
+function process(value: string | object): void {
+  if (typeof value === "object") {
+    // value 是 object，但 TypeScript 不知道具体是哪种对象
+    console.log(value.toString()); // ✅ toString 存在
+    // console.log(value.length); // ❌ 不是所有对象都有 length
+  }
+}
+```
+
+## instanceof 守卫
+
+`instanceof` 用于判断对象是否是某个类的实例：
+
+```typescript
+class Animal {
+  name: string;
+  constructor(name: string) { this.name = name; }
+}
+
+class Dog extends Animal {
+  breed: string;
+  constructor(name: string, breed: string) {
+    super(name);
+    this.breed = breed;
+  }
+}
+
+class Cat extends Animal {
+  indoor: boolean;
+  constructor(name: string, indoor: boolean) {
+    super(name);
+    this.indoor = indoor;
+  }
+}
+
+function speak(animal: Animal): void {
+  if (animal instanceof Dog) {
+    console.log(`${animal.name} (${animal.breed}) says woof!`);
+  } else if (animal instanceof Cat) {
+    console.log(`${animal.name} (indoor: ${animal.indoor}) says meow!`);
+  } else {
+    console.log(`${animal.name} makes a sound`);
+  }
+}
+```
+
+## in 操作符守卫
+
+`in` 操作符检查对象是否包含某个属性：
+
+```typescript
+interface Fish {
+  swim: () => void;
+  scales: boolean;
+}
+
+interface Bird {
+  fly: () => void;
+  feathers: boolean;
+}
+
+function move(animal: Fish | Bird): void {
+  if ("swim" in animal) {
+    animal.swim(); // ✅ TypeScript 知道这是 Fish
+  } else {
+    animal.fly();  // ✅ TypeScript 知道这是 Bird
+  }
+}
+```
+
+## 自定义类型谓词（Type Predicates）
+
+类型谓词是返回 `value is Type` 的函数，用于自定义类型守卫：
+
+```typescript
+// 语法：parameterName is Type
+interface Cat {
+  meow(): void;
+}
+
+interface Dog {
+  bark(): void;
+}
+
+function isCat(animal: Cat | Dog): animal is Cat {
+  return (animal as Cat).meow !== undefined;
+}
+
+function isDog(animal: Cat | Dog): animal is Dog {
+  return (animal as Dog).bark !== undefined;
+}
+
+function speak(animal: Cat | Dog): void {
+  if (isCat(animal)) {
+    animal.meow();
+  } else {
+    animal.bark();
+  }
+}
+```
+
+### 类型谓词在数组过滤中的应用
+
+```typescript
+interface User {
+  type: "user";
+  name: string;
+}
+
+interface Admin {
+  type: "admin";
+  permissions: string[];
+}
+
+type Entity = User | Admin;
+
+const entities: Entity[] = [
+  { type: "user", name: "Alice" },
+  { type: "admin", permissions: ["read", "write"] },
+  { type: "user", name: "Bob" },
+];
+
+// 使用类型谓词过滤
+function isUser(entity: Entity): entity is User {
+  return entity.type === "user";
+}
+
+function isAdmin(entity: Entity): entity is Admin {
+  return entity.type === "admin";
+}
+
+const admins = entities.filter(isAdmin);
+const users = entities.filter(isUser);
+
+admins[0].permissions; // ✅ string[]
+users[0].name;         // ✅ string
+```
+
+## 断言函数（Assertion Functions）
+
+TypeScript 3.7 引入断言函数，失败时抛出异常：
+
+```typescript
+// 语法：asserts condition
+function assertIsString(val: unknown): asserts val is string {
+  if (typeof val !== "string") {
+    throw new Error(`Expected string, got ${typeof val}`);
+  }
+}
+
+function process(value: unknown): string {
+  assertIsString(value); // 断言后，value 被收窄为 string
+  return value.toUpperCase(); // ✅ 安全
+}
+
+try {
+  process(123);
+} catch (e) {
+  console.error(e.message); // "Expected string, got number"
+}
+```
+
+### 自定义断言函数
+
+```typescript
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+function assertIsUser(obj: unknown): asserts obj is User {
+  if (
+    typeof obj !== "object" ||
+    obj === null ||
+    !("id" in obj) ||
+    !("name" in obj) ||
+    !("email" in obj)
+  ) {
+    throw new Error("Invalid user object");
+  }
+}
+
+function handleData(data: unknown): void {
+  assertIsUser(data);
+  console.log(data.name); // ✅ 类型收窄为 User
+}
+```
+
+## 可辨识联合与穷尽检查
+
+### 可辨识联合（Discriminated Unions）
+
+用公共字面量属性（判别属性）区分联合成员：
+
+```typescript
+interface Circle {
+  kind: "circle";
+  radius: number;
+}
+
+interface Square {
+  kind: "square";
+  side: number;
+}
+
+interface Triangle {
+  kind: "triangle";
+  base: number;
+  height: number;
+}
+
+type Shape = Circle | Square | Triangle;
+
+function area(shape: Shape): number {
+  switch (shape.kind) {
+    case "circle":
+      return Math.PI * shape.radius ** 2;
+    case "square":
+      return shape.side ** 2;
+    case "triangle":
+      return 0.5 * shape.base * shape.height;
+    default:
+      // 穷尽检查：如果漏掉某个 case，TypeScript 会报错
+      const _exhaustive: never = shape;
+      throw new Error(`Unhandled shape: ${_exhaustive}`);
+  }
+}
+```
+
+## 真值收窄（Truthiness Narrowing）
+
+```typescript
+function greet(name: string | null | undefined): void {
+  if (name) {
+    // null 和 undefined 被排除
+    console.log(`Hello, ${name.toUpperCase()}`);
+  } else {
+    console.log("Hello, stranger");
+  }
+}
+
+// && 短路求值
+function getLength(str: string | null | undefined): number {
+  return str && str.length; // 返回 string | null（但 if 检查会排除）
+}
+
+function getLengthSafe(str: string | null | undefined): number {
+  return str?.length ?? 0; // 推荐：安全地处理 null/undefined
+}
+```
+
+## 等式收窄（Equality Narrowing）
+
+```typescript
+function handleResult(result: { status: "success"; data: string } | { status: "error"; error: Error } | { status: "loading" }) {
+  if (result.status === "success") {
+    console.log(result.data); // ✅
+  } else if (result.status === "error") {
+    console.error(result.error); // ✅
+  } else {
+    // result 是 { status: "loading" }
+    console.log("Loading...");
+  }
+}
+
+// switch 同样适用
+function handleStatus(status: "idle" | "loading" | "success" | "error"): void {
+  switch (status) {
+    case "idle": console.log("Ready"); break;
+    case "loading": console.log("Fetching..."); break;
+    case "success": console.log("Done!"); break;
+    case "error": console.log("Failed!"); break;
+  }
+}
+```
+
+## in 操作符与可选属性
+
+```typescript
+interface ApiResponse {
+  data?: { items: string[] };
+  error?: string;
+}
+
+function processResponse(response: ApiResponse): string[] {
+  if ("data" in response && response.data) {
+    // data 存在且不为 undefined
+    return response.data.items; // ✅
+  }
+  return [];
+}
+```
+
+## unknown 与类型收窄的配合
+
+处理外部数据（API、用户输入）时，`unknown` 是最佳选择：
+
+```typescript
+function parseJSON(json: string): unknown {
+  return JSON.parse(json);
+}
+
+const data = parseJSON('{"name": "Alice", "age": 28}');
+
+if (typeof data === "object" && data !== null && "name" in data) {
+  // data 是 object，且包含 name 属性
+  // 但 TypeScript 不知道 name 的具体类型
+  if (typeof data.name === "string") {
+    console.log(data.name.toUpperCase()); // ✅ 完全收窄
+  }
+}
+```
+
+### 更好的方案：zod 或 ts-auto-guard
+
+对于复杂的外部数据验证，推荐使用专门的类型守卫库：
+
+```typescript
+// 使用类型守卫库（如 zod）
+import { z } from "zod";
+
+const UserSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  email: z.string().email(),
+});
+
+type User = z.infer<typeof UserSchema>;
+
+const result = UserSchema.safeParse(externalData);
+if (result.success) {
+  const user: User = result.data; // ✅ 类型安全
+}
+```
+
+## 标签化类型（Branded Types）
+
+用「标签」区分基础类型，防止误用：
+
+```typescript
+// 品牌化类型：给 string 附加标签
+type UserId = string & { readonly __brand: "UserId" };
+type OrderId = string & { readonly __brand: "OrderId" };
+
+function createUserId(id: string): UserId {
+  return id as UserId;
+}
+
+function getUser(id: UserId): User {
+  // 实现...
+}
+
+const uid = createUserId("user-123");
+const oid = createOrderId("order-456");
+
+getUser(uid);   // ✅
+getUser(oid);   // ❌ 错误：OrderId 不能赋值给 UserId
+
+// 实战：防止混淆 ID 类型
+type Brand<T, B> = T & { readonly _brand: B };
+type Numeric<T> = T & { readonly _numeric: unique symbol };
+
+type PositiveNumber = number & { readonly _positive: unique symbol };
+
+function divide(a: number, b: PositiveNumber): number {
+  return a / b;
+}
+```
+
+## 总结
+
+- **typeof**：适用于 string/number/boolean/symbol/bigint/undefined
+- **instanceof**：适用于类，检查原型链
+- **in**：检查对象属性是否存在
+- **类型谓词**：`value is Type`，自定义守卫逻辑
+- **断言函数**：`asserts condition`，失败时抛异常
+- **可辨识联合**：用公共字面量属性区分联合成员
+- **穷尽检查**：default 分支赋值 never，防止遗漏
+- **标签化类型**：在基础类型上附加品牌，防止误用
+
+类型收窄是 TypeScript 类型安全的核心——善用守卫函数能让运行时错误提前在编译阶段暴露。
