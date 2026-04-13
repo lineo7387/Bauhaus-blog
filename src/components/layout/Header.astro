@@ -80,10 +80,12 @@ const currentPath = Astro.url.pathname.replace(new RegExp(`^${BASE}`), '') || '/
 </header>
 
 <script>
-  const menuToggle = document.getElementById('menu-toggle');
-  const mobileMenu = document.getElementById('mobile-menu');
+  document.addEventListener('astro:page-load', () => {
+    const menuToggle = document.getElementById('menu-toggle');
+    const mobileMenu = document.getElementById('mobile-menu');
 
-  menuToggle?.addEventListener('click', () => {
-    mobileMenu?.classList.toggle('hidden');
+    menuToggle?.addEventListener('click', () => {
+      mobileMenu?.classList.toggle('hidden');
+    });
   });
 </script>
