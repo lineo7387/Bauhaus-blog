@@ -230,15 +230,18 @@ const updatedFormattedDate = updatedDate?.toLocaleDateString('en-US', {
   </article>
 </BaseLayout>
 
-<script is:inline define:vars={{ hasToc: tocItems.length > 0 }}>
-  if (hasToc) {
+<script>
+  function initMobileTOC() {
     var toggle = document.getElementById('toc-toggle');
     var panel = document.getElementById('toc-panel');
     var backdrop = document.getElementById('toc-backdrop');
     var sidebar = document.getElementById('toc-sidebar');
     var closeBtn = document.getElementById('toc-close');
 
+    if (!toggle || !panel) return;
+
     function openPanel() {
+      if (!panel || !backdrop || !sidebar || !toggle) return;
       panel.classList.remove('pointer-events-none');
       panel.setAttribute('aria-hidden', 'false');
       backdrop.style.opacity = '1';
@@ -248,6 +251,7 @@ const updatedFormattedDate = updatedDate?.toLocaleDateString('en-US', {
     }
 
     function closePanel() {
+      if (!panel || !backdrop || !sidebar || !toggle) return;
       backdrop.style.opacity = '0';
       sidebar.classList.add('translate-x-full');
       toggle.setAttribute('aria-expanded', 'false');
@@ -256,10 +260,13 @@ const updatedFormattedDate = updatedDate?.toLocaleDateString('en-US', {
       document.body.style.overflow = '';
     }
 
-    toggle && toggle.addEventListener('click', openPanel);
+    toggle.addEventListener('click', openPanel);
     closeBtn && closeBtn.addEventListener('click', closePanel);
     backdrop && backdrop.addEventListener('click', closePanel);
   }
+
+  initMobileTOC();
+  document.addEventListener('astro:page-load', initMobileTOC);
 </script>
 
 <style is:global>

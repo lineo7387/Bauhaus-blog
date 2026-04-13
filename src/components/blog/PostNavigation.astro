@@ -59,15 +59,7 @@ const nextHref = nextPost ? `${BASE}/blog/${nextPost.id}` : undefined;
               </svg>
               上一章
               {prevIndex !== undefined && (
-                <span
-                  class:list={[
-                    "ml-1 font-black",
-                    CATEGORY_COLORS[prevPost.data.category]?.bg ??
-                      "text-primary-red",
-                  ]}
-                >
-                  #{prevIndex + 1}
-                </span>
+                <span class:list={["ml-1 font-black"]}>#{prevIndex + 1}</span>
               )}
             </span>
             <div class="flex items-center gap-2">
@@ -108,15 +100,7 @@ const nextHref = nextPost ? `${BASE}/blog/${nextPost.id}` : undefined;
             <span class="text-xs font-bold uppercase tracking-widest text-black/50 flex items-center justify-end gap-2">
               下一章
               {nextIndex !== undefined && (
-                <span
-                  class:list={[
-                    "mr-1 font-black",
-                    CATEGORY_COLORS[nextPost.data.category]?.text ??
-                      "text-primary-red",
-                  ]}
-                >
-                  #{nextIndex + 1}
-                </span>
+                <span class:list={["mr-1 font-black"]}>#{nextIndex + 1}</span>
               )}
               <svg
                 width="16"
