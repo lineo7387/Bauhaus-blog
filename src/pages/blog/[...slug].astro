@@ -78,17 +78,15 @@ const { type, post, category, page, allSorted, planEntries, categories, postsPer
   postsPerPage: number;
 };
 
-const sortedPosts = allSorted;
-const planEntries2 = planEntries;
 const currentCategory = category || "";
 
-let filteredPosts = sortedPosts;
+let filteredPosts = allSorted;
 let currentPage = page || 1;
 let totalPages = 1;
-let totalFilteredCount = sortedPosts.length;
+let totalFilteredCount = allSorted.length;
 
 if (type === "category" && category) {
-  filteredPosts = sortedPosts.filter(
+  filteredPosts = allSorted.filter(
     (p) => p.data.category.toLowerCase() === category.toLowerCase(),
   );
   totalFilteredCount = filteredPosts.length;
@@ -96,9 +94,9 @@ if (type === "category" && category) {
   const startIndex = ((page || 1) - 1) * postsPerPage;
   filteredPosts = filteredPosts.slice(startIndex, startIndex + postsPerPage);
 } else if (type === "pagination") {
-  totalPages = Math.ceil(sortedPosts.length / postsPerPage);
+  totalPages = Math.ceil(allSorted.length / postsPerPage);
   const startIndex = ((page || 1) - 1) * postsPerPage;
-  filteredPosts = sortedPosts.slice(startIndex, startIndex + postsPerPage);
+  filteredPosts = allSorted.slice(startIndex, startIndex + postsPerPage);
 }
 
 const rendered = type === "post" && post ? await render(post) : null;
@@ -107,7 +105,7 @@ const headings = rendered?.headings ?? [];
 
 // PostNavigation: use planOrder within the same category
 const postCategory = post?.data.category ?? "";
-const plan = planEntries2.find((p) => p.data.skill === postCategory);
+const plan = planEntries.find((p) => p.data.skill === postCategory);
 const planOrder = plan?.data.planOrder;
 
 let prevPost: typeof post | undefined;
@@ -116,7 +114,7 @@ let prevIndex: number | undefined;
 let nextIndex: number | undefined;
 
 if (planOrder && planOrder.length > 0) {
-  const catSorted = sortedPosts.filter((p) => p.data.category === postCategory);
+  const catSorted = allSorted.filter((p) => p.data.category === postCategory);
   const currentIdx = post ? catSorted.findIndex((p) => p.id === post.id) : -1;
   prevPost = currentIdx > 0 ? catSorted[currentIdx - 1] : undefined;
   nextPost = currentIdx >= 0 && currentIdx < catSorted.length - 1
@@ -127,7 +125,7 @@ if (planOrder && planOrder.length > 0) {
     ? currentIdx + 1
     : undefined;
 } else {
-  const catPosts = sortedPosts
+  const catPosts = allSorted
     .filter((p) => p.data.category === postCategory)
     .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
   const currentIndex = post ? catPosts.findIndex((p) => p.id === post.id) : -1;
