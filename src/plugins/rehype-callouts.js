@@ -11,10 +11,10 @@ export function rehypeCallouts() {
       if (!['tip', 'warning', 'note', 'danger'].includes(tag)) return;
 
       const configs = {
-        tip:    { label: 'TIP',    borderColor: '#3DAA41', headerBg: 'rgba(61,170,65,0.1)',  iconColor: '#3DAA41' },
-        warning:{ label: 'WARNING',borderColor: '#E65C00',  headerBg: 'rgba(230,92,0,0.1)',   iconColor: '#E65C00'  },
-        note:   { label: 'NOTE',   borderColor: '#1040C0',  headerBg: 'rgba(16,64,192,0.1)',  iconColor: '#1040C0'  },
-        danger: { label: 'DANGER', borderColor: '#D02020',  headerBg: 'rgba(208,32,32,0.1)', iconColor: '#D02020'  },
+        tip:    { label: 'TIP',    borderColor: 'var(--color-callout-tip-border)',    headerBg: 'var(--color-callout-tip-bg)',     iconColor: 'var(--color-callout-tip-border)' },
+        warning:{ label: 'WARNING',borderColor: 'var(--color-callout-warning-border)',headerBg: 'var(--color-callout-warning-bg)',iconColor: 'var(--color-callout-warning-border)' },
+        note:   { label: 'NOTE',   borderColor: 'var(--color-callout-note-border)',  headerBg: 'var(--color-callout-note-bg)',    iconColor: 'var(--color-callout-note-border)' },
+        danger: { label: 'DANGER', borderColor: 'var(--color-callout-danger-border)', headerBg: 'var(--color-callout-danger-bg)',  iconColor: 'var(--color-callout-danger-border)' },
       };
 
       const cfg = configs[tag] || configs.tip;
@@ -82,7 +82,7 @@ export function rehypeCallouts() {
           {
             type: 'element',
             tagName: 'span',
-            properties: { className: ['callout-label'], style: `color:${cfg.iconColor}` },
+            properties: { className: ['callout-label'] },
             children: [{ type: 'text', value: cfg.label }],
           },
         ],
@@ -102,14 +102,6 @@ export function rehypeCallouts() {
         tagName: 'aside',
         properties: {
           className: ['callout', `callout-${tag}`],
-          style: [
-            `border-left: 6px solid ${cfg.borderColor}`,
-            'background-color: white',
-            'border: 2px solid #121212',
-            'box-shadow: 4px 4px 0px 0px #121212',
-            'margin: 1.5rem 0',
-            'overflow: hidden',
-          ].join('; '),
         },
         children: [headerDiv, contentDiv],
       };

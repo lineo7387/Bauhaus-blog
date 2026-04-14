@@ -32,6 +32,16 @@ const {
     <link rel="icon" type="image/svg+xml" href={`${BASE}/favicon.svg`} />
     <title>{title} | Lineo's Blog</title>
     <ClientRouter />
+    <script is:inline>
+      // Theme initialization — runs before first paint to avoid flash
+      (function () {
+        var saved = localStorage.getItem('theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (!saved && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <Header />
@@ -62,6 +72,20 @@ const {
         // 首次加载时注册
         document.addEventListener('click', blockSamePageNav, true);
       }, { once: true });
+    </script>
+    <!-- Theme toggle + system preference sync -->
+    <script is:inline>
+      window.toggleTheme = function () {
+        var html = document.documentElement;
+        var isDark = html.classList.toggle('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      };
+      // Sync with system preference when no user preference is saved
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+        if (!localStorage.getItem('theme')) {
+          document.documentElement.classList.toggle('dark', e.matches);
+        }
+      });
     </script>
   </body>
 </html>

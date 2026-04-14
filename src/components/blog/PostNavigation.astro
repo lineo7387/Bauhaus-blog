@@ -28,7 +28,7 @@ const prevHref = prevPost ? `${BASE}/blog/${prevPost.id}` : undefined;
 const nextHref = nextPost ? `${BASE}/blog/${nextPost.id}` : undefined;
 ---
 
-<nav class="bg-muted border-t-4 border-black" aria-label="Chapter navigation">
+<nav class="bg-muted border-t-4 border-foreground" aria-label="Chapter navigation">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
     <div
       class={`flex gap-4 ${hasBoth ? "grid grid-cols-2" : "justify-center"}`}
@@ -39,11 +39,11 @@ const nextHref = nextPost ? `${BASE}/blog/${nextPost.id}` : undefined;
           <a
             href={prevHref}
             class:list={[
-              "group flex flex-col gap-2 p-5 bg-white border-4 border-black shadow-hard transition-all hover:shadow-hard-lg",
+              "group flex flex-col gap-2 p-5 bg-surface-raised border-4 border-foreground shadow-hard transition-all hover:shadow-hard-lg",
               !nextPost && "mx-auto max-w-xl w-full",
             ]}
           >
-            <span class="text-xs font-bold uppercase tracking-widest text-black/50 flex items-center gap-2">
+            <span class="text-xs font-bold uppercase tracking-widest text-muted flex items-center gap-2">
               <svg
                 width="16"
                 height="16"
@@ -65,9 +65,9 @@ const nextHref = nextPost ? `${BASE}/blog/${nextPost.id}` : undefined;
             <div class="flex items-center gap-2">
               <span
                 class:list={[
-                  "text-[10px] font-black uppercase text-white px-2 py-0.5 border border-black shrink-0",
+                  "text-[10px] font-black uppercase text-background px-2 py-0.5 border border-foreground shrink-0",
                   CATEGORY_COLORS[prevPost.data.category]?.bg ??
-                    "bg-primary-blue",
+                    "bg-brand-blue",
                 ]}
               >
                 {prevPost.data.category}
@@ -76,7 +76,7 @@ const nextHref = nextPost ? `${BASE}/blog/${nextPost.id}` : undefined;
                 class:list={[
                   "font-black text-sm leading-tight line-clamp-2 transition-colors",
                   CATEGORY_COLORS[prevPost.data.category]?.hover ??
-                    "group-hover:text-primary-red",
+                    "group-hover:text-brand-red",
                 ]}
               >
                 {prevIndex !== undefined ? `第${prevIndex + 1}章 · ` : ""}
@@ -93,11 +93,11 @@ const nextHref = nextPost ? `${BASE}/blog/${nextPost.id}` : undefined;
           <a
             href={nextHref}
             class:list={[
-              "group flex flex-col gap-2 p-5 bg-white border-4 border-black shadow-hard transition-all hover:shadow-hard-lg text-right",
+              "group flex flex-col gap-2 p-5 bg-surface-raised border-4 border-foreground shadow-hard transition-all hover:shadow-hard-lg text-right",
               !prevPost && "mx-auto max-w-xl w-full",
             ]}
           >
-            <span class="text-xs font-bold uppercase tracking-widest text-black/50 flex items-center justify-end gap-2">
+            <span class="text-xs font-bold uppercase tracking-widest text-muted flex items-center justify-end gap-2">
               下一章
               {nextIndex !== undefined && (
                 <span class:list={["mr-1 font-black"]}>#{nextIndex + 1}</span>
@@ -121,7 +121,7 @@ const nextHref = nextPost ? `${BASE}/blog/${nextPost.id}` : undefined;
                 class:list={[
                   "font-black text-sm leading-tight line-clamp-2 transition-colors",
                   CATEGORY_COLORS[nextPost.data.category]?.hover ??
-                    "group-hover:text-primary-red",
+                    "group-hover:text-brand-red",
                 ]}
               >
                 {nextIndex !== undefined ? `第${nextIndex + 1}章 · ` : ""}
@@ -129,9 +129,9 @@ const nextHref = nextPost ? `${BASE}/blog/${nextPost.id}` : undefined;
               </span>
               <span
                 class:list={[
-                  "text-[10px] font-black uppercase text-white px-2 py-0.5 border border-black shrink-0",
+                  "text-[10px] font-black uppercase text-background px-2 py-0.5 border border-foreground shrink-0",
                   CATEGORY_COLORS[nextPost.data.category]?.bg ??
-                    "bg-primary-blue",
+                    "bg-brand-blue",
                 ]}
               >
                 {nextPost.data.category}
