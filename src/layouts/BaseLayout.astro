@@ -32,16 +32,6 @@ const {
     <link rel="icon" type="image/svg+xml" href={`${BASE}/favicon.svg`} />
     <title>{title} | Lineo's Blog</title>
     <ClientRouter />
-    <script is:inline>
-      // Theme initialization — runs before first paint to avoid flash
-      (function () {
-        var saved = localStorage.getItem('theme');
-        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (saved === 'dark' || (!saved && prefersDark)) {
-          document.documentElement.classList.add('dark');
-        }
-      })();
-    </script>
   </head>
   <body>
     <Header />
@@ -73,19 +63,35 @@ const {
         document.addEventListener('click', blockSamePageNav, true);
       }, { once: true });
     </script>
-    <!-- Theme toggle + system preference sync -->
+    <!-- Theme initialization + toggle -->
     <script is:inline>
-      window.toggleTheme = function () {
-        var html = document.documentElement;
-        var isDark = html.classList.toggle('dark');
-        localStorage.setItem('theme', isDark ? 'dark' : 'light');
-      };
-      // Sync with system preference when no user preference is saved
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
-        if (!localStorage.getItem('theme')) {
-          document.documentElement.classList.toggle('dark', e.matches);
+      // 主题初始化 - 在每次页面加载时执行（包括客户端路由导航）
+      function initTheme() {
+        var saved = localStorage.getItem('theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var isDark = saved === 'dark' || (!saved && prefersDark);
+        document.documentElement.classList.toggle('dark', isDark);
+      }
+
+      // 监听页面加载事件（包括首次加载和客户端路由导航）
+      document.addEventListener('astro:page-load', function () {
+        initTheme();
+
+        // 同步系统偏好（只在首次加载时设置监听器）
+        if (!window._themeSystemListenerSet) {
+          window._themeSystemListenerSet = true;
+          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+            if (!localStorage.getItem('theme')) {
+              document.documentElement.classList.toggle('dark', e.matches);
+            }
+          });
         }
       });
+
+      window.toggleTheme = function () {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      };
     </script>
   </body>
 </html>
