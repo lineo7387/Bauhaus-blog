@@ -6,7 +6,7 @@ export interface CategoryColor {
 }
 
 export const CATEGORY_COLORS: Record<string, CategoryColor> = {
-  python: { hex: '#1040C0', bg: 'bg-primary-blue', text: 'text-white', hover: 'hover:text-primary-blue' },
+  python: { hex: '#1040C0', bg: 'bg-brand-blue', text: 'text-white', hover: 'hover:text-brand-blue' },
   react: { hex: '#61DAFB', bg: 'bg-primary-react', text: 'text-white', hover: 'hover:text-primary-react' },
   'react-native': { hex: '#61DAFB', bg: 'bg-primary-reactnative', text: 'text-white', hover: 'hover:text-primary-reactnative' },
   vue: { hex: '#42b883', bg: 'bg-primary-vue', text: 'text-white', hover: 'hover:text-primary-vue' },

@@ -41,7 +41,7 @@ const recentPosts = (() => {
 
 <BaseLayout title="Home">
   <!-- Hero Section1 -->
-  <section class="relative bg-white border-b-4 border-black overflow-hidden">
+  <section class="relative bg-surface-raised border-b-4 border-foreground overflow-hidden">
     <div class="grid lg:grid-cols-2 min-h-[600px]">
       <!-- Left: Content -->
       <div
@@ -49,19 +49,19 @@ const recentPosts = (() => {
       >
         <div class="max-w-xl">
           <span
-            class="inline-block bg-primary-yellow text-xs font-bold uppercase tracking-widest px-3 py-1 mb-6"
+            class="inline-block bg-brand-yellow text-xs font-bold uppercase tracking-widest px-3 py-1 mb-6"
           >
             Design Philosophy
           </span>
           <h1
-            class="text-5xl sm:text-6xl lg:text-8xl font-black uppercase tracking-tighter leading-[0.9] text-black mb-6"
+            class="text-5xl sm:text-6xl lg:text-8xl font-black uppercase tracking-tighter leading-[0.9] text-text mb-6"
           >
             Code<br />
-            <span class="text-primary-red">Meets</span><br />
+            <span class="text-brand-red">Meets</span><br />
             Design
           </h1>
           <p
-            class="text-lg font-medium text-black/70 leading-relaxed mb-8 max-w-md"
+            class="text-lg font-medium text-text/70 leading-relaxed mb-8 max-w-md"
           >
             A personal tech blog exploring web development, design systems, and the craft of building modern applications.
           </p>
@@ -78,17 +78,17 @@ const recentPosts = (() => {
 
       <!-- Right: Geometric Composition -->
       <div
-        class="relative bg-primary-blue border-t-4 lg:border-t-0 lg:border-l-4 border-black min-h-[300px] lg:min-h-0 order-1 lg:order-2"
+        class="relative bg-brand-blue border-t-4 lg:border-t-0 lg:border-l-4 border-black min-h-[300px] lg:min-h-0 order-1 lg:order-2"
       >
         <div class="absolute inset-0 flex items-center justify-center">
           <!-- Large circle -->
           <div
-            class="absolute w-48 h-48 md:w-64 md:h-64 bg-white/20 rounded-full border-4 border-white"
+            class="absolute w-48 h-48 md:w-64 md:h-64 bg-foreground/20 rounded-full border-4 border-foreground"
           >
           </div>
           <!-- Overlapping rotated square -->
           <div
-            class="absolute w-36 h-36 md:w-48 md:h-48 bg-primary-yellow/80 border-4 border-black rotate-45"
+            class="absolute w-36 h-36 md:w-48 md:h-48 bg-brand-yellow/80 border-4 border-black rotate-45"
           >
           </div>
           <!-- Centered square -->
@@ -96,13 +96,13 @@ const recentPosts = (() => {
             class="absolute w-24 h-24 md:w-32 md:h-32 bg-white border-4 border-black flex items-center justify-center"
           >
             <div
-              class="w-12 h-12 md:w-16 md:h-16 bg-primary-red shape-triangle"
+              class="w-12 h-12 md:w-16 md:h-16 bg-brand-red shape-triangle"
             >
             </div>
           </div>
           <!-- Small decorative circles -->
           <div
-            class="absolute top-8 right-8 w-8 h-8 bg-primary-yellow border-2 border-black rounded-full"
+            class="absolute top-8 right-8 w-8 h-8 bg-brand-yellow border-2 border-black rounded-full"
           >
           </div>
           <div
@@ -112,11 +112,11 @@ const recentPosts = (() => {
         </div>
         <!-- Geometric decorations -->
         <div
-          class="absolute top-0 left-0 w-16 h-16 bg-primary-red shape-triangle"
+          class="absolute top-0 left-0 w-16 h-16 bg-brand-red shape-triangle"
         >
         </div>
         <div
-          class="absolute bottom-0 right-0 w-12 h-12 bg-primary-yellow border-l-4 border-t-4 border-black"
+          class="absolute bottom-0 right-0 w-12 h-12 bg-brand-yellow border-l-4 border-t-4 border-black"
         >
         </div>
       </div>
@@ -126,7 +126,7 @@ const recentPosts = (() => {
   <!-- Featured Post Section -->
   {
     featuredPost && (
-      <section class="bg-primary-yellow border-b-4 border-black py-16 lg:py-24">
+      <section class="bg-brand-yellow border-b-4 border-black py-16 lg:py-24">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex items-center gap-4 mb-8">
             <h2 class="text-2xl md:text-3xl font-black uppercase tracking-tight text-black">
@@ -149,7 +149,7 @@ const recentPosts = (() => {
   }
 
   <!-- Recent Posts Section -->
-  <section class="bg-primary-blue border-b-4 border-black py-16 lg:py-24">
+  <section class="bg-brand-blue border-b-4 border-black py-16 lg:py-24">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between mb-8">
         <h2
@@ -164,22 +164,22 @@ const recentPosts = (() => {
   </section>
 
   <!-- About Preview Section -->
-  <section class="bg-white border-b-4 border-black py-16 lg:py-24">
+  <section class="bg-surface-raised border-b-4 border-foreground py-16 lg:py-24">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="grid lg:grid-cols-2 gap-12 items-center">
         <div>
           <span
-            class="inline-block bg-primary-red text-xs font-bold uppercase tracking-widest text-white px-3 py-1 mb-6"
+            class="inline-block bg-brand-red text-xs font-bold uppercase tracking-widest text-white px-3 py-1 mb-6"
           >
             About Us
           </span>
           <h2
-            class="text-4xl md:text-5xl font-black uppercase tracking-tight text-black mb-6 leading-[0.95]"
+            class="text-4xl md:text-5xl font-black uppercase tracking-tight text-text mb-6 leading-[0.95]"
           >
             Building<br />
-            <span class="text-primary-blue">with Care</span>
+            <span class="text-brand-blue">with Care</span>
           </h2>
-          <p class="text-lg font-medium text-black/70 leading-relaxed mb-8">
+          <p class="text-lg font-medium text-black/70 dark:text-white/70 leading-relaxed mb-8">
             I write about web development, design systems, and the craft of building meaningful digital experiences. Every article is crafted to help you create better, more thoughtful applications.
           </p>
           <Button href={`${BASE}/about`} variant="secondary" size="lg">
@@ -189,18 +189,18 @@ const recentPosts = (() => {
         <div class="relative">
           <!-- Geometric composition for about preview -->
           <div
-            class="aspect-square bg-muted border-4 border-black p-8 relative overflow-hidden"
+            class="aspect-square bg-muted border-4 border-foreground p-8 relative overflow-hidden"
           >
             <div
-              class="absolute top-4 right-4 w-16 h-16 bg-primary-red shape-circle"
+              class="absolute top-4 right-4 w-16 h-16 bg-brand-red shape-circle"
             >
             </div>
             <div
-              class="absolute bottom-4 left-4 w-12 h-12 bg-primary-blue shape-square border-2 border-black"
+              class="absolute bottom-4 left-4 w-12 h-12 bg-brand-blue shape-square border-2 border-black"
             >
             </div>
             <div
-              class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-primary-yellow shape-circle border-4 border-black"
+              class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-brand-yellow shape-circle border-4 border-black"
             >
             </div>
           </div>
@@ -211,7 +211,7 @@ const recentPosts = (() => {
 
   <!-- Newsletter CTA Section -->
   <section
-    class="bg-primary-red border-b-4 border-black py-16 lg:py-24 relative overflow-hidden"
+    class="bg-brand-red border-b-4 border-black py-16 lg:py-24 relative overflow-hidden"
   >
     <!-- Background decorations -->
     <div
@@ -239,11 +239,11 @@ const recentPosts = (() => {
           type="email"
           placeholder="Enter your email"
           required
-          class="flex-1 px-5 py-4 bg-white border-4 border-black font-medium text-black placeholder:text-black/40 focus:outline-none focus:border-primary-yellow"
+          class="flex-1 px-5 py-4 bg-surface-raised border-4 border-foreground font-medium text-text placeholder:text-muted focus:outline-none focus:border-brand-yellow"
         />
         <Button type="submit" variant="yellow" size="lg"> Subscribe </Button>
       </form>
-      <p class="text-sm font-medium text-white/60 mt-4">
+      <p class="text-sm font-medium text-background/60 mt-4">
         Join developers learning together
       </p>
     </div>

@@ -2,32 +2,188 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* Class-based dark mode: dark: variant targets elements inside html.dark */
+@custom-variant dark (&:where(.dark *));
+
 @theme {
-  /* Colors */
-  --color-background: #F0F0F0;
-  --color-foreground: #121212;
-  --color-primary-red: #D02020;
-  --color-primary-blue: #1040C0;
-  --color-primary-yellow: #F0C020;
-  --color-primary-green: #3DAA41;
-  --color-primary-orange: #E65C00;
+  /* ── Primitives: Brand colors (Bauhaus primary) ── */
+  /* 亮色模式下直接使用；暗色模式下在 html.dark 中覆盖 */
+  --color-brand-red: #D02020;
+  --color-brand-blue: #1040C0;
+  --color-brand-yellow: #F0C020;
+
+  /* ── Primitives: Extended palette ── */
   --color-primary-react: #61DAFB;
   --color-primary-reactnative: #61DAFB;
   --color-primary-electron: #00A8E0;
   --color-primary-vue: #42b883;
   --color-primary-astro: #7D4DFF;
   --color-primary-typescript: #3178C6;
+  --color-primary-green: #3DAA41;
+  --color-primary-orange: #E65C00;
+
+  /* ── Semantic: Core surfaces ── */
+  --color-background: #F0F0F0;
+  --color-foreground: #121212;
+
+  /* ── Semantic: Surface hierarchy ── */
+  --color-surface: var(--color-background);
+  --color-surface-raised: #FFFFFF;     /* 卡片、弹出层 */
+  --color-surface-overlay: rgba(18, 18, 18, 0.5);
+
+  /* ── Primitives: Surface helpers ── */
+  --color-white: #FFFFFF;
+  --color-black: #121212;
+
+  /* ── Semantic: Text — 独立于 foreground，确保 bg-text 有正确背景色 ── */
+  --color-text: #121212;   /* 亮色模式下深色文字 */
+  --color-text-muted: #555555;
+  --color-text-inverse: #F0F0F0;
+
+  /* ── Semantic: Borders & dividers ── */
   --color-border: #121212;
   --color-muted: #E0E0E0;
-  --color-white: #FFFFFF;
 
-  /* Typography */
+  /* ── Typography ── */
   --font-family-outfit: 'Outfit', sans-serif;
 
-  /* Shadows - Hard offset shadows for Bauhaus style */
+  /* ── Shadows - Hard offset for Bauhaus style ── */
   --shadow-hard-sm: 4px 4px 0px 0px #121212;
   --shadow-hard-md: 6px 6px 0px 0px #121212;
   --shadow-hard-lg: 8px 8px 0px 0px #121212;
+
+  /* ── Callout colors (used by rehype-callouts.js via CSS vars) ── */
+  --color-callout-tip-border: #3DAA41;
+  --color-callout-warning-border: #E65C00;
+  --color-callout-note-border: #1040C0;
+  --color-callout-danger-border: #D02020;
+  --color-callout-tip-bg: rgba(61, 170, 65, 0.1);
+  --color-callout-warning-bg: rgba(230, 92, 0, 0.1);
+  --color-callout-note-bg: rgba(16, 64, 192, 0.1);
+  --color-callout-danger-bg: rgba(208, 32, 32, 0.1);
+  --color-callout-tip-label: #2E7D32;
+  --color-callout-warning-label: #E65C00;
+  --color-callout-note-label: #1040C0;
+  --color-callout-danger-label: #D02020;
+
+  /* ── Code blocks ── */
+  --color-code-bg: #1a1a1a;
+  --color-code-text: #e1e4e8;
+
+  /* ── Inline code ── */
+  --color-inline-code-bg: #FFF3CD;
+  --color-inline-code-text: #121212;
+
+  /* ── TOC highlight: 高亮背景色 ── */
+  --color-toc-highlight: #FFFFFF;
+
+  /* ── Footer (light mode) ── */
+  --color-footer-bg: #121212;
+  --color-footer-text: #F0F0F0;
+  --color-footer-muted: rgba(240, 240, 240, 0.6);
+  --color-footer-border: rgba(240, 240, 255, 0.12);
+  --color-footer-icon-bg: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Dark Mode: class-based (.dark on <html>) ── */
+/* 暗色模式是一种独立的视觉体验，而非亮色模式的反转 */
+html.dark,
+html.dark body {
+  /* ── Surfaces: 冷调深色系，4层明暗层次 ── */
+  --color-background: #0A0A0F;
+  --color-surface: #111118;
+  --color-surface-raised: #18181F;
+  --color-surface-elevated: #1E1E28;
+  --color-surface-overlay: rgba(0, 0, 0, 0.75);
+
+  /* ── Text: 柔和白 ── */
+  --color-text: #E2E2EC;
+  --color-text-muted: #78788A;
+  --color-text-inverse: #0A0A0F;
+
+  /* ── Foreground (边框/装饰): 暗色边框 ── */
+  --color-foreground: #2A2A38;
+
+  /* ── Borders ── */
+  --color-border: #2A2A38;
+  --color-muted: #1E1E28;
+  --color-border-subtle: #1E1E28;
+
+  /* ── Brand colors: 降饱和度，沉稳克制 ── */
+  --color-brand-red: #C0392B;    /* 深红，非霓虹 */
+  --color-brand-blue: #2C5FD5;   /* 适中饱和蓝 */
+  --color-brand-yellow: #D4A520; /* 琥珀色，非金黄 */
+
+  /* ── Shadows: 柔和黑晕，保持 Bauhaus offset 感但不刺眼 ── */
+  --shadow-hard-sm: 4px 4px 0px 0px rgba(0, 0, 0, 0.4);
+  --shadow-hard-md: 6px 6px 0px 0px rgba(0, 0, 0, 0.5);
+  --shadow-hard-lg: 8px 8px 0px 0px rgba(0, 0, 0, 0.6);
+
+  /* ── Code blocks: 深蓝黑底 ── */
+  --color-code-bg: #0D0D16;
+  --color-code-text: #C9D1D9;
+
+  /* ── Inline code: 柔和琥珀色背景 ── */
+  --color-inline-code-bg: rgba(212, 165, 32, 0.12);
+  --color-inline-code-text: #D4A520;
+
+  /* ── Callout: 沉稳配色 ── */
+  --color-callout-tip-border: #2D6A4F;
+  --color-callout-warning-border: #9A4D1C;
+  --color-callout-note-border: #2C5FD5;
+  --color-callout-danger-border: #9B2335;
+  --color-callout-tip-bg: rgba(45, 106, 79, 0.15);
+  --color-callout-warning-bg: rgba(154, 77, 28, 0.2);
+  --color-callout-note-bg: rgba(44, 95, 213, 0.15);
+  --color-callout-danger-bg: rgba(155, 35, 53, 0.15);
+  --color-callout-tip-label: #52B788;
+  --color-callout-warning-label: #D97B35;
+  --color-callout-note-label: #60A5FA;
+  --color-callout-danger-label: #E05C6A;
+
+  /* ── TOC highlight: 高亮背景色 ── */
+  --color-toc-highlight: #FFFFFF;
+
+  /* ── Footer: 暗色专用色 ── */
+  --color-footer-bg: #08080D;
+  --color-footer-text: #C8C8D8;
+  --color-footer-muted: rgba(200, 200, 216, 0.5);
+  --color-footer-border: rgba(240, 240, 255, 0.08);
+  --color-footer-icon-bg: rgba(255, 255, 255, 0.06);
+
+  /* ── Prose / MDX content: 覆盖 typography 插件的 invert (暗色) 变量 ── */
+  --tw-prose-invert-body: var(--color-text);
+  --tw-prose-invert-headings: var(--color-text);
+  --tw-prose-invert-links: var(--color-brand-blue);
+  --tw-prose-invert-bold: var(--color-text);
+  --tw-prose-invert-counters: var(--color-text-muted);
+  --tw-prose-invert-bullets: var(--color-brand-red);
+  --tw-prose-invert-hr: var(--color-border);
+  --tw-prose-invert-quotes: var(--color-text);
+  --tw-prose-invert-quote-borders: var(--color-brand-red);
+  --tw-prose-invert-captions: var(--color-text-muted);
+  --tw-prose-invert-code: var(--color-brand-yellow);
+  --tw-prose-invert-pre-code: var(--color-code-text);
+  --tw-prose-invert-pre-bg: var(--color-code-bg);
+  --tw-prose-invert-th-borders: var(--color-foreground);
+  --tw-prose-invert-td-borders: var(--color-foreground);
+
+  /* ── 全局暗色背景微调 ── */
+  background-color: var(--color-background);
+}
+
+/* Prose table zebra striping in dark mode */
+html.dark .prose table tbody tr:nth-child(even) {
+  background-color: var(--color-muted);
+}
+
+html.dark .prose table tbody tr:nth-child(odd) {
+  background-color: var(--color-surface-raised);
+}
+
+/* Callout header in dark mode */
+html.dark .callout-header {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 @layer base {
@@ -35,6 +191,7 @@
     font-family: var(--font-family-outfit);
     background-color: var(--color-background);
     color: var(--color-foreground);
+    color-scheme: light dark;
   }
 
   body {
@@ -92,6 +249,10 @@
   .bg-dot-pattern {
     background-image: radial-gradient(#FFFFFF 2px, transparent 2px);
     background-size: 20px 20px;
+  }
+
+  .dark .bg-dot-pattern {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.15) 2px, transparent 2px);
   }
 }
 
@@ -156,7 +317,7 @@
 
 /* 链接 hover 效果 */
 .prose a:hover {
-  background-color: var(--color-primary-yellow);
+  background-color: var(--color-brand-yellow);
   color: var(--color-foreground) !important;
   box-shadow: 4px 4px 0px 0px var(--color-foreground);
   padding: 2px 4px;
@@ -169,16 +330,16 @@
 }
 
 .prose blockquote blockquote {
-  border-left-color: var(--color-primary-blue);
+  border-left-color: var(--color-brand-blue);
 }
 
 .prose blockquote blockquote blockquote {
-  border-left-color: var(--color-primary-yellow);
+  border-left-color: var(--color-brand-yellow);
 }
 
 /* 引用嵌套超过3层回退红色 */
 .prose blockquote blockquote blockquote blockquote {
-  border-left-color: var(--color-primary-red);
+  border-left-color: var(--color-brand-red);
 }
 
 /* 表格斑马纹 */
@@ -187,8 +348,11 @@
 }
 
 .prose table tbody tr:nth-child(odd) {
-  background-color: var(--color-white);
+  background-color: var(--color-surface-raised);
 }
+
+/* ── Dark mode: table zebra striping ── */
+/* CSS variables auto-switch via html.dark */
 
 .prose table {
   border-collapse: collapse;
@@ -213,7 +377,7 @@
   transform: translateY(-50%);
   width: 24px;
   height: 24px;
-  background-color: var(--color-primary-red);
+  background-color: var(--color-brand-red);
 }
 
 .prose hr::after {
@@ -224,14 +388,14 @@
   transform: translateY(-50%);
   width: 24px;
   height: 24px;
-  background-color: var(--color-primary-blue);
+  background-color: var(--color-brand-blue);
 }
 
 /* 代码块外层容器（包裹 wrapper） */
 .prose .code-block-wrapper {
   position: relative;
   overflow: hidden;
-  border-left: 6px solid var(--color-primary-red);
+  border-left: 6px solid var(--color-brand-red);
 }
 
 /* 代码块标题栏 */
@@ -240,8 +404,8 @@
   top: 0;
   z-index: 10;
   height: 2rem;
-  background-color: var(--color-foreground);
-  color: var(--color-white);
+  background-color: var(--color-text);
+  color: var(--color-text-inverse);
   font-family: 'Outfit', sans-serif;
   font-size: 0.65rem;
   font-weight: 900;
@@ -250,7 +414,7 @@
   display: flex;
   align-items: center;
   padding: 0 0.75rem;
-  border-bottom: 2px solid var(--color-primary-yellow);
+  border-bottom: 2px solid var(--color-brand-yellow);
   flex-shrink: 0;
 }
 
@@ -260,7 +424,7 @@
   padding: 1rem;
   margin: 0;
   border-left: none;
-  background-color: #1a1a1a !important;
+  background-color: var(--color-code-bg) !important;
   border-radius: 0;
 }
 
@@ -277,14 +441,14 @@
 /* 标题强强调下划线 */
 .prose strong {
   text-decoration: underline;
-  text-decoration-color: var(--color-primary-red);
+  text-decoration-color: var(--color-brand-red);
   text-decoration-thickness: 3px;
   text-underline-offset: 4px;
 }
 
 /* 无序列表自定义方形 bullet */
 .prose ul>li::marker {
-  color: var(--color-primary-red);
+  color: var(--color-brand-red);
   font-size: 1.2em;
   line-height: 1;
 }
@@ -292,7 +456,7 @@
 /* 有序列表序号粗体 */
 .prose ol>li::marker {
   font-weight: 900;
-  color: var(--color-primary-blue);
+  color: var(--color-brand-blue);
 }
 
 /* 代码块内语法高亮（shiki 等高亮器输出的 span） */
@@ -302,18 +466,18 @@
   padding: 0 !important;
   font-size: 0.875rem;
   line-height: 1.7;
-  color: #e1e4e8 !important;
+  color: var(--color-code-text) !important;
 }
 
 /* 内联 code 标签（不在 pre 内） */
 .prose code:not(pre code) {
-  background-color: #FFF3CD !important;
+  background-color: var(--color-inline-code-bg) !important;
   border: none !important;
   border-radius: 0 !important;
   padding: 0.125rem 0.375rem !important;
   font-size: 0.875rem !important;
   font-weight: 500 !important;
-  color: #121212 !important;
+  color: var(--color-inline-code-text) !important;
   box-shadow: none !important;
 }
 
@@ -325,8 +489,8 @@
   margin: 1.5rem 0;
   padding: 0;
   border-radius: 0;
-  border: 2px solid #121212;
-  box-shadow: 4px 4px 0px 0px #121212;
+  border: 2px solid var(--color-border);
+  box-shadow: 4px 4px 0px 0px var(--color-border);
   overflow: hidden;
   font-family: var(--font-family-outfit);
 }
@@ -336,8 +500,12 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 1rem;
-  border-bottom: 2px solid #121212;
+  border-bottom: 2px solid var(--color-border);
   background-color: rgba(18, 18, 18, 0.05);
+}
+
+html.dark .callout-header {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .callout-icon {
@@ -351,7 +519,7 @@
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #121212;
+  color: var(--color-text);
 }
 
 .callout-content {
@@ -370,51 +538,55 @@
 
 /* Callout variants */
 .callout-tip {
-  border-left-color: #3DAA41;
+  border-left: 6px solid var(--color-callout-tip-border);
+  border-left-color: var(--color-callout-tip-border);
 }
 
 .callout-warning {
-  border-left-color: #E65C00;
+  border-left: 6px solid var(--color-callout-warning-border);
+  border-left-color: var(--color-callout-warning-border);
 }
 
 .callout-note {
-  border-left-color: #1040C0;
+  border-left: 6px solid var(--color-callout-note-border);
+  border-left-color: var(--color-callout-note-border);
 }
 
 .callout-danger {
-  border-left-color: #D02020;
+  border-left: 6px solid var(--color-callout-danger-border);
+  border-left-color: var(--color-callout-danger-border);
 }
 
 .callout-tip .callout-header {
-  background-color: rgba(61, 170, 65, 0.1);
+  background-color: var(--color-callout-tip-bg);
 }
 
 .callout-warning .callout-header {
-  background-color: rgba(230, 92, 0, 0.1);
+  background-color: var(--color-callout-warning-bg);
 }
 
 .callout-note .callout-header {
-  background-color: rgba(16, 64, 192, 0.1);
+  background-color: var(--color-callout-note-bg);
 }
 
 .callout-danger .callout-header {
-  background-color: rgba(208, 32, 32, 0.1);
+  background-color: var(--color-callout-danger-bg);
 }
 
 .callout-tip .callout-label {
-  color: #2E7D32;
+  color: var(--color-callout-tip-label);
 }
 
 .callout-warning .callout-label {
-  color: #E65C00;
+  color: var(--color-callout-warning-label);
 }
 
 .callout-note .callout-label {
-  color: #1040C0;
+  color: var(--color-callout-note-label);
 }
 
 .callout-danger .callout-label {
-  color: #D02020;
+  color: var(--color-callout-danger-label);
 }
 
 /* ============================================
@@ -424,7 +596,7 @@
 /* 确保表头有粗黑边框和黄色背景 */
 .prose table th,
 .prose table thead th {
-  background-color: var(--color-primary-yellow) !important;
+  background-color: var(--color-brand-yellow) !important;
   color: var(--color-foreground) !important;
   font-weight: 900 !important;
   text-transform: uppercase;
