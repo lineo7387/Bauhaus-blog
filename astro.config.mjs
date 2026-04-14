@@ -5,6 +5,7 @@ import mdx from '@astrojs/mdx';
 import rehypePrettyCode from 'rehype-pretty-code';
 import remarkDirective from 'remark-directive';
 import { rehypeCallouts } from './src/plugins/rehype-callouts.js';
+import { rehypeCodeWrapper } from './src/plugins/rehype-code-wrapper.js';
 import remarkDirectiveRehype from 'remark-directive-rehype';
 
 // https://astro.build/config
@@ -17,6 +18,7 @@ export default defineConfig({
       remarkPlugins: [remarkDirective, remarkDirectiveRehype],
       rehypePlugins: [
         [rehypePrettyCode, { theme: 'github-dark', keepBackground: false }],
+        rehypeCodeWrapper,
         rehypeCallouts,
       ],
     }),
