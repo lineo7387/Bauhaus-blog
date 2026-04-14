@@ -227,21 +227,18 @@
   background-color: var(--color-primary-blue);
 }
 
-/* 代码块顶部标题栏（rehype-pretty-code 自动注入 data-language） */
-.prose pre {
+/* 代码块外层容器（包裹 wrapper） */
+.prose .code-block-wrapper {
   position: relative;
-  padding-top: 2.5rem;
-  background-color: #1a1a1a !important;
+  overflow: hidden;
   border-left: 6px solid var(--color-primary-red);
 }
 
-/* 代码块有语言标签时显示标题栏 */
-.prose pre[data-language]::before {
-  content: attr(data-language);
-  position: absolute;
+/* 代码块标题栏 */
+.prose .code-block-wrapper .code-block-header {
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
+  z-index: 10;
   height: 2rem;
   background-color: var(--color-foreground);
   color: var(--color-white);
@@ -254,6 +251,17 @@
   align-items: center;
   padding: 0 0.75rem;
   border-bottom: 2px solid var(--color-primary-yellow);
+  flex-shrink: 0;
+}
+
+/* 代码块主区域（可横向滚动） */
+.prose .code-block-wrapper pre {
+  overflow-x: auto;
+  padding: 1rem;
+  margin: 0;
+  border-left: none;
+  background-color: #1a1a1a !important;
+  border-radius: 0;
 }
 
 /* 图片交互 */
