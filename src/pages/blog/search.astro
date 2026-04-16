@@ -1,0 +1,245 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { BASE } from "../../utils/base";
+
+// Read the search query from URL
+const rawQuery = Astro.url.searchParams.get("q") || "";
+---
+
+<BaseLayout
+  title={rawQuery ? `Search: ${rawQuery}` : "Search Articles"}
+  description="Search articles on the blog."
+>
+  <!-- Hero Section -->
+  <section
+    class="relative bg-foreground border-b-4 border-border overflow-hidden"
+  >
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
+      <div class="grid lg:grid-cols-2 gap-12 items-end">
+        <div>
+          <span
+            class="inline-block bg-brand-yellow text-xs font-bold uppercase tracking-widest text-on-brand-yellow px-3 py-1 mb-6"
+          >
+            Search
+          </span>
+          <h1
+            class="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter text-hero-text leading-[0.9]"
+          >
+            {rawQuery
+              ? <>Results for<br /><span class="text-brand-red">"{rawQuery}"</span></>
+              : <>The<br /><span class="text-brand-yellow">Search</span></>}
+          </h1>
+        </div>
+        <div class="text-hero-text-muted">
+          <a
+            href={`${BASE}/blog`}
+            class="inline-flex items-center gap-2 text-brand-blue font-bold hover:underline"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square">
+              <line x1="13" y1="8" x2="3" y2="8" />
+              <polyline points="7 12 3 8 7 4" />
+            </svg>
+            Back to all articles
+          </a>
+        </div>
+      </div>
+    </div>
+    <!-- Geometric decorations -->
+    <div
+      class="absolute top-8 right-8 w-16 h-16 bg-brand-blue shape-circle border-2 border-foreground/20"
+    >
+    </div>
+  </section>
+
+  <!-- Search Results -->
+  <section class="bg-surface-raised py-16 lg:py-24">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Pagefind UI mounts here -->
+      <div id="search" data-raw-query={rawQuery} class="pagefind-wrapper"></div>
+
+      <!-- No query state -->
+      {!rawQuery && (
+        <div class="text-center py-16">
+          <p class="text-2xl font-black uppercase text-muted">Enter a keyword to search</p>
+          <a
+            href={`${BASE}/blog`}
+            class="inline-block mt-8 px-6 py-3 bg-brand-blue text-on-brand-blue border-4 border-foreground font-bold uppercase shadow-hard-md hover:shadow-hard-sm active:translate-x-1 active:translate-y-1 active:shadow-none transition-all"
+          >
+            Browse All Articles
+          </a>
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>
+
+<!-- Pagefind UI CSS -->
+<link
+  rel="stylesheet"
+  href={`${BASE}/pagefind/pagefind-ui.css`}
+  media="all"
+  onload={`this.media='all'`}
+/>
+
+<style is:global>
+  /* Override Pagefind UI to match Bauhaus design system */
+  .pagefind-wrapper {
+    --pagefind-ui-scale: 0.9;
+    --pagefind-ui-primary: #D02020;
+    --pagefind-ui-text: #121212;
+    --pagefind-ui-background: transparent;
+    --pagefind-ui-border: #121212;
+    --pagefind-ui-tag: #f0f0f0;
+    --pagefind-ui-font: 'Outfit', sans-serif;
+    --pagefind-ui-border-width: 2px;
+    --pagefind-ui-border-radius: 0;
+    --pagefind-ui-image-border-radius: 0;
+    --pagefind-ui-image-box-ratio: 3/2;
+  }
+
+  .pagefind-wrapper .pagefind-ui__search-input {
+    width: 100%;
+    padding: 12px 16px;
+    font-family: var(--pagefind-ui-font);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--pagefind-ui-text);
+    background: #fff;
+    border: var(--pagefind-ui-border-width) solid var(--pagefind-ui-border);
+    border-radius: 0;
+    box-shadow: 4px 4px 0px 0px #121212;
+    outline: none;
+  }
+
+  .pagefind-wrapper .pagefind-ui__search-input:focus {
+    border-color: var(--pagefind-ui-primary);
+    box-shadow: 6px 6px 0px 0px #121212;
+  }
+
+  .pagefind-wrapper .pagefind-ui__result {
+    background: #fff;
+    border: 2px solid var(--pagefind-ui-border);
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: 4px 4px 0px 0px #121212;
+  }
+
+  .pagefind-wrapper .pagefind-ui__result:hover {
+    box-shadow: 6px 6px 0px 0px #121212;
+    transform: translate(-1px, -1px);
+    transition: all 0.1s ease;
+  }
+
+  .pagefind-wrapper .pagefind-ui__result-title {
+    font-family: var(--pagefind-ui-font);
+    font-size: 1.25rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    color: var(--pagefind-ui-text);
+  }
+
+  .pagefind-wrapper .pagefind-ui__result-link {
+    color: var(--pagefind-ui-text) !important;
+    text-decoration: none;
+  }
+
+  .pagefind-wrapper .pagefind-ui__result-link:hover {
+    color: var(--pagefind-ui-primary) !important;
+  }
+
+  .pagefind-wrapper .pagefind-ui__result-excerpt {
+    font-family: var(--pagefind-ui-font);
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #555;
+    margin-top: 8px;
+    line-height: 1.6;
+  }
+
+  .pagefind-wrapper mark {
+    background: #F0C020;
+    color: #121212;
+    font-weight: 700;
+    padding: 0 2px;
+  }
+
+  .pagefind-wrapper .pagefind-ui__message {
+    font-family: var(--pagefind-ui-font);
+    font-weight: 600;
+    color: #666;
+  }
+
+  /* Dark mode support */
+  :global(.dark) .pagefind-wrapper .pagefind-ui__search-input {
+    background: #1a1a1a;
+    color: #f0f0f0;
+    border-color: #f0f0f0;
+  }
+
+  :global(.dark) .pagefind-wrapper .pagefind-ui__result {
+    background: #1a1a1a;
+    border-color: #f0f0f0;
+    box-shadow: 4px 4px 0px 0px #f0f0f0;
+  }
+
+  :global(.dark) .pagefind-wrapper .pagefind-ui__result:hover {
+    box-shadow: 6px 6px 0px 0px #f0f0f0;
+  }
+
+  :global(.dark) .pagefind-wrapper .pagefind-ui__result-title,
+  :global(.dark) .pagefind-wrapper .pagefind-ui__result-link {
+    color: #f0f0f0 !important;
+  }
+
+  :global(.dark) .pagefind-wrapper .pagefind-ui__result-excerpt {
+    color: #aaa;
+  }
+</style>
+
+<script>
+  // Load Pagefind UI after DOM is ready
+  async function initSearch() {
+    const searchEl = document.getElementById("search");
+    // Read query from URL at runtime (static mode: Astro doesn't have access to ?q= at build time)
+    const urlParams = new URLSearchParams(window.location.search);
+    const rawQuery = urlParams.get("q") ?? searchEl?.dataset.rawQuery ?? "";
+
+    // Update page title if there's a query
+    if (rawQuery) {
+      const titleEl = document.querySelector("title");
+      if (titleEl) titleEl.textContent = `Search: ${rawQuery} | Lineo's Blog`;
+    }
+
+    try {
+      // @ts-ignore
+      const { PagefindUI } = await import("/pagefind/pagefind-ui.js");
+      new PagefindUI({
+        element: "#search",
+        showSubResults: true,
+        showImages: true,
+        resetStyles: false,
+        initialQuery: rawQuery,
+      });
+
+      // Hide the default input since we have our own search bar on /blog
+      const searchInput = document.querySelector(".pagefind-ui__search-input") as HTMLElement | null;
+      if (searchInput) {
+        searchInput.style.display = "none";
+      }
+    } catch (e) {
+      // Pagefind index not found — likely running in dev mode without a build
+      if (searchEl) {
+        searchEl.innerHTML = `
+          <div class="text-center py-8">
+            <p class="text-lg font-bold uppercase text-muted">
+              Run <code class="bg-muted px-2 py-1 font-mono text-sm">pnpm build</code> to enable search
+            </p>
+          </div>
+        `;
+      }
+    }
+  }
+
+  initSearch();
+</script>
