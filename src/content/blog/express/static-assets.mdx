@@ -1,0 +1,245 @@
+---
+title: 静态资源服务
+description: 使用 express.static 中间件托管静态文件（HTML、CSS、JS、图片），掌握虚拟路径前缀、多静态目录配置，以及生产环境缓存策略的配置方法。
+pubDate: 2026-04-16
+category: express
+tags: [express, nodejs, 静态资源, 性能优化]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 5
+planId: static-assets
+---
+
+# 静态资源服务
+
+几乎所有 Web 应用都需要对外提供静态文件服务：HTML 页面、CSS 样式表、JavaScript 脚本、图片、字体等。Express 内置的 **`express.static`** 中间件让这一需求变得极其简单。本文将详细介绍如何配置静态资源服务，包括多目录、虚拟路径和生产环境缓存。
+
+## express.static 基础用法
+
+`express.static(root)` 是 Express 内置的第一个也是最常用的中间件，它从指定根目录提供静态文件：
+
+```javascript
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const app = express();
+
+// 将 public 目录作为静态文件根目录
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.listen(3000);
+```
+
+```
+项目目录/
+├── src/
+│   └── app.js
+└── public/
+    ├── index.html        → 访问 http://localhost:3000/index.html
+    ├── style.css         → 访问 http://localhost:3000/style.css
+    └── images/
+        └── logo.png      → 访问 http://localhost:3000/images/logo.png
+```
+
+浏览器访问 `http://localhost:3000/index.html`，Express 会自动从 `public/` 目录中查找并返回该文件。
+
+## 目录结构约定
+
+常见的静态资源组织方式：
+
+```
+public/
+├── index.html           # 入口 HTML
+├── css/
+│   └── style.css        # 样式文件
+├── js/
+│   └── app.js           # 前端脚本
+├── images/              # 图片资源
+│   ├── logo.png
+│   └── hero.jpg
+└── fonts/
+    └── custom.woff2     # 字体文件
+```
+
+在 `index.html` 中引用时使用相对路径：
+
+```html
+<link rel="stylesheet" href="/css/style.css">
+<script src="/js/app.js" defer></script>
+<img src="/images/logo.png" alt="Logo">
+```
+
+## 虚拟路径前缀
+
+默认情况下，`express.static` 暴露的是根路径。如果想给静态资源加上前缀路径（如 `/assets`），可以使用**虚拟路径**：
+
+```javascript
+// 访问：http://localhost:3000/assets/index.html
+app.use('/assets', express.static(path.join(__dirname, 'public')));
+
+// 其他路由
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+```
+
+```
+/assets/index.html  →  public/index.html
+/assets/css/style.css → public/css/style.css
+/assets/js/app.js   → public/js/app.js
+```
+
+### 多静态目录场景
+
+有时需要从多个目录提供静态文件：
+
+```javascript
+app.use('/css', express.static(path.join(__dirname, 'public/css')));
+app.use('/js', express.static(path.join(__dirname, 'public/js')));
+app.use('/images', express.static(path.join(__dirname, 'public/images')));
+app.use('/fonts', express.static(path.join(__dirname, 'public/fonts')));
+```
+
+更灵活的方式是按顺序注册多个 `express.static`，Express 会依次查找：
+
+```javascript
+// 按优先级顺序注册，先找到的生效
+app.use(express.static(path.join(__dirname, 'public')));            // 主目录
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // 上传目录
+app.use('/vendor', express.static(path.join(__dirname, 'node_modules'))); // 第三方库 CDN 替
+```
+
+## SPA 路由回退（History Fallback）
+
+单页应用（SPA）中，前端路由由 JS 控制，刷新页面时浏览器会向服务器请求当前路径。如果服务器没有对应文件，需要将请求回退到 `index.html`：
+
+```javascript
+import express from 'express';
+import path from 'path';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const app = express();
+
+// 静态资源（必须放在通配符路由之前）
+app.use(express.static(path.join(__dirname, 'public')));
+
+// API 路由
+app.get('/api/articles', (req, res) => res.json([]));
+
+// SPA 回退：所有未匹配的路径都返回 index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+```
+
+这样刷新 `/articles/42` 页面时，服务器会返回 `index.html`，由前端 JS 接管路由。
+
+## 默认文件
+
+如果访问的是目录路径而非文件，`express.static` 会自动查找该目录下的 `index.html`：
+
+```
+GET /           → public/index.html
+GET /articles   → public/articles/index.html
+```
+
+如需更改默认文件名，使用 `fallback: false` 和自定义中间件：
+
+```javascript
+app.use((req, res, next) => {
+  const indexPath = path.join(__dirname, 'public', req.path, 'index.html');
+  // 自定义默认文件逻辑
+  next();
+}, express.static(path.join(__dirname, 'public')));
+```
+
+## 生产环境缓存策略
+
+在生产环境中，合理配置静态资源的缓存可显著提升用户体验和服务器性能：
+
+```javascript
+import express from 'express';
+import path from 'path';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const app = express();
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// 静态资源配置
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    // 是否展示目录列表（生产环境应关闭）
+    dotfiles: 'ignore',       // 忽略 . 开头的文件
+    etag: true,                // 启用 ETag（协商缓存）
+    extensions: ['html', 'htm'], // 缺失扩展名时的后备
+    index: 'index.html',       // 默认文件
+    maxAge: '1d',              // 强缓存：1 天
+    redirect: true,            // 目录路径重定向（加斜杠）
+  })
+);
+
+// 根据环境调整缓存时间
+const cacheMaxAge = NODE_ENV === 'production'
+  ? '1y'    // 生产环境：缓存 1 年
+  : '0';    // 开发环境：不缓存
+
+app.use(
+  '/assets',
+  express.static(path.join(__dirname, 'dist', 'assets'), {
+    maxAge: cacheMaxAge,
+    setHeaders: (res, filePath) => {
+      // 对 HTML 文件禁用缓存
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+      // 对图片/字体等资源添加长期缓存
+      if (/\.(png|jpg|jpeg|gif|svg|woff2?|ttf|eot)$/.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  })
+);
+```
+
+### 缓存策略总结
+
+| 资源类型 | 缓存策略 | 说明 |
+|----------|----------|------|
+| HTML 文件 | `no-cache` | 内容经常变化，需要每次验证 |
+| CSS/JS | `max-age=31536000` + 内容哈希 | 更改后文件哈希变化，命中新文件 |
+| 图片/字体 | `max-age=1y` | 基本不变，长期缓存 |
+| API 请求 | `no-store` | 实时数据，禁止缓存 |
+
+## 404 处理
+
+如果请求的文件不存在，`express.static` 会调用 `next()`（不发送响应），让后续的路由或错误处理中间件处理：
+
+```javascript
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 处理 API
+app.get('/api/status', (req, res) => res.json({ ok: true }));
+
+// 处理未找到的资源（404）
+app.use((req, res) => {
+  res.status(404).json({ error: '文件不存在' });
+});
+```
+
+## 总结
+
+`express.static` 是 Express 中最简洁强大的内置中间件：
+
+- **`express.static(root)`** 从指定目录提供静态文件，零配置即可运行
+- **虚拟路径前缀**：`app.use('/assets', static)` 实现路径隔离
+- **多目录级联**：多次注册 `static`，按顺序查找
+- **SPA 回退**：将 `*` 路由放在静态中间件之后，实现前端路由支持
+- **生产缓存**：`maxAge` + `setHeaders` 配合 ETag 实现高效缓存策略
+
+静态资源服务是 Express 应用的基础设施。完成基础知识部分后，下一阶段我们将进入 **进阶技能** 的学习，包括中间件进阶、路由模块化和数据库集成等主题。

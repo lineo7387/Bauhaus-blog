@@ -1,0 +1,336 @@
+---
+title: 中间件入门
+description: 理解 Express 中间件的核心概念与执行流程，掌握 next() 的调用机制，区分全局中间件与路由级中间件，并动手编写第一个自定义中间件。
+pubDate: 2026-04-16
+category: express
+tags: [express, nodejs, 中间件, 请求处理]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: middleware-intro
+---
+
+# 中间件入门
+
+**中间件**（Middleware）是 Express 应用中最核心的概念，理解了中间件，就理解了一半的 Express。中间件本质上是处理请求的函数，它们被串联成一条**管道**，每个中间件都可以决定是否将请求传递给下一个中间件。本文将深入解析中间件的工作机制。
+
+## 中间件的概念
+
+中间件函数是一种具有以下签名的函数：
+
+```javascript
+function middleware(req, res, next) {
+  // req: 请求对象
+  // res: 响应对象
+  // next: 将控制权交给下一个中间件的函数
+}
+```
+
+当客户端发起请求时，Express 会按**注册顺序**依次调用匹配的中间件。请求在这条管道中"流淌"，直到某个中间件调用了 `res` 方法发送响应，或者出现错误。
+
+## 中间件的分类
+
+根据作用范围，Express 中间件可分为以下几类：
+
+| 类型 | 说明 | 示例 |
+|------|------|------|
+| 应用级 | 绑定到 `app` 实例，所有路由共享 | `app.use()` |
+| 路由级 | 绑定到 `express.Router()` 实例 | `router.use()` |
+| 错误处理级 | 包含 4 个参数 `(err, req, res, next)` | `app.use((err, ...)` |
+| 内置级 | Express 内置，如 `express.static` | `express.json()` |
+| 第三方 | 社区提供的功能中间件 | `cors`、`morgan` |
+
+## next() 的调用机制
+
+`next()` 是中间件管道流转的关键。调用时机决定了请求的处理流程：
+
+```javascript
+app.use((req, res, next) => {
+  console.log('中间件 A：请求到达');
+  next();              // 继续传递给下一个中间件
+});
+
+app.use((req, res, next) => {
+  console.log('中间件 B：请求继续');
+  next();
+});
+
+app.get('/', (req, res) => {
+  console.log('路由处理器：处理请求');
+  res.send('响应内容');
+});
+```
+
+```
+请求进入 → 中间件 A → next() → 中间件 B → next() → 路由处理器 → 响应返回
+```
+
+### 不调用 next() 的情况
+
+如果中间件通过 `res` 方法发送了响应，**必须**不调用 `next()`，否则会抛出 `Cannot set headers after they are sent` 错误：
+
+```javascript
+// 正确：发送响应后不调用 next()
+app.use('/admin', (req, res, next) => {
+  if (!req.headers['x-admin-token']) {
+    return res.status(401).json({ error: '未授权' });
+    // return 后函数结束，不会调用 next()
+  }
+  next();
+});
+
+// 错误：发送响应后又调用了 next()
+app.use((req, res, next) => {
+  res.send('响应');
+  next();  // 危险！会导致 "headers already sent" 错误
+});
+```
+
+## 全局中间件
+
+全局中间件通过 `app.use()` 注册，对**所有请求**生效，通常用于日志记录、请求解析、身份验证等跨路由的通用功能。
+
+### 请求日志中间件
+
+```javascript
+import express from 'express';
+
+const app = express();
+
+// 请求日志中间件：记录每个请求的 method、url 和耗时
+app.use((req, res, next) => {
+  const start = Date.now();
+  const { method, url } = req;
+
+  // 为响应添加 finish 事件监听，输出耗时
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const status = res.statusCode;
+    console.log(`${method} ${url} ${status} - ${duration}ms`);
+  });
+
+  next();  // 传递给下一个处理器
+});
+
+// 路由
+app.get('/', (req, res) => res.send('首页'));
+app.get('/about', (req, res) => res.send('关于'));
+
+app.listen(3000);
+```
+
+```bash
+# 访问 http://localhost:3000/
+GET / 200 - 3ms
+GET /about 200 - 1ms
+```
+
+### 请求时间戳中间件
+
+```javascript
+// 为请求添加到达时间戳，供后续处理器使用
+app.use((req, res, next) => {
+  req.requestTime = Date.now();
+  next();
+});
+
+app.get('/', (req, res) => {
+  res.send(`请求到达时间: ${new Date(req.requestTime).toISOString()}`);
+});
+```
+
+## 路由级中间件
+
+路由级中间件只对特定路由生效，适合处理路由独有的前置逻辑：
+
+```javascript
+app.get(
+  '/protected',
+  // 第一个处理函数（路由级中间件）
+  (req, res, next) => {
+    const token = req.headers['authorization'];
+    if (token !== 'Bearer secret123') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    next();  // 验证通过，继续
+  },
+  // 第二个处理函数（实际路由处理器）
+  (req, res) => {
+    res.json({ message: '欢迎访问受保护资源' });
+  }
+);
+```
+
+多个路由共享同一中间件时，可以提取到变量：
+
+```javascript
+// 认证中间件
+const requireAuth = (req, res, next) => {
+  const token = req.headers['authorization'];
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+
+// 多个路由复用同一中间件
+app.get('/profile', requireAuth, (req, res) => res.json({ user: 'Alice' }));
+app.put('/profile', requireAuth, (req, res) => res.json({ updated: true }));
+app.delete('/profile', requireAuth, (req, res) => res.status(204).end());
+```
+
+## 中间件的匹配规则
+
+`app.use()` 和 `app.METHOD()` 都支持**路径前缀**：
+
+```javascript
+// 匹配 /api 开头的所有请求
+app.use('/api', (req, res, next) => {
+  console.log('API 请求:', req.path);
+  next();
+});
+
+// 匹配 /api/users 路径
+app.get('/api/users', (req, res) => res.json([]));
+
+// 匹配 /api/posts 路径
+app.get('/api/posts', (req, res) => res.json([]));
+```
+
+### 路径匹配模式
+
+`app.use()` 的路径支持以下模式：
+
+```javascript
+// 精确匹配 /admin
+app.use('/admin', handler);
+
+// 匹配 /admin 及其所有子路径（如 /admin/users, /admin/settings）
+app.use('/admin/*', handler);  // 通配符
+
+// 正则匹配：所有包含 /user 的路径
+app.use(/\/user/, handler);
+
+// 无路径前缀：匹配所有请求
+app.use(handler);
+```
+
+## 错误处理中间件
+
+错误处理中间件有**四个参数**，是 Express 识别它的标志：
+
+```javascript
+// 错误处理中间件
+app.use((err, req, res, next) => {
+  console.error('发生错误:', err.message);
+
+  // 根据错误类型设置不同状态码
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || 'Internal Server Error';
+
+  res.status(status).json({
+    error: message,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  });
+});
+```
+
+在路由中主动抛出错误：
+
+```javascript
+app.get('/users/:id', (req, res, next) => {
+  const user = db.findUserById(req.params.id);
+
+  if (!user) {
+    const err = new Error('用户不存在');
+    err.status = 404;
+    return next(err);  // 跳过剩余处理器，传递给错误中间件
+  }
+
+  res.json(user);
+});
+```
+
+> **注意**：错误处理中间件必须放在**所有路由之后**，否则错误无法被捕获。
+
+## 自定义中间件：请求体验证
+
+以下示例展示了如何编写一个完整的请求体验证中间件：
+
+```javascript
+// utils/validateBody.js
+/**
+ * 验证请求体是否包含必填字段
+ * @param {string[]} requiredFields - 必填字段数组
+ */
+export function validateBody(requiredFields) {
+  return (req, res, next) => {
+    const missing = requiredFields.filter(field => !(field in req.body));
+
+    if (missing.length > 0) {
+      return res.status(400).json({
+        error: '缺少必填字段',
+        missing,
+      });
+    }
+
+    next();  // 验证通过
+  };
+}
+```
+
+```javascript
+import express from 'express';
+import { validateBody } from './utils/validateBody.js';
+
+const app = express();
+app.use(express.json());
+
+// 使用验证中间件
+app.post(
+  '/articles',
+  validateBody(['title', 'content']),
+  (req, res) => {
+    const { title, content } = req.body;
+    res.status(201).json({ title, content, created: true });
+  }
+);
+
+app.listen(3000);
+```
+
+```bash
+# 验证通过
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"title":"新文章","content":"内容"}' \
+  http://localhost:3000/articles
+
+# 验证失败
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"title":"缺少 content"}' \
+  http://localhost:3000/articles
+# → { "error": "缺少必填字段", "missing": ["content"] }
+```
+
+## 常见内置中间件速查
+
+| 中间件 | 作用 | 用法 |
+|--------|------|------|
+| `express.json()` | 解析 JSON 请求体 | `app.use(express.json())` |
+| `express.urlencoded()` | 解析 URL 编码表单 | `app.use(express.urlencoded({ extended: true }))` |
+| `express.static(root)` | 托管静态文件 | `app.use(express.static('public'))` |
+| `express.raw()` | 解析 `application/octet-stream` | `app.use(express.raw())` |
+| `express.text()` | 解析纯文本 | `app.use(express.text())` |
+
+## 总结
+
+中间件是 Express 请求处理管道的核心组成：
+
+- **中间件签名**：`function(req, res, next)`，通过 `next()` 传递控制权
+- **全局 vs 路由级**：`app.use()` 全局生效，`app.get(path, mw, handler)` 路由独享
+- **路径匹配**：`app.use('/prefix', handler)` 可按路径前缀筛选
+- **错误处理**：`app.use((err, req, res, next) => {})` 专门处理错误，须放最后
+- **自定义中间件**：提取可复用的请求处理逻辑，如认证、验证、日志
+
+掌握中间件机制后，下一篇文章我们将学习 **请求与响应对象**，深入了解 `req` 和 `res` 提供的重要 API。

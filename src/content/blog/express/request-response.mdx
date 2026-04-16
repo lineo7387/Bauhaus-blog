@@ -1,0 +1,357 @@
+---
+title: 请求与响应对象
+description: 系统梳理 Express 中 req 请求对象和 res 响应对象的常用属性与方法，涵盖状态码设置、响应格式、响应头配置及响应链式调用等实用技巧。
+pubDate: 2026-04-16
+category: express
+tags: [express, nodejs, HTTP, 请求, 响应]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 6
+planId: request-response
+---
+
+# 请求与响应对象
+
+在 Express 中，每一个路由处理器和中间件都会接收到两个核心对象：**`req`**（请求）和 **`res`**（响应）。`req` 封装了客户端的请求信息，`res` 提供了服务端发回响应的全部手段。熟练掌握这两个对象的 API，是编写高质量 Express 应用的基础。
+
+## req 对象详解
+
+`req`（即 `IncomingMessage` 的扩展实例）包含了客户端请求的完整信息。
+
+### 常用属性
+
+```javascript
+app.get('/', (req, res) => {
+  // HTTP 方法
+  console.log(req.method);       // 'GET'
+
+  // 请求完整路径（含查询参数）
+  console.log(req.url);         // '/users?id=42'
+
+  // 路径部分（不含查询参数）
+  console.log(req.path);         // '/users'
+
+  // 查询参数对象
+  console.log(req.query);       // { id: '42' }
+
+  // 请求协议
+  console.log(req.protocol);    // 'http' 或 'https'
+
+  // 判断是否为 HTTPS
+  console.log(req.secure);      // true / false
+
+  // 获取主机名
+  console.log(req.hostname);    // 'localhost'
+
+  // 获取来源（Referer 头）
+  console.log(req.get('referer'));  // 'http://google.com'
+
+  // 获取指定请求头
+  console.log(req.get('content-type'));  // 'application/json'
+
+  res.send('检查控制台');
+});
+```
+
+### req.body 请求体
+
+需要 `express.json()` 或 `express.urlencoded()` 中间件支持：
+
+```javascript
+app.use(express.json());
+
+app.post('/login', (req, res) => {
+  console.log(req.body);  // { username: 'alice', password: 'xxx' }
+  const { username, password } = req.body;
+  res.json({ received: { username, password } });
+});
+```
+
+### req.params 路由参数
+
+```javascript
+app.get('/articles/:year/:month/:slug', (req, res) => {
+  console.log(req.params);
+  // { year: '2026', month: '04', slug: 'express-basics' }
+  res.json(req.params);
+});
+```
+
+### req.headers 请求头
+
+```javascript
+app.get('/', (req, res) => {
+  console.log(req.headers);
+  // {
+  //   host: 'localhost:3000',
+  //   accept: 'application/json',
+  //   'user-agent': 'curl/8.1',
+  //   ...
+  // }
+
+  // 获取单个请求头（不区分大小写）
+  const lang = req.get('accept-language');
+  res.send(`Accept-Language: ${lang}`);
+});
+```
+
+### req.cookies 与 req.signedCookies
+
+需要 `cookie-parser` 中间件支持：
+
+```bash
+pnpm add cookie-parser
+```
+
+```javascript
+import cookieParser from 'cookie-parser';
+app.use(cookieParser());
+
+app.get('/', (req, res) => {
+  console.log(req.cookies);           // { theme: 'dark' }
+  console.log(req.signedCookies);    // 签名后的 cookie
+  res.send('Cookie 已读取');
+});
+```
+
+## res 对象详解
+
+`res`（即 `ServerResponse` 的扩展实例）用于向客户端发送响应。
+
+### 发送响应
+
+| 方法 | 说明 | 示例 |
+|------|------|------|
+| `res.send(body)` | 发送响应，自动设置 Content-Type | `res.send('Hello')` |
+| `res.json(obj)` | 发送 JSON 响应 | `res.json({ ok: true })` |
+| `res.status(code)` | 设置 HTTP 状态码（可链式调用） | `res.status(404)` |
+| `res.end()` | 结束响应（不发送内容） | `res.status(204).end()` |
+| `res.sendFile(path)` | 发送文件 | `res.sendFile('./file.pdf')` |
+| `res.download(path)` | 下载文件（触发浏览器下载） | `res.download('./report.pdf')` |
+| `res.redirect(url)` | 重定向 | `res.redirect('/login')` |
+
+### res.status() 链式调用
+
+```javascript
+// 设置状态码并发送响应（链式调用）
+app.get('/not-found', (req, res) => {
+  res.status(404).json({ error: '页面不存在' });
+});
+
+app.post('/created', (req, res) => {
+  res.status(201).json({ id: 42, created: true });
+});
+
+app.delete('/no-content', (req, res) => {
+  res.status(204).end();  // 204 不返回内容
+});
+
+app.get('/server-error', (req, res) => {
+  res.status(500).send('服务器内部错误');
+});
+```
+
+### res.json() 自动序列化
+
+`res.json()` 会自动设置 `Content-Type: application/json` 并将对象序列化为 JSON：
+
+```javascript
+app.get('/api/user', (req, res) => {
+  res.json({
+    id: 1,
+    name: 'Alice',
+    roles: ['admin', 'editor'],
+    profile: {
+      age: 28,
+      city: 'Shanghai',
+    },
+    active: true,
+    createdAt: new Date().toISOString(),  // Date 会被自动序列化
+  });
+});
+```
+
+```json
+{
+  "id": 1,
+  "name": "Alice",
+  "roles": ["admin", "editor"],
+  "profile": { "age": 28, "city": "Shanghai" },
+  "active": true,
+  "createdAt": "2026-04-16T08:00:00.000Z"
+}
+```
+
+### res.send() 自动 Content-Type
+
+`res.send()` 根据输入类型自动设置 `Content-Type`：
+
+```javascript
+res.send('Hello');                        // text/html
+res.send(Buffer.from('binary'));          // application/octet-stream
+res.send([1, 2, 3]);                      // application/octet-stream
+res.send({ msg: 'ok' });                  // application/json
+res.send('<h1>HTML</h1>');                 // text/html
+```
+
+### 设置响应头
+
+```javascript
+app.get('/json', (req, res) => {
+  // 设置单个响应头
+  res.set('X-Custom-Header', 'my-value');
+
+  // 批量设置响应头
+  res.set({
+    'X-App-Version': '1.0.0',
+    'Cache-Control': 'no-cache',
+    'X-Request-Id': req.id || 'unknown',
+  });
+
+  res.json({ message: '已设置自定义响应头' });
+});
+```
+
+### res.cookie() 设置 Cookie
+
+```javascript
+app.get('/login', (req, res) => {
+  // 设置简单 Cookie
+  res.cookie('theme', 'dark');
+
+  // 设置 Cookie 选项
+  res.cookie('session', 'abc123', {
+    httpOnly: true,      // 禁止 JavaScript 读取（防 XSS）
+    secure: false,       // HTTPS 才发送（生产环境应为 true）
+    sameSite: 'strict',  // 同源策略
+    maxAge: 7 * 24 * 60 * 60 * 1000,  // 7 天有效期（毫秒）
+    path: '/',           // Cookie 有效路径
+  });
+
+  res.json({ login: true });
+});
+
+// 清除 Cookie
+app.get('/logout', (req, res) => {
+  res.clearCookie('session');
+  res.json({ logout: true });
+});
+```
+
+### res.download() 文件下载
+
+```javascript
+app.get('/download/report', (req, res) => {
+  // 触发浏览器下载（不直接在浏览器中打开）
+  res.download('./reports/sales-2026.pdf');
+
+  // 自定义下载文件名
+  res.download('./reports/sales-2026.pdf', '年度销售报告.pdf');
+
+  // 下载出错时调用回调
+  res.download('./reports/sales.pdf', (err) => {
+    if (err) {
+      console.error('下载失败:', err.message);
+    }
+  });
+});
+```
+
+## 响应格式统一封装
+
+在团队项目中，建议封装统一的响应格式：
+
+```javascript
+// utils/response.js
+export const success = (res, data, message = '成功') => {
+  res.json({ code: 0, message, data });
+};
+
+export const created = (res, data, message = '创建成功') => {
+  res.status(201).json({ code: 0, message, data });
+};
+
+export const error = (res, message = '请求失败', status = 400) => {
+  res.status(status).json({ code: -1, message, data: null });
+};
+
+export const notFound = (res, resource = '资源') => {
+  error(res, `${resource}不存在`, 404);
+};
+```
+
+```javascript
+import { success, created, notFound } from './utils/response.js';
+
+app.get('/users', (req, res) => {
+  success(res, [{ id: 1, name: 'Alice' }]);
+});
+
+app.post('/users', (req, res) => {
+  const user = { id: 42, ...req.body };
+  created(res, user);
+});
+
+app.get('/users/:id', (req, res) => {
+  const user = db.find(req.params.id);
+  if (!user) return notFound(res, '用户');
+  success(res, user);
+});
+```
+
+响应格式：
+
+```json
+// 成功
+{ "code": 0, "message": "成功", "data": [...] }
+
+// 错误
+{ "code": -1, "message": "用户不存在", "data": null }
+```
+
+## req 与 res 的生命周期
+
+理解 req/res 的生命周期有助于避免常见错误：
+
+```javascript
+// 危险操作：在响应发送后再次尝试修改响应
+app.get('/error-demo', (req, res) => {
+  res.json({ error: '第一次错误' });
+  res.json({ error: '第二次错误' });  // 抛出错误：Cannot set headers...
+});
+
+// 正确：一旦发送响应，立即停止后续逻辑
+app.get('/correct', (req, res) => {
+  if (somethingWrong) {
+    return res.status(400).json({ error: '出错了' });
+    // return 后的代码不会执行
+  }
+  res.json({ ok: true });
+});
+```
+
+## 常用 HTTP 状态码速查
+
+| 状态码 | 含义 | 场景 |
+|--------|------|------|
+| 200 | OK | 成功，默认值 |
+| 201 | Created | 资源创建成功 |
+| 204 | No Content | 成功但无返回内容（DELETE） |
+| 400 | Bad Request | 请求参数错误 |
+| 401 | Unauthorized | 未登录（需要认证） |
+| 403 | Forbidden | 无权限（认证了但权限不足） |
+| 404 | Not Found | 资源不存在 |
+| 500 | Internal Server Error | 服务器内部错误 |
+
+## 总结
+
+本文全面梳理了 Express 请求与响应对象的核心 API：
+
+- **`req`**：获取请求信息（路径、参数、查询字符串、请求头、请求体）
+- **`res`**：发送响应（状态码、JSON、文件、Cookie、重定向）
+- **链式调用**：`res.status().json()` 是最常用的组合写法
+- **统一响应格式**：封装 `success/error/notFound` 等工具函数，保证 API 响应一致性
+- **生命周期**：响应一旦发送，不可修改，避免在响应后继续调用 `res` 方法
+
+下一篇文章我们将学习 **静态资源服务**，掌握使用 `express.static` 高效托管前端文件的方法。

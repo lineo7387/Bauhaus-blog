@@ -1,0 +1,310 @@
+---
+title: 路由基础
+description: 深入掌握 Express 的路由系统，包括 GET/POST/PUT/DELETE 等 HTTP 方法、动态路由参数、查询字符串解析，以及路由匹配优先级规则。
+pubDate: 2026-04-16
+category: express
+tags: [express, nodejs, 路由, HTTP, RESTful]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 7
+planId: routing-basics
+---
+
+# 路由基础
+
+**路由**（Routing）是 Web 应用处理客户端请求的核心机制。Express 的路由系统让你可以为不同的 HTTP 方法和 URL 路径绑定对应的处理函数，从而精准地响应各类请求。在深入了解中间件之前，掌握路由的基础用法是必经之路。
+
+## 路由的概念
+
+Express 中的路由指的是：**客户端请求的 HTTP 方法 + URL 路径 → 服务端处理函数的映射**。基本语法如下：
+
+```javascript
+app.METHOD(PATH, HANDLER);
+```
+
+- `app`：Express 实例
+- `METHOD`：HTTP 方法（小写），如 `get`、`post`、`put`、`delete`
+- `PATH`：路由路径，可以是字符串、字符串模式或正则表达式
+- `HANDLER`：当路由匹配时执行的回调函数
+
+## HTTP 方法与 CRUD 映射
+
+在 RESTful API 设计中，每个 HTTP 方法对应一种资源操作：
+
+| HTTP 方法 | 操作 | 说明 |
+|-----------|------|------|
+| `GET` | 读取 | 获取资源列表或单个资源 |
+| `POST` | 创建 | 新建一个资源 |
+| `PUT` | 更新 | 完整替换一个资源 |
+| `PATCH` | 部分更新 | 修改资源的部分字段 |
+| `DELETE` | 删除 | 删除一个资源 |
+
+### 基础路由示例
+
+```javascript
+import express from 'express';
+const app = express();
+
+// 读取资源列表
+app.get('/articles', (req, res) => {
+  res.json([
+    { id: 1, title: 'Express 入门' },
+    { id: 2, title: 'Node.js 基础' },
+  ]);
+});
+
+// 读取单个资源
+app.get('/articles/:id', (req, res) => {
+  const { id } = req.params;
+  res.json({ id, title: `文章 ${id}` });
+});
+
+// 创建资源
+app.post('/articles', (req, res) => {
+  const { title, content } = req.body;
+  const newArticle = { id: Date.now(), title, content };
+  res.status(201).json(newArticle);
+});
+
+// 完整更新资源
+app.put('/articles/:id', (req, res) => {
+  const { id } = req.params;
+  const { title, content } = req.body;
+  res.json({ id, title, content, updated: true });
+});
+
+// 部分更新资源
+app.patch('/articles/:id', (req, res) => {
+  const { id } = req.params;
+  const updates = req.body;
+  res.json({ id, ...updates, partial: true });
+});
+
+// 删除资源
+app.delete('/articles/:id', (req, res) => {
+  const { id } = req.params;
+  res.json({ id, deleted: true });
+});
+
+app.listen(3000);
+```
+
+```bash
+# 测试各路由
+curl http://localhost:3000/articles
+curl http://localhost:3000/articles/42
+curl -X POST -H "Content-Type: application/json" -d '{"title":"新文章"}' http://localhost:3000/articles
+curl -X PUT -H "Content-Type: application/json" -d '{"title":"更新标题"}' http://localhost:3000/articles/42
+curl -X PATCH -H "Content-Type: application/json" -d '{"title":"补丁标题"}' http://localhost:3000/articles/42
+curl -X DELETE http://localhost:3000/articles/42
+```
+
+## 动态路由参数
+
+**动态路由参数**（Route Parameters）用于捕获 URL 中的变量部分，非常适合处理资源 ID、用户名等动态值。
+
+### 基本用法
+
+```javascript
+// 路径中的 `:id` 就是动态参数
+app.get('/users/:userId/posts/:postId', (req, res) => {
+  const { userId, postId } = req.params;
+  res.json({ userId, postId });
+});
+```
+
+```
+GET /users/123/posts/456
+→ req.params = { userId: '123', postId: '456' }
+```
+
+### 参数值类型转换
+
+路由参数捕获的值**始终是字符串**。如果需要数字或其他类型，需要手动转换：
+
+```javascript
+app.get('/products/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);  // 转换为整数
+
+  if (isNaN(id)) {
+    return res.status(400).json({ error: 'ID 必须是数字' });
+  }
+
+  const product = products.find(p => p.id === id);
+  if (!product) {
+    return res.status(404).json({ error: '商品不存在' });
+  }
+
+  res.json(product);
+});
+```
+
+### 可选参数与多层嵌套
+
+Express 5 支持可选参数（`?`）和多层参数：
+
+```javascript
+// Express 5：可选参数
+app.get('/users/:userId?/posts', (req, res) => {
+  const { userId } = req.params;
+  res.json({ userId: userId || 'all' });
+});
+
+// Express 5：多层动态参数
+app.get('/v1/:resource/:id/:action?', (req, res) => {
+  const { resource, id, action } = req.params;
+  res.json({ resource, id, action });
+});
+```
+
+## 查询参数解析
+
+**查询参数**（Query Parameters）是 URL 中 `?` 后面的键值对，适合用于分页、过滤、排序等场景：
+
+```
+GET /articles?page=2&limit=10&category=tech
+```
+
+```javascript
+app.get('/articles', (req, res) => {
+  const { page = 1, limit = 10, category } = req.query;
+
+  // 查询参数是字符串，需要类型转换
+  const pageNum = parseInt(page, 10);
+  const limitNum = parseInt(limit, 10);
+
+  console.log(`第 ${pageNum} 页，每页 ${limitNum} 条`);
+  console.log(`分类筛选: ${category || '全部'}`);
+
+  res.json({
+    page: pageNum,
+    limit: limitNum,
+    category,
+    articles: [],
+  });
+});
+```
+
+```
+GET /articles?page=2&limit=5
+→ req.query = { page: '2', limit: '5' }
+```
+
+### 对比：路由参数 vs 查询参数
+
+| 场景 | 路由参数 | 查询参数 |
+|------|----------|----------|
+| 用途 | 标识特定资源 | 筛选、排序、分页 |
+| 示例 | `/users/42` | `/users?role=admin` |
+| 必填性 | 通常必填 | 可选 |
+| 语义 | 资源路径的一部分 | 操作选项 |
+
+## 请求体解析
+
+处理 `POST`、`PUT`、`PATCH` 请求时，通常需要在请求体中传递数据。Express 需要中间件来解析请求体：
+
+```javascript
+import express from 'express';
+const app = express();
+
+// 解析 JSON 请求体（必须在路由之前注册）
+app.use(express.json());
+
+// 解析 URL 编码表单（传统表单提交）
+app.use(express.urlencoded({ extended: true }));
+
+// 解析 multipart/form-data（文件上传需要其他库如 multer）
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  res.json({ username, received: true });
+});
+```
+
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"username":"alice","password":"secret"}' \
+  http://localhost:3000/login
+```
+
+## 路由匹配顺序
+
+Express 按照**路由定义的顺序**进行匹配，**先定义的路由优先**。这意味着：
+
+1. 静态路由应放在动态路由之前
+2. 具体路由应放在通用路由之前
+3. 使用 `next('route')` 可跳过当前路由的剩余处理器
+
+```javascript
+// 正确顺序：静态在前，动态在后
+app.get('/articles/featured', (req, res) => {
+  // 匹配 /articles/featured（不会误匹配）
+  res.send('精选文章');
+});
+
+app.get('/articles/:id', (req, res) => {
+  // 匹配 /articles/42 等动态路径
+  res.send(`文章 ID: ${req.params.id}`);
+});
+
+// 使用 next('route') 跳过剩余处理器
+app.get(
+  '/items/:id',
+  (req, res, next) => {
+    if (!req.params.id) return next('route');
+    res.send('直接返回');
+  },
+  (req, res) => {
+    // 不会被执行（上面已返回）
+    res.send('不会到这里');
+  }
+);
+```
+
+## 正则路由与字符串模式
+
+除了普通字符串路径，Express 还支持字符串模式和正则表达式：
+
+```javascript
+// 字符串模式：匹配 /acd 和 /abcd
+app.get('/ab?cd', (req, res) => res.send('ab?cd 匹配'));
+
+// 字符串模式：匹配 /ab + 任意数量 cd（ab123cd）
+app.get('/ab+cd', (req, res) => res.send('ab+cd 匹配'));
+
+// 字符串模式：匹配 /ab + 任意字符 + cd
+app.get('/ab*cd', (req, res) => res.send('ab*cd 匹配'));
+
+// 正则表达式：匹配以 /any 结尾的路径
+app.get(/.*any$/, (req, res) => res.send('正则匹配'));
+
+// 带命名的正则：捕获数字
+app.get(/\/items\/(\d+)/, (req, res) => {
+  // 注意：正则捕获的参数在 req.params[0] 中
+  res.send(`捕获: ${req.params[0]}`);
+});
+```
+
+## 路由前缀与链式调用
+
+当多个路由共享相同的路径前缀时，可以使用 `app.route()` 进行链式注册：
+
+```javascript
+app.route('/users')
+  .get((req, res) => res.json([]))
+  .post((req, res) => res.status(201).json({ created: true }))
+  .put((req, res) => res.status(405).end())  // 方法不允许
+  .delete((req, res) => res.status(204).end());
+```
+
+## 总结
+
+本文覆盖了 Express 路由系统的核心知识点：
+
+- **HTTP 方法**：`GET/POST/PUT/PATCH/DELETE` 对应资源的查、增、改、改、删
+- **路由参数**：`req.params` 获取 URL 中的动态变量（始终为字符串）
+- **查询参数**：`req.query` 获取 URL 中 `?` 后的键值对
+- **请求体**：`express.json()` 和 `express.urlencoded()` 解析 POST/PUT 请求体
+- **匹配顺序**：先定义先匹配，静态路由应放在动态路由之前
+
+路由是 Express 应用的骨架，下一篇文章我们将深入学习 **中间件入门**，了解请求处理管道的核心机制。

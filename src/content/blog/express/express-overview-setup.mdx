@@ -1,0 +1,247 @@
+---
+title: Express 概述与环境搭建
+description: 认识 Express 框架的核心优势，了解 5.x 版本的关键变化，掌握从零搭建 Express 开发环境的完整流程，包括项目初始化、目录结构与开发服务器启动。
+pubDate: 2026-04-16
+category: express
+tags: [express, nodejs, 后端入门, 环境搭建]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 6
+planId: express-overview-setup
+---
+
+# Express 概述与环境搭建
+
+**Express** 是 Node.js 生态中最成熟、使用最广泛的后端 Web 框架。它以极简的设计理念和强大的扩展能力，成为构建 RESTful API 和服务端渲染应用的首选工具。在学习路由、中间件等核心概念之前，我们先来了解 Express 的整体架构，并完成开发环境的搭建。
+
+## Express 简介
+
+Express 由 TJ Holowaychuk 于 2010 年创建，最初设计目标是为 Node.js 提供一套简洁、灵活的 Web 应用框架。相比于原生 `http` 模块的手动路由分发，Express 通过**中间件管道**和**声明式路由**大幅简化了 Web 应用的开发。
+
+Express 的核心特点：
+
+- **轻量简洁**：核心代码量小，核心功能约 1000 行，无强制约束
+- **中间件机制**：请求经过一系列中间件处理，形成管道式数据流
+- **路由系统**：基于 HTTP 方法和 URL 路径的灵活路由匹配
+- **高度可扩展**：社区生态丰富，有大量第三方中间件可用
+- **视图支持**：内置多种模板引擎集成，方便服务端渲染
+
+## Express 5.x 的关键变化
+
+Express 5 是继 Express 4 之后的重要版本更新（当前为 5.0 正式版），带来了一些破坏性变更：
+
+### 路由参数语法统一
+
+Express 5 废弃了传统的 `:param` 语法，全面转向命名参数风格：
+
+```javascript
+// Express 4 写法（仍可运行，但有警告）
+app.get('/users/:id', (req, res) => res.send(req.params.id));
+
+// Express 5 推荐写法（仅支持命名参数）
+app.get('/users/:id', (req, res) => res.send(req.params.id));
+```
+
+> **注意**：Express 5 目前仍支持 `:param` 语法，但推荐使用命名参数以适配未来版本。
+
+### 异步路由处理器
+
+Express 5 原生支持异步路由处理器，无需手动包装 Promise：
+
+```javascript
+// Express 4：需要 try/catch 或 .catch()
+app.get('/users', (req, res, next) => {
+  fetchUser()
+    .then(user => res.json(user))
+    .catch(next);
+});
+
+// Express 5：直接使用 async/await
+app.get('/users', async (req, res) => {
+  const user = await fetchUser();
+  res.json(user);
+});
+```
+
+### 其他变更
+
+- 移除了 `app.router` 属性
+- `res.redirect()` 不再支持 `back` 关键字
+- `res.location()` 不再支持 `back` 字符串
+- 移除了 `express.createApplication()` 的内部使用
+
+## 安装与项目初始化
+
+### 前置条件
+
+确保已安装 Node.js（建议 18.x 及以上）和 npm/pnpm：
+
+```bash
+node --version   # v18.0.0+
+npm --version    # 9.x+
+pnpm --version   # 8.x+
+```
+
+### 创建项目
+
+```bash
+# 使用 npm 初始化项目
+mkdir my-express-app && cd my-express-app
+npm init -y
+
+# 安装 Express
+npm install express
+
+# 安装开发依赖（nodemon 用于热重载）
+npm install -D nodemon
+```
+
+```bash
+# 使用 pnpm（推荐）
+mkdir my-express-app && cd my-express-app
+pnpm init
+pnpm add express
+pnpm add -D nodemon
+```
+
+### 目录结构规范
+
+一个结构清晰的 Express 项目通常包含以下目录：
+
+```
+my-express-app/
+├── src/
+│   ├── app.js          # Express 应用主文件
+│   ├── routes/         # 路由模块
+│   │   └── index.js
+│   ├── controllers/    # 控制器（业务逻辑）
+│   │   └── homeController.js
+│   ├── middlewares/    # 自定义中间件
+│   │   └── logger.js
+│   └── utils/          # 工具函数
+│       └── response.js
+├── public/             # 静态资源目录
+│   ├── css/
+│   └── js/
+├── views/              # 模板文件（如使用 EJS/Pug）
+├── .env                # 环境变量（不要提交到 Git）
+├── .gitignore
+├── package.json
+└── README.md
+```
+
+## 第一个 Express 应用
+
+创建 `src/app.js`，编写最简 Express 服务器：
+
+```javascript
+// src/app.js
+import express from 'express';
+
+const app = express();    // 创建 Express 应用实例
+const PORT = process.env.PORT || 3000;
+
+// 定义根路由：GET /
+app.get('/', (req, res) => {
+  res.send('你好，Express 世界！');
+});
+
+// 启动服务器
+app.listen(PORT, () => {
+  console.log(`服务器运行在 http://localhost:${PORT}`);
+});
+```
+
+如果你使用 ES Module 语法（`import`），需要在 `package.json` 中配置 `"type": "module"`：
+
+```json
+{
+  "name": "my-express-app",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/app.js",
+    "start": "node src/app.js"
+  }
+}
+```
+
+```bash
+pnpm dev
+# [nodemon] starting `node src/app.js`
+# 服务器运行在 http://localhost:3000
+```
+
+访问 `http://localhost:3000`，浏览器将显示 "你好，Express 世界！"。
+
+## 环境变量配置
+
+在项目根目录创建 `.env` 文件存储敏感配置（确保将其加入 `.gitignore`）：
+
+```bash
+# .env
+PORT=3000
+NODE_ENV=development
+DB_HOST=localhost
+DB_PORT=27017
+```
+
+安装 `dotenv` 并在应用启动时加载：
+
+```bash
+pnpm add dotenv
+```
+
+```javascript
+// src/app.js
+import 'dotenv/config';     // 必须在其他导入之前加载
+import express from 'express';
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+app.get('/', (req, res) => {
+  res.send(`环境: ${NODE_ENV}`);
+});
+
+app.listen(PORT, () => {
+  console.log(`[${NODE_ENV}] 服务器运行在 http://localhost:${PORT}`);
+});
+```
+
+## 开发与生产环境区分
+
+建议在 `package.json` 中明确分离开发与生产脚本：
+
+```json
+{
+  "scripts": {
+    "dev": "nodemon --env-file=.env src/app.js",
+    "start": "node --env-file=.env.production src/app.js",
+    "build": "echo '构建完成'"
+  }
+}
+```
+
+```bash
+# .env.development
+PORT=3000
+NODE_ENV=development
+
+# .env.production
+PORT=8080
+NODE_ENV=production
+```
+
+## 总结
+
+本文完成了 Express 开发环境的全流程搭建：
+
+- **Express 5.x** 在异步路由、路由参数等方面有重要更新，建议从新项目开始就使用新特性
+- 通过 `npm init` 或 `pnpm init` 初始化项目，安装 `express` 和 `nodemon`
+- 合理的目录结构（`src/routes`、`src/middlewares` 等）有助于项目长期维护
+- 使用 `dotenv` 管理环境变量，避免敏感信息硬编码
+
+下一篇文章我们将深入学习 **路由基础**，学习如何通过 HTTP 方法和路径匹配来处理不同的客户端请求。
