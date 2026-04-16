@@ -1,0 +1,284 @@
+---
+title: CommonJS 与 ES Modules
+description: 全面掌握 Node.js 的两种模块系统——深入理解 require/module.exports 的加载机制、ESM 的静态导入导出、__dirname 与 import.meta.url 的差异，以及 package.json 中 type 与 exports 字段的最佳实践。
+pubDate: 2026-04-15
+category: nodejs
+tags: [nodejs, commonjs, esm, 模块化, 包管理]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: module-system-cjs-esm
+---
+
+# CommonJS 与 ES Modules
+
+模块化是现代 JavaScript 开发的基石。Node.js 历史上使用 **CommonJS（CJS）** 作为默认模块规范，而随着 ECMAScript 标准的演进，**ES Modules（ESM）** 逐渐成为官方推荐的方式。本文将深入讲解这两种模块系统在 Node.js 中的工作原理、差异以及互操作方法。
+
+## CommonJS 模块系统
+
+CommonJS 是 Node.js 诞生之初就采用的模块规范。它的核心语法只有两个：`require` 用于导入，`module.exports` 用于导出。
+
+### require 的加载机制
+
+当执行 `require('模块')` 时，Node.js 会按照以下顺序查找模块：
+
+1. 核心模块（如 `fs`、`path`）
+2. 以 `./` 或 `../` 开头的相对路径文件
+3. `node_modules` 目录中的第三方包
+4. 如果未指定扩展名，依次尝试 `.js`、`.json`、`.node`
+
+```javascript
+// math.js
+function add(a, b) {
+  return a + b;
+}
+
+function multiply(a, b) {
+  return a * b;
+}
+
+module.exports = { add, multiply };
+```
+
+```javascript
+// app.js
+const math = require('./math.js');
+
+console.log(math.add(2, 3));       // 5
+console.log(math.multiply(4, 5));  // 20
+```
+
+### 模块缓存
+
+**非常重要**：`require` 具有**模块缓存**机制。同一个模块在同一次运行中只会被加载一次，后续 `require` 返回的是缓存的导出对象。
+
+```javascript
+// counter.js
+let count = 0;
+
+module.exports = {
+  increment() {
+    count++;
+    return count;
+  },
+  getCount() {
+    return count;
+  },
+};
+```
+
+```javascript
+// app.js
+const counter1 = require('./counter');
+const counter2 = require('./counter'); // 返回同一对象！
+
+counter1.increment();
+console.log(counter2.getCount()); // 1
+console.log(counter1 === counter2); // true
+```
+
+## ES Modules 模块系统
+
+ES Modules 是 ECMAScript 标准定义的模块化方案，使用 `import` 和 `export` 语法。与 CommonJS 相比，ESM 具有以下特点：
+
+- **静态解析**：导入导出在代码运行前就能确定依赖关系
+- **异步加载**：支持按需加载和树摇优化（Tree Shaking）
+- **顶级作用域严格模式**：ESM 文件默认启用 `use strict`
+
+```javascript
+// math.mjs
+export function add(a, b) {
+  return a + b;
+}
+
+export function multiply(a, b) {
+  return a * b;
+}
+
+// 默认导出
+export default function greet(name) {
+  return `Hello, ${name}!`;
+}
+```
+
+```javascript
+// app.mjs
+import greet, { add, multiply } from './math.mjs';
+
+console.log(greet('Node.js'));    // Hello, Node.js!
+console.log(add(2, 3));           // 5
+console.log(multiply(4, 5));      // 20
+```
+
+### 命名导入与默认导入
+
+```javascript
+// utils.mjs
+export const PI = 3.14159;
+
+export function circleArea(r) {
+  return PI * r * r;
+}
+
+export default class Logger {
+  log(msg) {
+    console.log(`[LOG] ${msg}`);
+  }
+}
+```
+
+```javascript
+// main.mjs
+import Logger, { PI, circleArea } from './utils.mjs';
+
+const logger = new Logger();
+logger.log(`PI = ${PI}`);
+logger.log(`圆面积 = ${circleArea(5)}`);
+```
+
+## CJS 与 ESM 的关键差异
+
+### 1. 文件扩展名与 package.json 配置
+
+Node.js 通过 `package.json` 中的 `type` 字段决定项目的默认模块系统：
+
+```json
+{
+  "name": "my-project",
+  "version": "1.0.0",
+  "type": "module"
+}
+```
+
+- `type: "commonjs"`（默认）：`.js` 文件视为 CJS
+- `type: "module"`：`.js` 文件视为 ESM
+
+> **技巧**：即使 `type` 已设置，仍可用 `.cjs` 强制使用 CommonJS，用 `.mjs` 强制使用 ESM。
+
+### 2. __dirname 与 import.meta.url
+
+在 CommonJS 中，可以使用 `__dirname` 和 `__filename` 获取当前文件路径：
+
+```javascript
+// cjs-file.js
+console.log(__dirname);   // /Users/alice/project/src
+console.log(__filename);  // /Users/alice/project/src/cjs-file.js
+```
+
+但在 ESM 中，这两个变量不存在，需要使用 `import.meta.url`：
+
+```javascript
+// esm-file.mjs
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+console.log(__dirname);
+console.log(__filename);
+```
+
+### 3. 同步 vs 异步
+
+`require` 是**同步**执行的，会在调用处立即返回模块内容；而 ESM 的顶级 `import` 是**静态**的，在模块解析阶段完成，`import()` 函数则是动态异步加载。
+
+```javascript
+// CommonJS：同步加载
+const config = require('./config.json');
+
+// ESM：动态异步加载
+const config = await import('./config.json', { assert: { type: 'json' } });
+```
+
+## CJS 与 ESM 互操作
+
+### 在 ESM 中导入 CJS
+
+ESM 可以直接 `import` CommonJS 模块，Node.js 会自动将 `module.exports` 映射为默认导出：
+
+```javascript
+// app.mjs
+import lodash from 'lodash'; // CJS 包，可用默认导入
+
+// 命名导入 CJS 模块（需要包支持）
+import { createServer } from 'http'; // 核心模块同时支持两种语法
+```
+
+### 在 CJS 中导入 ESM
+
+CommonJS 不能直接 `require` ESM 模块，但可以通过动态 `import()` 实现：
+
+```javascript
+// app.js
+async function loadEsmModule() {
+  const { add } = await import('./math.mjs');
+  console.log(add(1, 2));
+}
+
+loadEsmModule();
+```
+
+## package.json 的 exports 字段
+
+现代 Node.js 包通常使用 `exports` 字段来精确控制模块的公开接口，同时支持 CJS 和 ESM 双模式：
+
+```json
+{
+  "name": "my-lib",
+  "version": "2.0.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./utils": {
+      "import": "./dist/utils.mjs",
+      "require": "./dist/utils.cjs"
+    }
+  }
+}
+```
+
+> **exports 的优先级高于 main**：如果定义了 `exports`，`main` 和 `module` 字段将被忽略。这是 Node.js 推荐的现代包配置方式。
+
+## 条件导出与环境区分
+
+`exports` 还支持根据运行环境返回不同入口：
+
+```json
+{
+  "exports": {
+    ".": {
+      "node": "./index.node.js",
+      "default": "./index.js"
+    }
+  }
+}
+```
+
+这在开发同构（Universal）库时非常有用，可以为 Node.js 和浏览器提供不同的实现。
+
+## 模块系统选择建议
+
+| 场景 | 推荐方案 |
+|------|---------|
+| 全新 Node.js 项目 | **ESM**（`"type": "module"`） |
+| 需要兼容旧代码 | CJS，或混合使用 `.cjs` / `.mjs` |
+| 发布 npm 包 | 同时提供 CJS + ESM 双构建（`exports` 字段） |
+| 使用动态加载 | ESM 的 `import()` 函数 |
+| 需要 `__dirname` | CJS 原生支持；ESM 用 `import.meta.url` 模拟 |
+
+## 总结
+
+本文深入讲解了 Node.js 中的两大模块系统：
+
+- **CommonJS**：`require` / `module.exports`，同步加载，具有模块缓存
+- **ES Modules**：`import` / `export`，静态解析，支持异步动态导入
+- **关键差异**：`__dirname` 与 `import.meta.url`、文件扩展名约定、`type` 字段控制
+- **现代实践**：使用 `package.json` 的 `exports` 字段实现 CJS/ESM 双模式兼容
+
+下一篇文章将介绍 Node.js 的 **核心模块速览（path、os、util、events）**，带你熟悉最常用的内置工具。

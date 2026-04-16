@@ -1,0 +1,199 @@
+---
+title: Node.js 运行时与架构概览
+description: 从零理解 Node.js 的本质——V8 引擎与 libuv 的协作、事件驱动与非阻塞 I/O 模型，以及 Node.js 24 带来的 Permission Model、Stable Test Runner 和原生 WebSocket 客户端等新特性。
+pubDate: 2026-04-15
+category: nodejs
+tags: [nodejs, 运行时, v8, libuv, 入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: nodejs-runtime-architecture
+---
+
+# Node.js 运行时与架构概览
+
+Node.js 是目前最流行的 JavaScript 服务端运行环境之一。它让开发者能够使用统一的编程语言构建从浏览器到服务器的全栈应用。要真正掌握 Node.js，首先需要理解它的**运行时组成**和**核心设计哲学**。
+
+## 什么是 Node.js
+
+Node.js 并非一门新的编程语言，而是一个让 JavaScript 脱离浏览器、在服务器端执行的**运行时（Runtime）**。它由以下两大核心组件构成：
+
+- **V8 引擎**：Google 开发的高性能 JavaScript 引擎，负责将 JS 代码编译为机器码并执行
+- **libuv**：C 语言编写的跨平台异步 I/O 库，提供事件循环和线程池能力
+
+```javascript
+// 最简单的 Node.js 程序
+console.log('Hello, Node.js!');
+```
+
+```bash
+node hello.js
+# Hello, Node.js!
+```
+
+> **关键区别**：浏览器中的 JavaScript 受限于 DOM、BOM 和沙箱安全策略；而 Node.js 提供了直接操作文件系统、网络和进程的底层能力。
+
+## 单线程与非阻塞 I/O
+
+Node.js 最广为人知的特性是**单线程事件循环（Single-Threaded Event Loop）**配合**非阻塞 I/O（Non-blocking I/O）**。
+
+### 单线程的含义
+
+Node.js 的主线程只有一个。所有的 JavaScript 代码都在这个线程上顺序执行。这意味着：
+
+- 没有多线程同步的复杂性
+- 错误的代码会阻塞整个事件循环
+- 真正的并发依赖于**异步回调**和**事件驱动**
+
+```javascript
+// 阻塞示例：同步读取大文件会卡住事件循环
+const fs = require('fs');
+
+console.log('开始');
+const data = fs.readFileSync('./large-file.txt'); // 阻塞！
+console.log('读取完成');
+```
+
+### 非阻塞 I/O 的本质
+
+Node.js 在处理 I/O 操作（如文件读写、网络请求）时，不会等待操作完成，而是将任务委托给 libuv，主线程继续执行后续代码。当 I/O 完成后，libuv 通过**回调函数**将结果放回事件循环队列。
+
+```javascript
+// 非阻塞示例：异步读取不会卡住事件循环
+const fs = require('fs');
+
+console.log('开始');
+fs.readFile('./large-file.txt', (err, data) => {
+  if (err) throw err;
+  console.log('读取完成');
+});
+console.log('继续执行其他任务');
+
+// 输出顺序：
+// 开始
+// 继续执行其他任务
+// 读取完成
+```
+
+> **核心洞察**：Node.js 的"快"不是因为它执行计算更快，而是因为它在处理大量并发连接时，不会因为等待 I/O 而浪费 CPU 时间。
+
+## 事件驱动模型
+
+Node.js 采用了**事件驱动架构（Event-Driven Architecture）**。这种模式的核心思想是：程序的执行流程由事件（如请求到达、文件读取完成、定时器触发）来驱动，而不是严格的自上而下顺序执行。
+
+```javascript
+const http = require('http');
+
+// 创建一个 HTTP 服务器
+const server = http.createServer((req, res) => {
+  // 每次收到请求时触发此回调
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Hello from Node.js!\n');
+});
+
+server.listen(3000, () => {
+  console.log('服务器已启动：http://localhost:3000');
+});
+```
+
+在这个例子中：
+- 服务器启动后进入**监听状态**
+- 没有请求时，Node.js 处于空闲等待
+- 每次新的 HTTP 请求到达时，触发回调函数处理响应
+
+## Node.js 24 新特性一览
+
+Node.js 24（LTS 版本）带来了多项值得关注的改进：
+
+### Permission Model（权限模型）
+
+Node.js 24 进一步增强了实验性的 Permission Model，允许在运行时限制程序对文件系统、子进程和环境的访问：
+
+```bash
+# 仅允许读取特定目录
+node --permission --allow-fs-read=/app/data index.js
+```
+
+这大大提升了运行不可信代码时的安全性。
+
+### Stable Test Runner
+
+内置的 `node:test` 模块从实验状态转正为**稳定 API**，无需安装 Jest、Mocha 等外部测试框架即可编写单元测试：
+
+```javascript
+const { test, assert } = require('node:test');
+
+test('简单的加法测试', () => {
+  assert.strictEqual(1 + 1, 2);
+});
+```
+
+### 原生 WebSocket 客户端
+
+Node.js 24 开始内置 `WebSocket` 客户端支持（基于 WHATWG 标准），不再依赖第三方库如 `ws`：
+
+```javascript
+const ws = new WebSocket('wss://echo.websocket.org');
+
+ws.on('open', () => {
+  ws.send('Hello WebSocket');
+});
+
+ws.on('message', (data) => {
+  console.log('收到:', data.toString());
+});
+```
+
+## 与其他运行时的对比
+
+| 特性 | Node.js | Deno | Bun |
+|------|---------|------|-----|
+| 运行时 | V8 + libuv | V8 + Rust/Tokio | JavaScriptCore |
+| 包管理 | npm / pnpm / yarn | 内置，URL 导入 | 内置，兼容 npm |
+| TypeScript | 需转译 | 原生支持 | 原生支持 |
+| 安全性 | Permission Model（实验性） | 默认沙箱 | 有限 |
+| 生态成熟度 | 最成熟 | 较小但增长快 | 新兴 |
+
+> **选择建议**：Node.js 依然是企业级应用和大型开源生态的首选；Deno 更适合追求现代 TypeScript 工作流的场景；Bun 以速度见长，适合对启动时间和构建速度敏感的项目。
+
+## 你的第一个 Node.js 程序
+
+让我们用几行代码体验 Node.js 的核心能力——创建一个简单的命令行工具，读取当前目录下的所有文件：
+
+```javascript
+// list-files.js
+const fs = require('fs');
+const path = require('path');
+
+const targetDir = process.argv[2] || '.';
+
+fs.readdir(targetDir, { withFileTypes: true }, (err, entries) => {
+  if (err) {
+    console.error('读取失败:', err.message);
+    process.exit(1);
+  }
+
+  entries.forEach((entry) => {
+    const type = entry.isDirectory() ? '[目录]' : '[文件]';
+    console.log(`${type} ${entry.name}`);
+  });
+});
+```
+
+```bash
+node list-files.js ./src
+# [目录] components
+# [文件] index.js
+```
+
+## 总结
+
+本文介绍了 Node.js 的核心架构和设计思想：
+
+- **V8 + libuv** 的组合让 JavaScript 具备了服务端编程能力
+- **单线程事件循环**配合**非阻塞 I/O**是 Node.js 高并发的基础
+- **事件驱动模型**让程序以响应事件的方式执行，而不是阻塞等待
+- **Node.js 24** 带来了 Permission Model、Stable Test Runner 和原生 WebSocket 客户端等重要升级
+
+理解这些概念后，下一篇文章我们将深入学习 Node.js 的 **CommonJS 与 ES Modules** 模块系统。

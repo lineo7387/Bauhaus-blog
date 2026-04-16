@@ -1,0 +1,303 @@
+---
+title: 核心模块速览（path、os、util、events）
+description: 快速掌握 Node.js 最常用的四大内置模块——path 跨平台路径处理、os 系统信息读取、util 实用工具与 EventEmitter 的订阅发布模式，帮你写出更健壮的 Node.js 代码。
+pubDate: 2026-04-15
+category: nodejs
+tags: [nodejs, 核心模块, path, os, events]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: core-modules-overview
+---
+
+# 核心模块速览（path、os、util、events）
+
+Node.js 的强大之处不仅在于 V8 引擎和 libuv，还在于它提供了丰富且稳定的**核心模块（Core Modules）**。这些模块无需安装，通过 `require` 或 `import` 即可直接使用。本文将带你快速掌握开发中最常用的四个核心模块：`path`、`os`、`util` 和 `events`。
+
+## path 模块：跨平台路径处理
+
+文件路径在不同操作系统上的表示方式不同：Windows 使用反斜杠 `\`，而 macOS 和 Linux 使用正斜杠 `/`。`path` 模块提供了一套跨平台的路径处理工具，让你的代码在任何系统上都能正确运行。
+
+### 常用方法
+
+```javascript
+const path = require('path');
+
+// 拼接路径（自动处理分隔符）
+const fullPath = path.join('src', 'components', 'Button.jsx');
+console.log(fullPath); // src/components/Button.jsx
+
+// 解析绝对路径
+const absolute = path.resolve('src', 'app.js');
+console.log(absolute); // /Users/alice/project/src/app.js
+
+// 获取文件名
+console.log(path.basename('/usr/local/bin/node')); // node
+
+// 获取目录名
+console.log(path.dirname('/usr/local/bin/node'));  // /usr/local/bin
+
+// 获取扩展名
+console.log(path.extname('archive.tar.gz')); // .gz
+```
+
+### path.parse 与 path.format
+
+```javascript
+const path = require('path');
+
+const parsed = path.parse('/home/user/project/index.js');
+console.log(parsed);
+// {
+//   root: '/',
+//   dir: '/home/user/project',
+//   base: 'index.js',
+//   ext: '.js',
+//   name: 'index'
+// }
+
+// 反向组装路径对象
+const formatted = path.format({
+  dir: '/src/utils',
+  base: 'helpers.js'
+});
+console.log(formatted); // /src/utils/helpers.js
+```
+
+> **最佳实践**：永远不要手动拼接路径字符串（如 `'folder' + '/' + 'file'`），始终使用 `path.join()` 或 `path.resolve()`。
+
+## os 模块：系统信息读取
+
+`os` 模块提供了获取操作系统相关信息的 API，常用于日志记录、性能监控和环境适配。
+
+### 常用方法一览
+
+```javascript
+const os = require('os');
+
+// 操作系统平台
+console.log(os.platform());  // darwin | win32 | linux
+
+// CPU 信息
+console.log(os.cpus().length); // CPU 核心数
+
+// 系统总内存（字节）
+console.log(os.totalmem()); // 17179869184
+
+// 空闲内存（字节）
+console.log(os.freemem());  // 4294967296
+
+// 用户主目录
+console.log(os.homedir());  // /Users/alice
+
+// 临时文件目录
+console.log(os.tmpdir());   // /var/folders/.../T
+
+// 主机名
+console.log(os.hostname()); // Alice-MacBook-Pro
+```
+
+### 实际应用：格式化内存显示
+
+```javascript
+const os = require('os');
+
+function formatBytes(bytes) {
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  while (bytes >= 1024 && i < units.length - 1) {
+    bytes /= 1024;
+    i++;
+  }
+  return `${bytes.toFixed(2)} ${units[i]}`;
+}
+
+console.log(`总内存: ${formatBytes(os.totalmem())}`);
+console.log(`空闲内存: ${formatBytes(os.freemem())}`);
+```
+
+## util 模块：实用工具函数
+
+`util` 模块收录了一些常用的辅助函数，能够简化异步代码转换和命令行参数解析等工作。
+
+### util.promisify：回调转 Promise
+
+Node.js 中许多核心 API 采用**错误优先回调**风格（Error-first Callback）。`util.promisify` 可以将这些函数快速转换为返回 Promise 的版本，从而支持 `async/await`。
+
+```javascript
+const fs = require('fs');
+const util = require('util');
+
+// 将 fs.readFile 转换为 Promise 版本
+const readFile = util.promisify(fs.readFile);
+
+async function main() {
+  try {
+    const data = await readFile('./package.json', 'utf-8');
+    const pkg = JSON.parse(data);
+    console.log(pkg.name);
+  } catch (err) {
+    console.error('读取失败:', err.message);
+  }
+}
+
+main();
+```
+
+> **注意**：Node.js 15+ 的 `fs/promises` 已经原生提供了 Promise 版本，新项目应优先使用 `require('fs/promises')`。
+
+### util.parseArgs：命令行参数解析
+
+`util.parseArgs` 是 Node.js 18+ 内置的命令行参数解析器，适合构建简单的 CLI 工具：
+
+```javascript
+const { parseArgs } = require('util');
+
+const options = {
+  port: {
+    type: 'string',
+    short: 'p',
+    default: '3000',
+  },
+  verbose: {
+    type: 'boolean',
+    short: 'v',
+    default: false,
+  },
+};
+
+const { values } = parseArgs({ options, allowPositionals: true });
+
+console.log(`端口: ${values.port}`);
+console.log(`详细模式: ${values.verbose}`);
+```
+
+```bash
+node cli.js -p 8080 -v
+# 端口: 8080
+# 详细模式: true
+```
+
+### util.inspect：对象格式化输出
+
+```javascript
+const util = require('util');
+
+const user = {
+  name: 'Alice',
+  settings: { theme: 'dark', notifications: true },
+};
+
+console.log(util.inspect(user, { colors: true, depth: null }));
+```
+
+## events 模块：EventEmitter 订阅发布模式
+
+Node.js 中的许多核心对象都是 `EventEmitter` 的实例，如 HTTP 服务器、流（Stream）和进程对象。理解 EventEmitter 是掌握 Node.js 异步编程的关键一步。
+
+### 基本用法
+
+```javascript
+const EventEmitter = require('events');
+
+// 创建发射器实例
+const emitter = new EventEmitter();
+
+// 订阅（监听）事件
+emitter.on('message', (data) => {
+  console.log(`收到消息: ${data}`);
+});
+
+// 发布（触发）事件
+emitter.emit('message', 'Hello, EventEmitter!');
+// 收到消息: Hello, EventEmitter!
+```
+
+### 一次性监听器
+
+使用 `.once()` 注册的监听器只会在事件第一次触发时执行：
+
+```javascript
+emitter.once('init', () => {
+  console.log('初始化完成（仅执行一次）');
+});
+
+emitter.emit('init'); // 初始化完成（仅执行一次）
+emitter.emit('init'); // 无输出
+```
+
+### 移除监听器
+
+```javascript
+function onError(err) {
+  console.error('错误:', err);
+}
+
+emitter.on('error', onError);
+emitter.off('error', onError); // 移除指定监听器
+emitter.removeAllListeners('error'); // 移除该事件的所有监听器
+```
+
+### 监听器数量限制与内存泄漏
+
+默认情况下，单个事件最多允许 **10 个监听器**。超过这个数量时，Node.js 会打印警告：
+
+```javascript
+const EventEmitter = require('events');
+const emitter = new EventEmitter();
+
+// 提升限制（谨慎使用）
+emitter.setMaxListeners(20);
+
+for (let i = 0; i < 15; i++) {
+  emitter.on('data', () => {});
+}
+
+console.log(emitter.listenerCount('data')); // 15
+```
+
+> **内存泄漏警示**：如果事件监听器持续增加但从未移除，会导致对象无法被垃圾回收，最终引发内存泄漏。使用 `.off()` 或 `.once()` 是良好的防御措施。
+
+### 自定义 EventEmitter 类
+
+在实际项目中，通常会继承 `EventEmitter` 来构建自己的事件驱动组件：
+
+```javascript
+const EventEmitter = require('events');
+
+class Downloader extends EventEmitter {
+  constructor(url) {
+    super();
+    this.url = url;
+  }
+
+  start() {
+    this.emit('start', this.url);
+    // 模拟下载过程
+    setTimeout(() => {
+      this.emit('progress', 100);
+      this.emit('complete', { url: this.url, size: 1024 });
+    }, 1000);
+  }
+}
+
+const dl = new Downloader('https://example.com/file.zip');
+
+dl.on('start', (url) => console.log(`开始下载: ${url}`));
+dl.on('progress', (percent) => console.log(`进度: ${percent}%`));
+dl.on('complete', (info) => console.log(`下载完成: ${info.url}`));
+
+dl.start();
+```
+
+## 总结
+
+本文介绍了 Node.js 最常用的四个核心模块：
+
+- **`path`**：跨平台路径拼接与解析，避免手动字符串拼接
+- **`os`**：读取系统信息，如 CPU、内存、平台和用户目录
+- **`util`**：`promisify` 简化回调转 Promise，`parseArgs` 解析命令行参数
+- **`events`**：`EventEmitter` 实现订阅发布模式，注意监听器数量限制和内存泄漏防范
+
+这些模块无需安装第三方依赖，是 Node.js 开发者日常工作中最可靠的工具。下一篇文章我们将进入 **npm 生态与包管理基础**，学习如何高效管理项目依赖。

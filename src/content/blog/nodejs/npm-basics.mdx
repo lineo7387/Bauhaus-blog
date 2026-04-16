@@ -1,0 +1,254 @@
+---
+title: npm 生态与包管理基础
+description: 深入理解 Node.js 包管理的核心概念，包括 package.json 字段解析、语义化版本控制、npm scripts 与 npx 的使用，以及 node_modules 解析规则和 pnpm/yarn 的对比分析。
+pubDate: 2026-04-15
+category: nodejs
+tags: [nodejs, npm, 包管理, 依赖, 前端工程化]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: npm-basics
+---
+
+# npm 生态与包管理基础
+
+Node.js 的繁荣很大程度上得益于 npm（Node Package Manager）构建的庞大生态系统。截至今日，npm 仓库已收录超过 300 万个包。掌握 npm 及现代包管理工具的使用，是每位 Node.js 开发者的必修课。
+
+## package.json 核心字段解析
+
+`package.json` 是每个 Node.js 项目的"身份证"，它定义了项目的元信息、依赖关系和脚本命令。
+
+### 基础字段
+
+```json
+{
+  "name": "my-awesome-app",
+  "version": "1.0.0",
+  "description": "一个示例 Node.js 项目",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "author": "Alice",
+  "license": "MIT"
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `name` | 包名，必须唯一（若发布到 npm） |
+| `version` | 版本号，遵循语义化版本规范 |
+| `main` | 包的入口文件 |
+| `type` | 模块系统类型：`commonjs` 或 `module` |
+| `scripts` | 可执行的 npm 脚本命令 |
+| `license` | 开源许可证 |
+
+### 依赖分类
+
+```json
+{
+  "dependencies": {
+    "express": "^4.18.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "optionalDependencies": {
+    "fsevents": "^2.3.0"
+  }
+}
+```
+
+- **`dependencies`**：生产环境必需的依赖
+- **`devDependencies`**：仅在开发和测试时使用的依赖（如构建工具、测试框架、Linter）
+- **`peerDependencies`**：宿主项目必须自行安装的依赖（常用于插件库）
+- **`optionalDependencies`**：可选依赖，安装失败不会导致整个安装过程报错
+
+## 语义化版本（SemVer）
+
+npm 依赖版本号遵循 **SemVer** 规范，格式为 `MAJOR.MINOR.PATCH`：
+
+| 版本变化 | 含义 | 示例 |
+|---------|------|------|
+| `MAJOR` | 不兼容的 API 修改 | `2.0.0` → `3.0.0` |
+| `MINOR` | 向下兼容的功能新增 | `2.1.0` → `2.2.0` |
+| `PATCH` | 向下兼容的问题修复 | `2.1.0` → `2.1.1` |
+
+### 版本前缀符号
+
+```json
+{
+  "dependencies": {
+    "lodash": "4.17.21",      // 精确版本
+    "axios": "^1.6.0",        // 兼容 MINOR 和 PATCH 更新（1.x.x，但 <2.0.0）
+    "express": "~4.18.0",     // 兼容 PATCH 更新（4.18.x，但 <4.19.0）
+    "react": ">=18.0.0 <19.0.0" // 指定范围
+  }
+}
+```
+
+- **`^`（caret）**：最常用，允许 MINOR 和 PATCH 更新
+- **`~`（tilde）**：只允许 PATCH 更新
+- **无前缀**：锁定精确版本
+
+> **生产环境建议**：对于关键项目，使用 `package-lock.json`（npm）、`pnpm-lock.yaml`（pnpm）或 `yarn.lock`（yarn）锁定依赖树的具体版本，确保不同环境构建结果一致。
+
+## npm scripts 与 npx
+
+### npm scripts
+
+`scripts` 字段让你可以定义并执行常用的项目命令：
+
+```json
+{
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "lint": "eslint src/",
+    "build": "esbuild src/index.js --bundle --outfile=dist/bundle.js"
+  }
+}
+```
+
+执行方式：
+
+```bash
+npm run start    # 或 npm start（start/test 可省略 run）
+npm run dev
+npm run build
+```
+
+### 生命周期脚本
+
+npm 在执行某些命令时会自动触发对应的生命周期脚本：
+
+```json
+{
+  "scripts": {
+    "preinstall": "echo '准备安装...'",
+    "postinstall": "echo '安装完成'",
+    "prebuild": "npm run lint",
+    "build": "vite build",
+    "postbuild": "node scripts/cleanup.js"
+  }
+}
+```
+
+- `prebuild` 在 `build` 之前自动执行
+- `postbuild` 在 `build` 之后自动执行
+
+### npx：零安装执行包
+
+`npx` 允许你直接运行 npm 包中的可执行文件，无需全局安装：
+
+```bash
+# 临时执行 create-vite 并创建项目
+npx create-vite@latest my-project -- --template vanilla
+
+# 执行项目本地安装的 ESLint
+npx eslint src/
+```
+
+> **npx 的优势**：它会优先查找 `node_modules/.bin` 中的本地命令，找不到时再临时下载执行，避免了全局环境被污染。
+
+## node_modules 解析规则
+
+当代码中执行 `require('lodash')` 时，Node.js 如何找到对应的包？这涉及到 **node_modules 解析算法**：
+
+1. 从当前文件所在目录开始，查找 `node_modules/lodash`
+2. 如果没有找到，向上级目录继续查找 `node_modules/lodash`
+3. 一直递归到文件系统根目录
+
+```
+/project
+├── node_modules/
+│   └── lodash/
+├── src/
+│   ├── utils/
+│   │   └── helper.js    # require('lodash') → 向上找到 /project/node_modules/lodash
+│   └── app.js           # require('lodash') → 同级的 /project/node_modules/lodash
+```
+
+### 依赖树与扁平化
+
+npm v3 之前采用**嵌套依赖树**，容易导致路径过深和重复安装。现代 npm（v7+）使用更智能的依赖解析策略，pnpm 则通过**内容寻址存储**彻底解决了磁盘空间浪费问题。
+
+```bash
+# npm 的依赖结构（扁平化 + 嵌套补充）
+node_modules/
+├── lodash/           # 顶层扁平化
+├── express/
+│   └── node_modules/
+│       └── lodash/   # 版本冲突时嵌套
+```
+
+## pnpm / yarn 与 npm 的对比
+
+| 特性 | npm | yarn | pnpm |
+|------|-----|------|------|
+| 安装速度 | 中等 | 快 | 非常快 |
+| 磁盘占用 | 大 | 大 | 极小（硬链接共享） |
+| 依赖结构 | 部分扁平化 | 扁平化 | 严格（无幻影依赖） |
+| 离线模式 | 支持 | 原生支持 | 支持 |
+|  workspace | 支持 | 支持 | 支持 |
+| 锁文件 | `package-lock.json` | `yarn.lock` | `pnpm-lock.yaml` |
+
+### 为什么选择 pnpm？
+
+pnpm 通过**内容寻址存储（Content-Addressable Store）**实现了依赖的全局复用。所有项目共享同一份依赖文件，通过硬链接引用，极大地节省了磁盘空间。
+
+```bash
+# 全局安装 pnpm
+npm install -g pnpm
+
+# 使用 pnpm 安装依赖
+pnpm install
+
+# 添加生产依赖
+pnpm add express
+
+# 添加开发依赖
+pnpm add -D eslint
+```
+
+pnpm 的另一个重要特性是**严格依赖隔离**：项目只能访问 `package.json` 中显式声明的依赖，无法像 npm/yarn 那样意外访问到间接依赖（Phantom Dependencies）。这显著减少了因依赖隐式传递导致的 bug。
+
+## 包发布入门
+
+如果你想将自己编写的工具发布到 npm，步骤如下：
+
+```bash
+# 1. 登录 npm 账号
+npm login
+
+# 2. 确保包名唯一且版本正确
+cat package.json | grep '"name"'
+
+# 3. 发布
+npm publish
+
+# 4. 更新版本后重新发布
+npm version patch   # 自动修改 package.json 版本并打 tag
+npm publish
+```
+
+> **注意**：发布前请检查 `.gitignore` 和 `.npmignore`，避免将敏感文件或不必要的源码打包上传。
+
+## 总结
+
+本文覆盖了 Node.js 包管理的核心知识：
+
+- **`package.json`** 是项目的核心配置文件，正确区分 `dependencies`、`devDependencies` 和 `peerDependencies`
+- **语义化版本**（SemVer）让依赖升级可控，`^` 和 `~` 是最常用的版本前缀
+- **`npm scripts`** 是项目自动化的入口，`npx` 则是临时执行包命令的利器
+- **`node_modules` 解析**遵循向上递归查找的规则，理解它有助于排查"模块找不到"的错误
+- **pnpm** 凭借内容寻址存储和严格依赖隔离，已成为现代 Node.js 项目的推荐包管理器
+
+下一篇文章将进入实战环节——**HTTP 服务器快速上手**，带你用 Node.js 内置的 `http` 模块搭建第一个 Web 服务。

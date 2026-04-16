@@ -1,0 +1,370 @@
+---
+title: HTTP 服务器快速上手
+description: 使用 Node.js 内置 http 模块从零搭建 Web 服务器，掌握请求/响应对象解析、路由分发、静态文件服务与错误处理等核心技能，为后续学习 Express/Fastify 打下基础。
+pubDate: 2026-04-15
+category: nodejs
+tags: [nodejs, http, 服务器, 路由, 后端入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: http-server-quickstart
+---
+
+# HTTP 服务器快速上手
+
+Node.js 最常见的应用场景之一就是构建 Web 服务器。借助内置的 **`http` 模块**，你无需安装任何第三方框架，就能创建功能完整的 HTTP 服务。理解 `http` 模块的底层工作原理，也是后续学习 Express、Koa、Fastify 等框架的重要基础。
+
+## 创建基础 HTTP 服务器
+
+Node.js 的 `http.createServer()` 方法用于创建服务器实例，它接收一个回调函数，每当有新的 HTTP 请求到达时就会触发该函数。
+
+```javascript
+// server.js
+const http = require('http');
+
+const server = http.createServer((req, res) => {
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.end('你好，Node.js 服务器！\n');
+});
+
+const PORT = 3000;
+server.listen(PORT, () => {
+  console.log(`服务器运行在 http://localhost:${PORT}`);
+});
+```
+
+```bash
+node server.js
+# 服务器运行在 http://localhost:3000
+```
+
+访问 `http://localhost:3000`，你会看到浏览器中显示 "你好，Node.js 服务器！"。
+
+## 解析请求对象（req）
+
+回调函数中的第一个参数 `req`（即 `IncomingMessage`）包含了客户端发送的所有请求信息：
+
+```javascript
+const http = require('http');
+
+const server = http.createServer((req, res) => {
+  console.log(`请求方法: ${req.method}`);     // GET, POST, PUT, DELETE 等
+  console.log(`请求路径: ${req.url}`);        // /users?id=1
+  console.log(`请求头:`, req.headers);         // { host, user-agent, accept, ... }
+
+  res.end('请求信息已打印到控制台');
+});
+
+server.listen(3000);
+```
+
+### 解析 URL 查询参数
+
+```javascript
+const http = require('http');
+const { URL } = require('url');
+
+const server = http.createServer((req, res) => {
+  const baseUrl = `http://${req.headers.host}`;
+  const parsedUrl = new URL(req.url, baseUrl);
+
+  console.log(`路径: ${parsedUrl.pathname}`);     // /search
+  console.log(`查询参数:`, parsedUrl.searchParams); // URLSearchParams 对象
+
+  const keyword = parsedUrl.searchParams.get('q');
+  res.end(`搜索关键词: ${keyword || '无'}\n`);
+});
+
+server.listen(3000);
+```
+
+```bash
+curl "http://localhost:3000/search?q=nodejs"
+# 搜索关键词: nodejs
+```
+
+## 解析响应对象（res）
+
+第二个参数 `res`（即 `ServerResponse`）用于向客户端发送响应。常用方法包括：
+
+```javascript
+res.statusCode = 200;                          // 设置状态码
+res.setHeader('Content-Type', 'application/json'); // 设置响应头
+res.write('部分数据');                          // 写入响应体（可分多次）
+res.end('最终数据');                            // 结束响应（必须调用）
+```
+
+### 发送 JSON 响应
+
+```javascript
+const http = require('http');
+
+const server = http.createServer((req, res) => {
+  const data = {
+    message: '成功',
+    timestamp: new Date().toISOString(),
+  };
+
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
+});
+
+server.listen(3000);
+```
+
+## 简单的路由分发
+
+`http` 模块本身不提供路由功能，但可以通过 `req.url` 和 `req.method` 手动实现基础路由：
+
+```javascript
+const http = require('http');
+
+const server = http.createServer((req, res) => {
+  const { url, method } = req;
+
+  // 首页
+  if (url === '/' && method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end('<h1>首页</h1>');
+    return;
+  }
+
+  // 用户列表
+  if (url === '/users' && method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify([
+      { id: 1, name: 'Alice' },
+      { id: 2, name: 'Bob' },
+    ]));
+    return;
+  }
+
+  // 创建用户（模拟）
+  if (url === '/users' && method === 'POST') {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      const user = JSON.parse(body);
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ id: 3, ...user }));
+    });
+    return;
+  }
+
+  // 404 处理
+  res.writeHead(404, { 'Content-Type': 'text/plain' });
+  res.end('页面未找到\n');
+});
+
+server.listen(3000, () => {
+  console.log('服务器已启动: http://localhost:3000');
+});
+```
+
+> **注意**：实际项目中建议使用 Express 等路由框架，避免手写大量的 `if/else` 分支。
+
+## 静态文件服务入门
+
+Web 服务器最常见的任务之一是提供静态文件（HTML、CSS、JS、图片）。下面的示例展示了如何用 `fs` 模块实现一个极简的静态文件服务器：
+
+```javascript
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+const PUBLIC_DIR = path.join(__dirname, 'public');
+
+const MIME_TYPES = {
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+};
+
+const server = http.createServer((req, res) => {
+  // 安全处理：禁止访问 public 目录之外的文件
+  const safePath = path.normalize(req.url).replace(/^(\.\.[\/\\])+/, '');
+  let filePath = path.join(PUBLIC_DIR, safePath);
+
+  // 默认返回 index.html
+  if (safePath === '/' || safePath === '') {
+    filePath = path.join(PUBLIC_DIR, 'index.html');
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      if (err.code === 'ENOENT') {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('文件未找到\n');
+      } else {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('服务器内部错误\n');
+      }
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(data);
+  });
+});
+
+server.listen(3000, () => {
+  console.log('静态服务器: http://localhost:3000');
+});
+```
+
+### 目录结构示例
+
+```
+project/
+├── server.js
+└── public/
+    ├── index.html
+    ├── style.css
+    └── app.js
+```
+
+> **安全提示**：上面的示例通过 `path.normalize()` 和正则替换防止了 **路径遍历攻击（Path Traversal）**。在生产环境中，建议使用 `serve-static` 或 Express 的 `express.static` 中间件。
+
+## 错误处理与优雅关闭
+
+### 请求级错误处理
+
+```javascript
+const server = http.createServer((req, res) => {
+  req.on('error', (err) => {
+    console.error('请求错误:', err.message);
+  });
+
+  res.on('error', (err) => {
+    console.error('响应错误:', err.message);
+  });
+
+  // ... 处理逻辑
+});
+```
+
+### 服务器级错误处理
+
+```javascript
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error('端口已被占用');
+  } else {
+    console.error('服务器错误:', err.message);
+  }
+});
+```
+
+### 优雅关闭服务器
+
+```javascript
+process.on('SIGTERM', () => {
+  console.log('收到 SIGTERM 信号，正在优雅关闭服务器...');
+  server.close(() => {
+    console.log('服务器已关闭');
+    process.exit(0);
+  });
+});
+```
+
+## 完整示例：RESTful API 骨架
+
+让我们把以上知识整合成一个可运行的 RESTful API 骨架：
+
+```javascript
+// api-server.js
+const http = require('http');
+
+let users = [
+  { id: 1, name: 'Alice' },
+  { id: 2, name: 'Bob' },
+];
+
+const server = http.createServer((req, res) => {
+  const { url, method } = req;
+
+  // 统一设置 CORS 头（开发环境）
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  // GET /api/users
+  if (url === '/api/users' && method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(users));
+    return;
+  }
+
+  // GET /api/users/:id
+  const userMatch = url.match(/^\/api\/users\/(\d+)$/);
+  if (userMatch && method === 'GET') {
+    const id = parseInt(userMatch[1], 10);
+    const user = users.find((u) => u.id === id);
+    if (user) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(user));
+    } else {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: '用户未找到' }));
+    }
+    return;
+  }
+
+  // POST /api/users
+  if (url === '/api/users' && method === 'POST') {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk.toString()));
+    req.on('end', () => {
+      const { name } = JSON.parse(body);
+      const newUser = { id: users.length + 1, name };
+      users.push(newUser);
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(newUser));
+    });
+    return;
+  }
+
+  res.writeHead(404, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: '路由未找到' }));
+});
+
+server.listen(3000, () => {
+  console.log('API 服务器: http://localhost:3000');
+});
+```
+
+```bash
+# 测试 API
+curl http://localhost:3000/api/users
+curl http://localhost:3000/api/users/1
+curl -X POST -H "Content-Type: application/json" -d '{"name":"Charlie"}' http://localhost:3000/api/users
+```
+
+## 总结
+
+本文带你从零开始用 Node.js 内置的 `http` 模块构建了 Web 服务器：
+
+- **`http.createServer()`** 是创建服务器的核心 API
+- **`req` 对象** 包含请求方法、URL、头部和请求体数据
+- **`res` 对象** 用于设置状态码、响应头和发送响应体
+- **手动路由** 可以通过 `req.url` 和 `req.method` 实现，但复杂项目应使用框架
+- **静态文件服务** 需要结合 `fs` 和 `path` 模块，并注意路径安全
+- **错误处理** 应覆盖请求级、服务器级和进程信号级
+
+掌握了这些底层原理后，学习 **Express** 或 **Fastify** 将会更加得心应手。Node.js 基础知识部分到此结束，后续将进入进阶技能的学习。
