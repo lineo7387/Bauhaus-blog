@@ -55,7 +55,7 @@ const rawQuery = Astro.url.searchParams.get("q") || "";
   <section class="bg-surface-raised py-16 lg:py-24">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <!-- Pagefind UI mounts here -->
-      <div id="search" data-raw-query={rawQuery} class="pagefind-wrapper"></div>
+      <div id="search" data-raw-query={rawQuery} data-base={BASE} class="pagefind-wrapper"></div>
 
       <!-- No query state -->
       {!rawQuery && (
@@ -76,7 +76,7 @@ const rawQuery = Astro.url.searchParams.get("q") || "";
 <!-- Pagefind UI CSS -->
 <link
   rel="stylesheet"
-  href={`${BASE}/pagefind/pagefind-ui.css`}
+  href={`${BASE.replace(/\/$/, '')}/pagefind/pagefind-ui.css`}
   media="all"
   onload={`this.media='all'`}
 />
@@ -201,6 +201,7 @@ const rawQuery = Astro.url.searchParams.get("q") || "";
   // Load Pagefind UI after DOM is ready
   async function initSearch() {
     const searchEl = document.getElementById("search");
+    const BASE = searchEl?.dataset.base ?? "";
     // Read query from URL at runtime (static mode: Astro doesn't have access to ?q= at build time)
     const urlParams = new URLSearchParams(window.location.search);
     const rawQuery = urlParams.get("q") ?? searchEl?.dataset.rawQuery ?? "";
@@ -213,7 +214,7 @@ const rawQuery = Astro.url.searchParams.get("q") || "";
 
     try {
       // @ts-ignore
-      const { PagefindUI } = await import("/pagefind/pagefind-ui.js");
+      const { PagefindUI } = await import(`${BASE || '/'}pagefind/pagefind-ui.js`);
       new PagefindUI({
         element: "#search",
         showSubResults: true,
