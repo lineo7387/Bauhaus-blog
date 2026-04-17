@@ -78,20 +78,6 @@ const paginatedPosts = allSorted.slice(0, postsPerPage);
         class="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between"
       >
         <CategoryFilter categories={categories} activeCategory="" />
-        <div class="flex items-center gap-2">
-          <input
-            type="text"
-            id="search-input"
-            placeholder="Search articles..."
-            class="px-4 py-2 bg-surface-raised border-2 border-foreground font-medium text-sm text-text focus:outline-none focus:border-brand-yellow"
-          />
-          <button
-            id="search-btn"
-            class="px-4 py-2 bg-brand-blue text-on-brand-blue border-2 border-foreground font-bold text-sm uppercase hover:bg-brand-blue/90 transition-colors btn-press"
-          >
-            Search
-          </button>
-        </div>
       </div>
     </div>
   </section>
@@ -114,24 +100,3 @@ const paginatedPosts = allSorted.slice(0, postsPerPage);
     </div>
   </section>
 </BaseLayout>
-
-<script is:inline define:vars={{ BASE }}>
-  const searchBtn = document.getElementById("search-btn");
-  const searchInput = document.getElementById("search-input");
-
-  searchBtn?.addEventListener("click", () => {
-    const query = searchInput?.value.trim();
-    if (query) {
-      window.location.href = `${BASE}/blog/search?q=${encodeURIComponent(query)}`;
-    }
-  });
-
-  searchInput?.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      const query = searchInput.value.trim();
-      if (query) {
-        window.location.href = `${BASE}/blog/search?q=${encodeURIComponent(query)}`;
-      }
-    }
-  });
-</script>

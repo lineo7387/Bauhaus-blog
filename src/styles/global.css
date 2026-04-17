@@ -612,8 +612,202 @@ html.dark .callout-header {
 }
 
 /* ============================================
-   表格样式（全局兜底，确保表头样式正确）
+   Pagefind UI — Bauhaus Overrides
    ============================================ */
+
+/* Use CSS variables from theme, hard shadows, angular corners */
+.pagefind-ui {
+  --pagefind-ui-scale: 1;
+  --pagefind-ui-primary: var(--color-brand-red);
+  --pagefind-ui-text: var(--color-text);
+  --pagefind-ui-background: var(--color-surface-raised);
+  --pagefind-ui-border: var(--color-foreground);
+  --pagefind-ui-tag: var(--color-muted);
+  --pagefind-ui-border-width: 2px;
+  --pagefind-ui-border-radius: 0;
+  --pagefind-ui-image-border-radius: 0;
+  --pagefind-ui-font: var(--font-family-outfit);
+  width: 100%;
+}
+
+/* Search box */
+.pagefind-ui__search-input {
+  border-radius: 0 !important;
+  border: 2px solid var(--color-foreground) !important;
+  background-color: var(--color-background) !important;
+  color: var(--color-text) !important;
+  font-family: var(--font-family-outfit) !important;
+  box-shadow: var(--shadow-hard-sm) !important;
+  padding-left: 52px !important;
+}
+
+.pagefind-ui__search-input:focus {
+  outline: 3px solid var(--color-brand-yellow) !important;
+  outline-offset: 0 !important;
+}
+
+.pagefind-ui__search-input::placeholder {
+  color: var(--color-text-muted) !important;
+  opacity: 1 !important;
+}
+
+/* Magnifier icon */
+.pagefind-ui__form::before {
+  border-radius: 0 !important;
+}
+
+/* Clear button */
+.pagefind-ui__search-clear {
+  border-radius: 0 !important;
+  color: var(--color-text) !important;
+  background-color: transparent !important;
+}
+
+.pagefind-ui__search-clear:hover {
+  background-color: var(--color-muted) !important;
+}
+
+/* Results */
+.pagefind-ui__results-area {
+  margin-top: 16px !important;
+}
+
+.pagefind-ui__results {
+  padding: 0 !important;
+}
+
+/* Result item */
+.pagefind-ui__result {
+  border-top: 2px solid var(--color-foreground) !important;
+  padding: 20px 0 !important;
+}
+
+.pagefind-ui__result:last-of-type {
+  border-bottom: 2px solid var(--color-foreground) !important;
+}
+
+.pagefind-ui__result:hover {
+  background-color: var(--color-muted) !important;
+}
+
+/* Result title */
+.pagefind-ui__result-title {
+  font-family: var(--font-family-outfit) !important;
+  font-weight: 900 !important;
+  color: var(--color-text) !important;
+  text-transform: uppercase;
+  font-size: 1rem !important;
+  letter-spacing: 0.02em;
+}
+
+.pagefind-ui__result-link {
+  color: var(--color-text) !important;
+  text-decoration: none !important;
+}
+
+.pagefind-ui__result-link:hover {
+  background-color: var(--color-brand-yellow) !important;
+  color: var(--color-foreground) !important;
+  box-shadow: 4px 4px 0px 0px var(--color-foreground);
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+/* Result excerpt */
+.pagefind-ui__result-excerpt {
+  font-family: var(--font-family-outfit) !important;
+  color: var(--color-text-muted) !important;
+  font-size: 0.875rem !important;
+  line-height: 1.6 !important;
+}
+
+.pagefind-ui__result-excerpt mark {
+  background-color: var(--color-brand-yellow) !important;
+  color: var(--color-foreground) !important;
+  font-weight: 700 !important;
+  padding: 0 2px;
+}
+
+/* Result tags */
+.pagefind-ui__result-tag {
+  border-radius: 0 !important;
+  background-color: var(--color-muted) !important;
+  color: var(--color-text) !important;
+  font-family: var(--font-family-outfit) !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  border: 1px solid var(--color-foreground) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* "No results" message */
+.pagefind-ui__message {
+  font-family: var(--font-family-outfit) !important;
+  color: var(--color-text-muted) !important;
+  font-weight: 700 !important;
+  font-size: 0.875rem !important;
+}
+
+/* Load more button */
+.pagefind-ui__button {
+  border-radius: 0 !important;
+  border: 2px solid var(--color-foreground) !important;
+  background-color: var(--color-surface-raised) !important;
+  color: var(--color-text) !important;
+  font-family: var(--font-family-outfit) !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: var(--shadow-hard-sm) !important;
+  height: 44px !important;
+}
+
+.pagefind-ui__button:hover {
+  background-color: var(--color-brand-yellow) !important;
+  color: var(--color-foreground) !important;
+  box-shadow: none !important;
+  transform: translate(2px, 2px);
+}
+
+/* Loading indicator */
+.pagefind-ui__loading {
+  border-radius: 0 !important;
+  background-color: var(--color-text) !important;
+}
+
+/* Result image */
+.pagefind-ui__result-image {
+  border-radius: 0 !important;
+  border: 2px solid var(--color-foreground) !important;
+}
+
+/* Search container in modal */
+.pagefind-search-container {
+  min-height: 80px;
+}
+
+/* Results area — scrollable within the modal */
+.pagefind-search-container .pagefind-ui__results-area {
+  max-height: 50vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-foreground) var(--color-muted);
+}
+
+.pagefind-search-container .pagefind-ui__results-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pagefind-search-container .pagefind-ui__results-area::-webkit-scrollbar-track {
+  background: var(--color-muted);
+}
+
+.pagefind-search-container .pagefind-ui__results-area::-webkit-scrollbar-thumb {
+  background: var(--color-foreground);
+}
+
+
 
 /* 确保表头有粗黑边框和黄色背景 */
 .prose table th,

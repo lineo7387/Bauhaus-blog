@@ -1,5 +1,6 @@
 ---
 import { BASE } from '../../utils/base';
+import HeaderSearch from './HeaderSearch.astro';
 
 const navLinks = [
   { href: `${BASE}/`, label: 'Home' },
@@ -61,9 +62,10 @@ const currentPath = Astro.url.pathname.replace(new RegExp(`^${BASE}`), '') || '/
             <path stroke-linecap="square" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
           </svg>
         </button>
+        <HeaderSearch />
       </nav>
 
-      <!-- Mobile Menu Button + Theme Toggle -->
+      <!-- Mobile Menu Button + Theme Toggle + Search -->
       <div class="flex items-center gap-2 md:hidden">
         <!-- Theme Toggle (mobile) -->
         <button
@@ -79,6 +81,8 @@ const currentPath = Astro.url.pathname.replace(new RegExp(`^${BASE}`), '') || '/
             <path stroke-linecap="square" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
           </svg>
         </button>
+        <!-- Search Toggle (mobile) -->
+        <HeaderSearch />
         <!-- Menu Toggle -->
         <button
           id="menu-toggle"

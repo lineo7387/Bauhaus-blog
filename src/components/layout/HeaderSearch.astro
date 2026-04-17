@@ -1,0 +1,93 @@
+---
+import PagefindSearch from "astro-pagefind/components/Search";
+---
+
+<!-- Search trigger button -->
+<button
+  id="search-toggle"
+  class="p-2 border-2 border-foreground bg-surface-raised hover:bg-muted transition-colors text-text btn-press"
+  aria-label="Open search"
+>
+  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  </svg>
+</button>
+
+<!-- Search modal overlay -->
+<div
+  id="search-modal"
+  class="fixed inset-0 z-[100] hidden"
+  aria-modal="true"
+  role="dialog"
+>
+  <!-- Backdrop -->
+  <div
+    id="search-backdrop"
+    class="absolute inset-0 bg-surface-overlay"
+  ></div>
+
+  <!-- Modal panel -->
+  <div class="relative z-10 flex items-start justify-center pt-[10vh] px-4">
+    <div
+      class="w-full max-w-2xl max-h-[80vh] flex flex-col bg-surface-raised border-4 border-foreground shadow-hard-lg"
+    >
+      <!-- Modal header -->
+      <div class="flex items-center justify-between px-4 py-3 border-b-4 border-foreground bg-brand-yellow shrink-0">
+        <span class="font-black uppercase text-sm tracking-widest text-foreground">
+          Search
+        </span>
+        <button
+          id="search-close"
+          class="p-1 hover:bg-foreground/10 transition-colors"
+          aria-label="Close search"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="square" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Search content -->
+      <div class="p-4 overflow-y-auto flex-1 pagefind-search-container">
+        <PagefindSearch className="pagefind-ui" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function initSearch() {
+    const toggle = document.getElementById('search-toggle');
+    const modal = document.getElementById('search-modal');
+    const closeBtn = document.getElementById('search-close');
+    const backdrop = document.getElementById('search-backdrop');
+
+    if (!toggle || !modal || !closeBtn || !backdrop) return;
+
+    function openSearch() {
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      // Focus the search input
+      const input = modal.querySelector<HTMLInputElement>('.pagefind-ui__search-input');
+      setTimeout(() => input?.focus(), 50);
+    }
+
+    function closeSearch() {
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    toggle.addEventListener('click', openSearch);
+    closeBtn.addEventListener('click', closeSearch);
+    backdrop.addEventListener('click', closeSearch);
+
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        closeSearch();
+      }
+    });
+  }
+
+  document.addEventListener('astro:page-load', initSearch);
+</script>
