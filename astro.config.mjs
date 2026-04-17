@@ -7,6 +7,7 @@ import remarkDirective from 'remark-directive';
 import { rehypeCallouts } from './src/plugins/rehype-callouts.js';
 import { rehypeCodeWrapper } from './src/plugins/rehype-code-wrapper.js';
 import remarkDirectiveRehype from 'remark-directive-rehype';
+import pagefind from 'astro-pagefind';
 
 // https://astro.build/config
 export default defineConfig({
@@ -22,14 +23,10 @@ export default defineConfig({
         rehypeCallouts,
       ],
     }),
+    pagefind(),
   ],
   vite: {
     plugins: [tailwindcss()],
-    build: {
-      rollupOptions: {
-        external: ['/pagefind/pagefind-ui.js'],
-      },
-    },
   },
 });
 

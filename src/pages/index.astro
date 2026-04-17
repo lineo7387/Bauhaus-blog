@@ -33,7 +33,6 @@ const recentPosts = categories
     (postsByCategory[cat] ?? []).filter((p) => p.id !== featuredPost?.id),
   )
   .slice(0, 6);
-console.log("recentPosts", recentPosts);
 ---
 
 <BaseLayout title="Home">
