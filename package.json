@@ -7,17 +7,18 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && pagefind --site dist",
+    "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
   "dependencies": {
     "@astrojs/mdx": "^5.0.3",
+    "@pagefind/default-ui": "^1.5.2",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.2",
     "astro": "^6.1.4",
+    "astro-pagefind": "^1.8.6",
     "hastscript": "^9.0.1",
-    "pagefind": "^1.5.2",
     "rehype-pretty-code": "^0.14.3",
     "remark-directive": "^4.0.0",
     "remark-directive-rehype": "^1.0.0",
