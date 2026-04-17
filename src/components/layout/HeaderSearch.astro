@@ -1,5 +1,5 @@
 ---
-import PagefindSearch from "astro-pagefind/components/Search";
+// No server-side imports needed — search UI is fully client-side
 ---
 
 <!-- Search trigger button -->
@@ -47,47 +47,70 @@ import PagefindSearch from "astro-pagefind/components/Search";
         </button>
       </div>
 
-      <!-- Search content -->
+      <!-- Search content — Pagefind UI inlined to avoid SSR Rollup issues -->
       <div class="p-4 overflow-y-auto flex-1 pagefind-search-container">
-        <PagefindSearch className="pagefind-ui" />
+        <div
+          id="pagefind-search"
+          class="pagefind-ui"
+          data-pagefind-ui
+        ></div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
+  import "@pagefind/default-ui/css/ui.css";
+  import { PagefindUI } from "@pagefind/default-ui";
+
+  function initPagefindSearch() {
+    const container = document.getElementById("pagefind-search");
+    if (!container || container.dataset.pagefindInitialized) return;
+
+    new PagefindUI({
+      element: "#pagefind-search",
+      bundlePath: `${import.meta.env.BASE_URL}pagefind/`,
+    });
+
+    container.dataset.pagefindInitialized = "true";
+  }
+
   function initSearch() {
-    const toggle = document.getElementById('search-toggle');
-    const modal = document.getElementById('search-modal');
-    const closeBtn = document.getElementById('search-close');
-    const backdrop = document.getElementById('search-backdrop');
+    const toggle = document.getElementById("search-toggle");
+    const modal = document.getElementById("search-modal")!;
+    const closeBtn = document.getElementById("search-close")!;
+    const backdrop = document.getElementById("search-backdrop")!;
 
-    if (!toggle || !modal || !closeBtn || !backdrop) return;
+    if (!toggle) return;
 
+    // Initialize pagefind on first open
+    let pagefindInited = false;
     function openSearch() {
-      modal.classList.remove('hidden');
-      document.body.style.overflow = 'hidden';
-      // Focus the search input
-      const input = modal.querySelector<HTMLInputElement>('.pagefind-ui__search-input');
+      modal.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+      if (!pagefindInited) {
+        initPagefindSearch();
+        pagefindInited = true;
+      }
+      const input = modal.querySelector<HTMLInputElement>(".pagefind-ui__search-input");
       setTimeout(() => input?.focus(), 50);
     }
 
     function closeSearch() {
-      modal.classList.add('hidden');
-      document.body.style.overflow = '';
+      modal.classList.add("hidden");
+      document.body.style.overflow = "";
     }
 
-    toggle.addEventListener('click', openSearch);
-    closeBtn.addEventListener('click', closeSearch);
-    backdrop.addEventListener('click', closeSearch);
+    toggle.addEventListener("click", openSearch);
+    closeBtn.addEventListener("click", closeSearch);
+    backdrop.addEventListener("click", closeSearch);
 
-    // Close on Escape
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !modal.classList.contains("hidden")) {
         closeSearch();
       }
     });
   }
 
-  document.addEventListener('astro:page-load', initSearch);
+  document.addEventListener("astro:page-load", initSearch);
 </script>
