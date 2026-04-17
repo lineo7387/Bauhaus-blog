@@ -157,5 +157,5 @@ const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
   }
 
   initTOC();
-  document.addEventListener('astro:after-swap', initTOC);
+  document.addEventListener('astro:page-load', initTOC);
 </script>
