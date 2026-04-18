@@ -4,6 +4,7 @@ import Button from '../components/ui/Button.astro';
 import RelatedPosts from '../components/blog/RelatedPosts.astro';
 import PostNavigation from '../components/blog/PostNavigation.astro';
 import TableOfContents from '../components/blog/TableOfContents.astro';
+import CommentSection from '../components/blog/CommentSection.astro';
 import { BASE } from '../utils/base';
 
 interface PostRef {
@@ -154,6 +155,9 @@ const updatedFormattedDate = updatedDate?.toLocaleDateString('en-US', {
         </div>
       </div>
     </div>
+
+    <!-- Comments -->
+    {comments && <CommentSection id={id} />}
 
     <!-- Author Box -->
     <div class="bg-muted border-b-4 border-foreground">

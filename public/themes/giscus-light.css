@@ -1,0 +1,39 @@
+/* Giscus Bauhaus Light — minimal Primer variable overrides */
+
+main {
+  --color-canvas-default: #FFFFFF;
+  --color-canvas-subtle: #F6F8FA;
+  --color-canvas-inset: #F0F0F0;
+  --color-fg-default: #121212;
+  --color-fg-muted: #555555;
+  --color-fg-subtle: #888888;
+  --color-border-default: #121212;
+  --color-border-muted: #D0D0D0;
+  --color-accent-fg: #1040C0;
+  --color-accent-emphasis: #D02020;
+  --color-accent-muted: rgba(16, 64, 192, 0.3);
+  --color-accent-subtle: rgba(240, 192, 32, 0.15);
+
+  --color-btn-text: #121212;
+  --color-btn-bg: #F0F0F0;
+  --color-btn-border: #121212;
+  --color-btn-hover-bg: #E0E0E0;
+  --color-btn-active-bg: #D0D0D0;
+
+  --color-btn-primary-text: #F0F0F0;
+  --color-btn-primary-bg: #D02020;
+  --color-btn-primary-border: #121212;
+  --color-btn-primary-hover-bg: #B01818;
+
+  --color-social-reaction-bg-hover: rgba(240, 192, 32, 0.2);
+  --color-social-reaction-bg-reacted-hover: rgba(208, 32, 32, 0.15);
+
+  --color-box-border-info: #1040C0;
+
+  font-family: 'Outfit', sans-serif;
+}
+
+/* Force angular corners everywhere */
+main * {
+  border-radius: 0 !important;
+}
