@@ -313,6 +313,90 @@ html.dark .callout-header {
 }
 
 /* ============================================
+   Giscus Comments — Bauhaus Theme
+   ============================================ */
+
+/* Light mode: CSS variables for Giscus iframe */
+.giscus {
+  --giscus-font-family: var(--font-family-outfit);
+  --giscus-font-size: 14px;
+  --giscus-border-radius: 0;
+  --giscus-border: 2px solid var(--color-foreground);
+  --giscus-color-action-fg: var(--color-text);
+  --giscus-color-action-bg: var(--color-muted);
+  --giscus-color-anchor: var(--color-brand-blue);
+  --giscus-color-anchor-fg: var(--color-brand-blue);
+  --giscus-color-bg: var(--color-surface-raised);
+  --giscus-color-badge-fg: var(--color-text);
+  --giscus-color-badge-bg: var(--color-muted);
+  --giscus-color-comment-bg: var(--color-surface-raised);
+  --giscus-color-header-bg: var(--color-brand-yellow);
+  --giscus-color-header-fg: var(--color-foreground);
+  --giscus-color-icon: var(--color-text-muted);
+  --giscus-color-input-bg: var(--color-background);
+  --giscus-color-input-border: var(--color-foreground);
+  --giscus-color-input-fg: var(--color-text);
+  --giscus-color-link: var(--color-brand-blue);
+  --giscus-color-markmark: var(--color-brand-yellow);
+  --giscus-color-meta-bg: var(--color-surface-raised);
+  --giscus-color-meta-fg: var(--color-text-muted);
+  --giscus-color-notification-bg: var(--color-brand-red);
+  --giscus-color-notification-fg: var(--color-on-brand-red);
+  --giscus-color-primary: var(--color-brand-red);
+  --giscus-color-quote-bg: var(--color-muted);
+  --giscus-color-quote-border: var(--color-brand-red);
+  --giscus-color-quote-fg: var(--color-text);
+  --giscus-color-sidebar-bg: var(--color-surface-raised);
+  --giscus-color-text: var(--color-text);
+  --giscus-color-text-placeholder: var(--color-text-muted);
+  --giscus-color-issue-state-open-bg: var(--color-brand-blue);
+  --giscus-color-issue-state-open-fg: var(--color-on-brand-blue);
+  --giscus-color-issue-state-closed-bg: var(--color-brand-red);
+  --giscus-color-issue-state-closed-fg: var(--color-on-brand-red);
+  --giscus-color-language-badge-bg: var(--color-brand-blue);
+  --giscus-color-language-badge-fg: var(--color-on-brand-blue);
+  --giscus-shadow: var(--shadow-hard-md);
+}
+
+/* Dark mode overrides */
+html.dark .giscus {
+  --giscus-color-action-fg: var(--color-text);
+  --giscus-color-action-bg: var(--color-surface-elevated);
+  --giscus-color-anchor: var(--color-brand-blue);
+  --giscus-color-anchor-fg: var(--color-brand-blue);
+  --giscus-color-bg: var(--color-surface-raised);
+  --giscus-color-badge-fg: var(--color-text);
+  --giscus-color-badge-bg: var(--color-surface-elevated);
+  --giscus-color-comment-bg: var(--color-surface-raised);
+  --giscus-color-header-bg: var(--color-brand-blue);
+  --giscus-color-header-fg: var(--color-on-brand-blue);
+  --giscus-color-icon: var(--color-text-muted);
+  --giscus-color-input-bg: var(--color-surface);
+  --giscus-color-input-border: var(--color-foreground);
+  --giscus-color-input-fg: var(--color-text);
+  --giscus-color-link: #60A5FA;
+  --giscus-color-markmark: var(--color-brand-yellow);
+  --giscus-color-meta-bg: var(--color-surface-raised);
+  --giscus-color-meta-fg: var(--color-text-muted);
+  --giscus-color-notification-bg: var(--color-brand-red);
+  --giscus-color-notification-fg: var(--color-on-brand-red);
+  --giscus-color-primary: #E05C6A;
+  --giscus-color-quote-bg: var(--color-surface-elevated);
+  --giscus-color-quote-border: #E05C6A;
+  --giscus-color-quote-fg: var(--color-text);
+  --giscus-color-sidebar-bg: var(--color-surface-raised);
+  --giscus-color-text: var(--color-text);
+  --giscus-color-text-placeholder: var(--color-text-muted);
+  --giscus-color-issue-state-open-bg: var(--color-brand-blue);
+  --giscus-color-issue-state-open-fg: var(--color-on-brand-blue);
+  --giscus-color-issue-state-closed-bg: var(--color-brand-red);
+  --giscus-color-issue-state-closed-fg: var(--color-on-brand-red);
+  --giscus-color-language-badge-bg: var(--color-brand-blue);
+  --giscus-color-language-badge-fg: var(--color-on-brand-blue);
+  --giscus-shadow: var(--shadow-hard-md);
+}
+
+/* ============================================
    Markdown / Prose 元素自定义样式 (Bauhaus)
    ============================================ */
 

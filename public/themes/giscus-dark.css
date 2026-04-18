@@ -1,0 +1,250 @@
+/* ============================================
+   Giscus — Bauhaus Dark Theme
+   ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;900&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+/* Container */
+.giscus-frame {
+  border: none !important;
+  border-radius: 0 !important;
+  font-family: 'Outfit', sans-serif !important;
+}
+
+/* Card */
+.giscus .giscus-card {
+  background: #18181F;
+  border: 2px solid #2A2A38;
+  border-radius: 0;
+  box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 0.5);
+}
+
+/* Header / category bar */
+.giscus .giscus-header {
+  background: #2C5FD5;
+  border-bottom: 3px solid #2A2A38;
+  padding: 0.75rem 1rem;
+}
+
+.giscus .giscus-header * {
+  color: #E2E2EC !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+}
+
+/* Text */
+.giscus .giscus-body,
+.giscus .giscus-comments-heading {
+  color: #E2E2EC;
+  font-family: 'Outfit', sans-serif;
+}
+
+.giscus .giscus-comments-heading {
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+}
+
+/* Comment */
+.giscus .giscus-comment {
+  border: 2px solid #2A2A38;
+  border-radius: 0;
+  margin-bottom: 0.75rem;
+  background: #18181F;
+}
+
+.giscus .giscus-comment:hover {
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.4);
+  border-color: #2C5FD5;
+}
+
+/* Avatar */
+.giscus .giscus-avatar {
+  border: 2px solid #2A2A38;
+  border-radius: 0 !important;
+}
+
+/* Author name */
+.giscus .giscus-author {
+  font-weight: 900 !important;
+  color: #60A5FA !important;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+
+/* Timestamp */
+.giscus .giscus-timestamp {
+  color: #78788A !important;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Link / anchor */
+.giscus a {
+  color: #60A5FA !important;
+  font-weight: 700;
+}
+
+.giscus a:hover {
+  background: #D4A520;
+  color: #0A0A0F !important;
+  padding: 1px 3px;
+}
+
+/* Reply button / action */
+.giscus .giscus-action {
+  border-top: 1px solid #2A2A38;
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.giscus .giscus-action-button {
+  background: #1E1E28 !important;
+  border: 2px solid #2A2A38 !important;
+  border-radius: 0 !important;
+  color: #E2E2EC !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  font-size: 0.7rem !important;
+  letter-spacing: 0.08em;
+  box-shadow: 3px 3px 0px 0px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.giscus .giscus-action-button:hover {
+  background: #E05C6A !important;
+  color: #E2E2EC !important;
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+/* Input area */
+.giscus .giscus-textarea {
+  background: #111118;
+  border: 2px solid #2A2A38 !important;
+  border-radius: 0 !important;
+  color: #E2E2EC;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.875rem;
+}
+
+.giscus .giscus-textarea:focus {
+  outline: 3px solid #D4A520;
+  outline-offset: 0;
+  box-shadow: none;
+  border-color: #2C5FD5 !important;
+}
+
+.giscus .giscus-textarea::placeholder {
+  color: #78788A;
+}
+
+/* Primary button (submit) */
+.giscus .giscus-primary {
+  background: #C0392B !important;
+  border: 2px solid #2A2A38 !important;
+  border-radius: 0 !important;
+  color: #E2E2EC !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem !important;
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.giscus .giscus-primary:hover {
+  background: #E05C6A !important;
+  box-shadow: none;
+  transform: translate(2px, 2px);
+}
+
+/* Select / dropdown */
+.giscus select {
+  background: #18181F;
+  border: 2px solid #2A2A38;
+  border-radius: 0 !important;
+  color: #E2E2EC;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+/* Quote */
+.giscus .giscus-quote {
+  background: #1E1E28;
+  border-left: 4px solid #E05C6A;
+  border-radius: 0;
+  color: #E2E2EC;
+  font-style: normal;
+}
+
+/* Reactions */
+.giscus .giscus-reaction-button {
+  background: #1E1E28 !important;
+  border: 2px solid #2A2A38 !important;
+  border-radius: 0 !important;
+  color: #E2E2EC !important;
+  font-weight: 900 !important;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.giscus .giscus-reaction-button:hover {
+  background: #D4A520 !important;
+  color: #0A0A0F !important;
+  border-color: #D4A520 !important;
+}
+
+.giscus .giscus-reaction-button.has-reacted {
+  background: #E05C6A !important;
+  color: #E2E2EC !important;
+  border-color: #E05C6A !important;
+}
+
+/* Loading spinner */
+.giscus .giscus-loading {
+  border: 3px solid #2A2A38 !important;
+  border-top-color: #C0392B !important;
+  border-radius: 50% !important;
+  width: 24px;
+  height: 24px;
+}
+
+/* No comments / empty state */
+.giscus .giscus-no-comments {
+  color: #78788A;
+  font-weight: 500;
+  text-align: center;
+  padding: 2rem;
+}
+
+/* Scrollbar */
+.giscus * {
+  scrollbar-width: thin;
+  scrollbar-color: #2A2A38 #111118;
+}
+
+.giscus *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.giscus *::-webkit-scrollbar-track {
+  background: #111118;
+}
+
+.giscus *::-webkit-scrollbar-thumb {
+  background: #2A2A38;
+}

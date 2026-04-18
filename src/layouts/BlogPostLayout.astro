@@ -4,6 +4,7 @@ import Button from '../components/ui/Button.astro';
 import RelatedPosts from '../components/blog/RelatedPosts.astro';
 import PostNavigation from '../components/blog/PostNavigation.astro';
 import TableOfContents from '../components/blog/TableOfContents.astro';
+import CommentSection from '../components/blog/CommentSection.astro';
 import { BASE } from '../utils/base';
 
 interface PostRef {
@@ -15,6 +16,7 @@ interface PostRef {
 }
 
 interface Props {
+  id: string;
   title: string;
   description: string;
   pubDate: Date;
@@ -29,9 +31,10 @@ interface Props {
   nextPost?: PostRef;
   prevIndex?: number;
   nextIndex?: number;
+  comments?: boolean;
 }
 
-const { title, description, pubDate, updatedDate, heroImage, category, tags, author, readingTime, headings = [], prevPost, nextPost, prevIndex, nextIndex } = Astro.props;
+const { id, title, description, pubDate, updatedDate, heroImage, category, tags, author, readingTime, headings = [], prevPost, nextPost, prevIndex, nextIndex, comments = true } = Astro.props;
 const tocItems = headings.filter(h => h.depth === 2 || h.depth === 3);
 
 const formattedDate = pubDate.toLocaleDateString('en-US', {
@@ -125,6 +128,8 @@ const updatedFormattedDate = updatedDate?.toLocaleDateString('en-US', {
               prose-hr:border-t-2 prose-hr:border-foreground prose-hr:my-10">
               <slot />
             </div>
+
+            {comments !== false && <CommentSection id={id} />}
 
             <!-- Chapter Navigation -->
             <PostNavigation prevPost={prevPost} nextPost={nextPost} prevIndex={prevIndex} nextIndex={nextIndex} />

@@ -142,6 +142,7 @@ const PostContentComponent = PostContent as PostContentType;
 
 {type === "post" ? (
   <BlogPostLayout
+    id={post!.id}
     title={post!.data.title}
     description={post!.data.description}
     pubDate={post!.data.pubDate}
@@ -156,6 +157,7 @@ const PostContentComponent = PostContent as PostContentType;
     nextPost={nextPost}
     prevIndex={prevIndex}
     nextIndex={nextIndex}
+    comments={post!.data.comments}
   >
     <PostContentComponent />
   </BlogPostLayout>
