@@ -1,461 +1,310 @@
-/*!
- * giscus Bauhaus Theme
- * Supports light/dark mode via prefers-color-scheme
- */
+/* ============================================================
+   Giscus Bauhaus Theme
+   加载到两个文档：父页面（.giscus-frame 上下文）+ iframe 内部
+   选择器同时兼容两种上下文
+   ============================================================ */
 
-main {
-  /* Canvas / background */
-  --color-canvas-default: #FFFFFF;
-  --color-canvas-overlay: #FFFFFF;
-  --color-canvas-inset: #F0F0F0;
-  --color-canvas-subtle: #F0F0F0;
-
-  /* Text colors */
-  --color-fg-default: #121212;
-  --color-fg-muted: #555555;
-  --color-fg-subtle: #888888;
-
-  /* Borders */
-  --color-border-default: #121212;
-  --color-border-muted: #d0d7de;
-
-  /* Button: default */
-  --color-btn-text: #121212;
-  --color-btn-bg: #F0F0F0;
-  --color-btn-border: #121212;
-  --color-btn-shadow: 0 0;
-  --color-btn-inset-shadow: 0 0;
-  --color-btn-hover-bg: #E0E0E0;
-  --color-btn-hover-border: #121212;
-  --color-btn-active-bg: #D02020;
-  --color-btn-active-border: #121212;
-  --color-btn-selected-bg: #E0E0E0;
-  --color-btn-selected-shadow: 0 0;
-
-  /* Button: primary */
-  --color-btn-primary-text: #F0F0F0;
-  --color-btn-primary-bg: #D02020;
-  --color-btn-primary-border: #121212;
-  --color-btn-primary-shadow: 4px 4px 0px 0px #121212;
-  --color-btn-primary-inset-shadow: 0 0;
-  --color-btn-primary-hover-bg: #B01A1A;
-  --color-btn-primary-hover-border: #121212;
-  --color-btn-primary-active-bg: #121212;
-  --color-btn-primary-active-border: #121212;
-  --color-btn-primary-selected-bg: #B01A1A;
-  --color-btn-primary-disabled-text: #888888;
-  --color-btn-primary-disabled-bg: #D0D7DE;
-  --color-btn-primary-disabled-border: #d0d7de;
-
-  /* Accent / links */
-  --color-accent-fg: #1040C0;
-  --color-accent-emphasis: #1040C0;
-  --color-accent-muted: rgb(16 64 192 / 40%);
-  --color-accent-subtle: rgb(16 64 192 / 10%);
-
-  /* Status colors */
-  --color-success-fg: #1a7f37;
-  --color-attention-fg: #9a6700;
-  --color-danger-fg: #D02020;
-
-  /* Social reactions */
-  --color-social-reaction-bg-hover: #E0E0E0;
-  --color-social-reaction-bg-reacted-hover: rgb(208 32 32 / 15%);
-
-  /* Primer shadow */
-  --color-primer-shadow-inset: 0 0;
-
-  /* Action list */
-  --color-action-list-item-default-hover-bg: rgb(208 215 222 / 32%);
-  --color-segmented-control-bg: #F0F0F0;
-  --color-segmented-control-button-bg: #FFFFFF;
-  --color-segmented-control-button-selected-border: #121212;
+/* ── Light Mode 变量 ── */
+.giscus {
+  --gsc-bg: #FFFFFF;
+  --gsc-text: #121212;
+  --gsc-link: #1040C0;
+  --gsc-primary: #D02020;
+  --gsc-border: #121212;
+  --gsc-container-bg: #FFFFFF;
+  --gsc-nav-bg: #121212;
+  --gsc-nav-fg: #F0F0F0;
+  --gsc-input-bg: #F0F0F0;
+  --gsc-input-fg: #121212;
+  --gsc-editor-bg: #F0F0F0;
+  --gsc-toolbar-bg: #FFFFFF;
+  --gsc-highlight-bg: #FFF3CD;
+  --gsc-shadow: rgba(18, 18, 18, 0.2);
+  --gsc-badge-bg: #D02020;
+  --gsc-badge-fg: #F0F0F0;
+  --gsc-font: 'Outfit', sans-serif;
+  --gsc-font-size: 0.95rem;
 }
 
-/* Dark mode overrides */
-@media (prefers-color-scheme: dark) {
-  main {
-    --color-canvas-default: #18181F;
-    --color-canvas-overlay: #18181F;
-    --color-canvas-inset: #111118;
-    --color-canvas-subtle: #111118;
-    --color-fg-default: #E2E2EC;
-    --color-fg-muted: #78788A;
-    --color-fg-subtle: #4A4A5A;
-    --color-border-default: #2A2A38;
-    --color-border-muted: #1E1E28;
-    --color-btn-text: #E2E2EC;
-    --color-btn-bg: #1E1E28;
-    --color-btn-border: #2A2A38;
-    --color-btn-shadow: 0 0;
-    --color-btn-inset-shadow: 0 0;
-    --color-btn-hover-bg: #2A2A38;
-    --color-btn-hover-border: #2A2A38;
-    --color-btn-active-bg: #2C5FD5;
-    --color-btn-active-border: #2C5FD5;
-    --color-btn-selected-bg: #2A2A38;
-    --color-btn-selected-shadow: 0 0;
-    --color-btn-primary-text: #E2E2EC;
-    --color-btn-primary-bg: #C0392B;
-    --color-btn-primary-border: #2A2A38;
-    --color-btn-primary-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.4);
-    --color-btn-primary-inset-shadow: 0 0;
-    --color-btn-primary-hover-bg: #E05C6A;
-    --color-btn-primary-hover-border: #2A2A38;
-    --color-btn-primary-active-bg: #2A2A38;
-    --color-btn-primary-active-border: #2C5FD5;
-    --color-btn-primary-selected-bg: #E05C6A;
-    --color-btn-primary-disabled-text: #4A4A5A;
-    --color-btn-primary-disabled-bg: #1E1E28;
-    --color-btn-primary-disabled-border: #2A2A38;
-    --color-accent-fg: #60A5FA;
-    --color-accent-emphasis: #2C5FD5;
-    --color-accent-muted: rgb(96 165 250 / 40%);
-    --color-accent-subtle: rgb(96 165 250 / 10%);
-    --color-success-fg: #52B788;
-    --color-attention-fg: #D97B35;
-    --color-danger-fg: #E05C6A;
-    --color-social-reaction-bg-hover: #2A2A38;
-    --color-social-reaction-bg-reacted-hover: rgb(224 92 106 / 15%);
-    --color-primer-shadow-inset: 0 0;
-    --color-action-list-item-default-hover-bg: rgb(42 42 56 / 60%);
-    --color-segmented-control-bg: #111118;
-    --color-segmented-control-button-bg: #18181F;
-    --color-segmented-control-button-selected-border: #2A2A38;
-  }
+/* ── Dark Mode 变量 ── */
+html.dark .giscus {
+  --gsc-bg: #111118;
+  --gsc-text: #E2E2EC;
+  --gsc-link: #60A5FA;
+  --gsc-primary: #C0392B;
+  --gsc-border: #2A2A38;
+  --gsc-container-bg: #18181F;
+  --gsc-nav-bg: #08080D;
+  --gsc-nav-fg: #C8C8D8;
+  --gsc-input-bg: #111118;
+  --gsc-input-fg: #E2E2EC;
+  --gsc-editor-bg: #111118;
+  --gsc-toolbar-bg: #18181F;
+  --gsc-highlight-bg: rgba(212, 165, 32, 0.2);
+  --gsc-shadow: rgba(0, 0, 0, 0.4);
+  --gsc-badge-bg: #C0392B;
+  --gsc-badge-fg: #E2E2EC;
 }
 
-/* ── Bauhaus structural overrides (light) ── */
-
-/* Remove all border-radius */
-.gsc-root,
-.gsc-comment,
-.gsc-replies {
+/* ── 通用：所有元素去除圆角（Bauhaus 核心）── */
+.giscus,
+.giscus-frame,
+.giscus-frame * {
   border-radius: 0 !important;
 }
 
-/* Card container */
-.gsc-root {
-  border: 2px solid #121212 !important;
-  box-shadow: 6px 6px 0px 0px #121212;
+/* ── 评论区容器背景 ── */
+.giscus-comments,
+.giscus .giscus-comments {
+  background: var(--gsc-container-bg);
+  padding: 1rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  .gsc-root {
-    border-color: #2A2A38 !important;
-    box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 0.5);
-  }
+/* ── 导航条 ── */
+.giscus-nav,
+.giscus .giscus-nav {
+  background: var(--gsc-nav-bg) !important;
+  border-bottom: 2px solid var(--gsc-border);
+}
+.giscus-nav a,
+.giscus .giscus-nav a {
+  color: var(--gsc-nav-fg) !important;
 }
 
-/* Header bar */
-.gsc-header {
-  background: #F0C020 !important;
-  border-bottom: 3px solid #121212 !important;
-  font-weight: 900 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.08em !important;
-  font-size: 0.7rem !important;
-  color: #121212 !important;
+/* ── 评论卡片 ── */
+.giscus-comment,
+.giscus .giscus-comment {
+  border: 2px solid var(--gsc-border) !important;
+  margin-bottom: 1rem;
+  box-shadow: 4px 4px 0 0 var(--gsc-shadow);
+  background: var(--gsc-bg);
+  transition: box-shadow 0.15s, transform 0.15s;
 }
-
-@media (prefers-color-scheme: dark) {
-  .gsc-header {
-    background: #2C5FD5 !important;
-    border-bottom-color: #2A2A38 !important;
-    color: #E2E2EC !important;
-  }
-}
-
-/* Comment input area */
-.gsc-comment-box {
-  border: 2px solid #121212 !important;
-  border-radius: 0 !important;
-  background: #F0F0F0 !important;
-}
-
-.gsc-comment-box .gsc-textarea {
-  border-radius: 0 !important;
-  border: 2px solid #121212 !important;
-  background: #FFFFFF !important;
-  font-family: 'Outfit', sans-serif !important;
-  color: #121212 !important;
-}
-
-.gsc-comment-box .gsc-textarea:focus {
-  outline: 3px solid #F0C020 !important;
-  outline-offset: 0 !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .gsc-comment-box {
-    border-color: #2A2A38 !important;
-    background: #111118 !important;
-  }
-  .gsc-comment-box .gsc-textarea {
-    border-color: #2A2A38 !important;
-    background: #18181F !important;
-    color: #E2E2EC !important;
-  }
-  .gsc-comment-box .gsc-textarea:focus {
-    outline-color: #D4A520 !important;
-    border-color: #2C5FD5 !important;
-  }
-}
-
-/* Individual comment */
-.gsc-comment {
-  border: 2px solid #121212 !important;
-  border-radius: 0 !important;
-  background: #FFFFFF !important;
-}
-
-.gsc-comment:hover {
-  box-shadow: 4px 4px 0px 0px #121212 !important;
+.giscus-comment:hover,
+.giscus .giscus-comment:hover {
+  box-shadow: 6px 6px 0 0 var(--gsc-shadow);
   transform: translate(-1px, -1px);
-  transition: box-shadow 0.1s, transform 0.1s;
 }
 
-@media (prefers-color-scheme: dark) {
-  .gsc-comment {
-    border-color: #2A2A38 !important;
-    background: #18181F !important;
-  }
-  .gsc-comment:hover {
-    box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.4) !important;
-    border-color: #2C5FD5 !important;
-  }
+/* ── 评论头部 ── */
+.giscus-comment-header,
+.giscus .giscus-comment-header {
+  background: rgba(240, 192, 32, 0.1) !important;
+  border-bottom: 2px solid var(--gsc-border) !important;
+  padding: 0.5rem 0.75rem;
 }
-
-/* Author name */
-.gsc-author {
-  font-weight: 900 !important;
-  color: #D02020 !important;
+.giscus-comment-header a,
+.giscus-comment-author,
+.giscus .giscus-comment-header a,
+.giscus .giscus-comment-author {
+  color: var(--gsc-link) !important;
+  font-weight: 700;
+  text-decoration: none;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  font-size: 0.8rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  .gsc-author {
-    color: #60A5FA !important;
-  }
+/* ── 评论正文 ── */
+.giscus-comment-body,
+.giscus .giscus-comment-body {
+  color: var(--gsc-text);
+  font-family: var(--gsc-font);
+  font-size: var(--gsc-font-size);
+  line-height: 1.7;
+  padding: 0.75rem 1rem;
+}
+.giscus-comment-body p,
+.giscus .giscus-comment-body p {
+  margin-bottom: 0.75rem;
+}
+.giscus-comment-body p:last-child,
+.giscus .giscus-comment-body p:last-child {
+  margin-bottom: 0;
 }
 
-/* Timestamp */
-.gsc-timestamp {
-  color: #555555 !important;
+/* ── 评论操作栏 ── */
+.giscus-comment-footer,
+.giscus .giscus-comment-footer {
+  border-top: 1px solid var(--gsc-border);
+  padding: 0.4rem 0.75rem;
+}
+
+/* ── Reactions 区块 ── */
+.giscus-reactions,
+.giscus .giscus-reactions {
+  border-top: 2px solid var(--gsc-border);
+  border-bottom: 2px solid var(--gsc-border);
+  padding: 0.5rem 0;
+  margin: 0.5rem 0;
+}
+
+/* ── Reaction 按钮 ── */
+.giscus-reaction,
+.giscus .giscus-reaction {
+  border: 2px solid var(--gsc-border) !important;
+  background: var(--gsc-bg) !important;
+  box-shadow: 3px 3px 0 0 var(--gsc-shadow);
+  color: var(--gsc-text) !important;
+  font-weight: 700;
+  font-family: var(--gsc-font);
+  transition: all 0.1s;
+}
+.giscus-reaction:hover,
+.giscus .giscus-reaction:hover {
+  background: var(--gsc-highlight-bg) !important;
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 0 var(--gsc-shadow);
+}
+.giscus-reaction.active,
+.giscus .giscus-reaction.active {
+  background: var(--gsc-primary) !important;
+  color: #F0F0F0 !important;
+}
+
+/* ── 输入框 ── */
+.giscus-textarea,
+.giscus .giscus-textarea,
+textarea.giscus-textarea {
+  border: 2px solid var(--gsc-border) !important;
+  background: var(--gsc-input-bg) !important;
+  color: var(--gsc-input-fg) !important;
+  font-family: var(--gsc-font) !important;
+  font-size: var(--gsc-font-size);
+  box-shadow: 3px 3px 0 0 var(--gsc-shadow);
+  padding: 0.75rem;
+  resize: vertical;
+}
+.giscus-textarea:focus,
+.giscus .giscus-textarea:focus {
+  outline: 3px solid #F0C020 !important;
+  outline-offset: 0 !important;
+  border-color: var(--gsc-link) !important;
+}
+
+/* ── 提交按钮 ── */
+.giscus-button,
+.giscus .giscus-button,
+button.giscus-submit,
+.giscus button[type="submit"] {
+  border: 2px solid var(--gsc-border) !important;
+  border-radius: 0 !important;
+  background: var(--gsc-primary) !important;
+  color: #F0F0F0 !important;
+  font-family: var(--gsc-font) !important;
+  font-weight: 900 !important;
+  font-size: 0.8rem !important;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  box-shadow: 4px 4px 0 0 var(--gsc-shadow);
+  padding: 0.5rem 1.25rem;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.giscus-button:hover,
+.giscus .giscus-button:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 0 var(--gsc-shadow);
+}
+.giscus-button:active,
+.giscus .giscus-button:active {
+  transform: translate(4px, 4px);
+  box-shadow: none !important;
+}
+
+/* ── 分页 ── */
+.giscus-pagination,
+.giscus .giscus-pagination {
+  border-top: 2px solid var(--gsc-border);
+  padding-top: 0.75rem;
+  margin-top: 0.75rem;
+}
+.giscus-page-ellipsis,
+.giscus-page-number,
+.giscus-page-next,
+.giscus .giscus-page-ellipsis,
+.giscus .giscus-page-number,
+.giscus .giscus-page-next {
+  border: 2px solid var(--gsc-border) !important;
+  background: var(--gsc-bg) !important;
+  color: var(--gsc-text) !important;
+  font-family: var(--gsc-font) !important;
+  font-weight: 700;
+  font-size: 0.8rem;
+  box-shadow: 2px 2px 0 0 var(--gsc-shadow);
+}
+.giscus-page-number.current,
+.giscus .giscus-page-number.current {
+  background: var(--gsc-primary) !important;
+  color: #F0F0F0 !important;
+}
+.giscus-page-ellipsis:hover,
+.giscus-page-number:hover,
+.giscus-page-next:hover,
+.giscus .giscus-page-ellipsis:hover,
+.giscus .giscus-page-number:hover,
+.giscus .giscus-page-next:hover {
+  background: var(--gsc-highlight-bg) !important;
+  transform: translate(1px, 1px);
+}
+
+/* ── 嵌套回复红色缩进线 ── */
+.giscus-comment-replies,
+.giscus .giscus-comment-replies {
+  border-left: 4px solid var(--gsc-primary);
+  padding-left: 0.5rem;
+}
+
+/* ── 头像 ── */
+.giscus-avatar,
+.giscus .giscus-avatar {
+  border: 2px solid var(--gsc-border) !important;
+}
+
+/* ── 时间戳 ── */
+.giscus-timestamp,
+.giscus .giscus-timestamp {
+  color: var(--gsc-text) !important;
+  opacity: 0.6;
   font-size: 0.75rem;
+  font-family: var(--gsc-font);
 }
 
-@media (prefers-color-scheme: dark) {
-  .gsc-timestamp {
-    color: #78788A !important;
-  }
+/* ── 弹层/下拉 ── */
+.giscus-popover,
+.giscus-dropdown,
+.giscus .giscus-popover,
+.giscus .giscus-dropdown {
+  border: 2px solid var(--gsc-border) !important;
+  box-shadow: 4px 4px 0 0 var(--gsc-shadow) !important;
+  background: var(--gsc-container-bg) !important;
 }
 
-/* Avatar */
-.gsc-avatar {
-  border: 2px solid #121212 !important;
-  border-radius: 0 !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .gsc-avatar {
-    border-color: #2A2A38 !important;
-  }
-}
-
-/* Reactions buttons */
-.gsc-reaction-button {
-  border-radius: 0 !important;
-  border: 2px solid #121212 !important;
-  font-weight: 900 !important;
-  font-size: 0.75rem !important;
-  letter-spacing: 0.05em;
-  box-shadow: 3px 3px 0px 0px #121212;
-  color: #121212 !important;
-}
-
-.gsc-reaction-button:hover {
-  background: #F0C020 !important;
-  border-color: #121212 !important;
-  box-shadow: none !important;
-  transform: translate(1px, 1px);
-}
-
-.gsc-reaction-button.has-reacted {
-  background: #D02020 !important;
-  color: #F0F0F0 !important;
-  border-color: #D02020 !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .gsc-reaction-button {
-    border-color: #2A2A38 !important;
-    box-shadow: 3px 3px 0px 0px rgba(0, 0, 0, 0.4);
-    color: #E2E2EC !important;
-  }
-  .gsc-reaction-button:hover {
-    background: #D4A520 !important;
-    color: #0A0A0F !important;
-    border-color: #D4A520 !important;
-  }
-  .gsc-reaction-button.has-reacted {
-    background: #E05C6A !important;
-    color: #E2E2EC !important;
-    border-color: #E05C6A !important;
-  }
-}
-
-/* Reply button */
-.gsc-action-button {
-  border-radius: 0 !important;
-  border: 2px solid #121212 !important;
-  font-weight: 900 !important;
-  text-transform: uppercase !important;
-  font-size: 0.7rem !important;
-  letter-spacing: 0.08em;
-  box-shadow: 3px 3px 0px 0px #121212;
-  color: #121212 !important;
-  background: #F0F0F0 !important;
-}
-
-.gsc-action-button:hover {
-  background: #D02020 !important;
-  color: #F0F0F0 !important;
-  border-color: #D02020 !important;
-  box-shadow: none !important;
-  transform: translate(1px, 1px);
-}
-
-@media (prefers-color-scheme: dark) {
-  .gsc-action-button {
-    border-color: #2A2A38 !important;
-    box-shadow: 3px 3px 0px 0px rgba(0, 0, 0, 0.4);
-    color: #E2E2EC !important;
-    background: #1E1E28 !important;
-  }
-  .gsc-action-button:hover {
-    background: #E05C6A !important;
-    color: #E2E2EC !important;
-    border-color: #E05C6A !important;
-  }
-}
-
-/* Submit / primary button */
-.gsc-primary {
-  border-radius: 0 !important;
-  border: 2px solid #121212 !important;
-  font-weight: 900 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.08em !important;
-  box-shadow: 4px 4px 0px 0px #121212 !important;
-  transition: transform 0.1s, box-shadow 0.1s !important;
-}
-
-.gsc-primary:hover {
-  box-shadow: none !important;
-  transform: translate(2px, 2px) !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .gsc-primary {
-    border-color: #2A2A38 !important;
-    box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.4) !important;
-  }
-}
-
-/* Quote / blockquote */
-.gsc-quote {
-  border-left: 4px solid #D02020 !important;
-  border-radius: 0 !important;
-  background: #F0F0F0 !important;
-  font-style: normal !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .gsc-quote {
-    border-left-color: #E05C6A !important;
-    background: #1E1E28 !important;
-    color: #E2E2EC !important;
-  }
-}
-
-/* Links */
-.gsc-link {
-  color: #1040C0 !important;
-  font-weight: 700 !important;
-}
-
-.gsc-link:hover {
-  background: #F0C020 !important;
-  color: #121212 !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .gsc-link {
-    color: #60A5FA !important;
-  }
-  .gsc-link:hover {
-    background: #D4A520 !important;
-    color: #0A0A0F !important;
-  }
-}
-
-/* Language badge */
-.gsc-language-badge {
-  border-radius: 0 !important;
-  font-weight: 900 !important;
-  text-transform: uppercase !important;
-  font-size: 0.65rem !important;
-  background: #1040C0 !important;
-  color: #F0F0F0 !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .gsc-language-badge {
-    background: #2C5FD5 !important;
-    color: #E2E2EC !important;
-  }
-}
-
-/* Pagination */
-.gsc-timeline {
-  border-top: 2px solid #121212 !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .gsc-timeline {
-    border-top-color: #2A2A38 !important;
-  }
-}
-
-/* Scrollbar */
-.gsc-root * {
-  scrollbar-width: thin;
-  scrollbar-color: #121212 #F0F0F0;
-}
-
-.gsc-root *::-webkit-scrollbar {
+/* ── Scrollbar ── */
+.giscus ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
-.gsc-root *::-webkit-scrollbar-track {
-  background: #F0F0F0;
+.giscus ::-webkit-scrollbar-track {
+  background: var(--gsc-bg);
+}
+.giscus ::-webkit-scrollbar-thumb {
+  background: var(--gsc-border);
+}
+.giscus ::-webkit-scrollbar-thumb:hover {
+  background: var(--gsc-primary);
 }
 
-.gsc-root *::-webkit-scrollbar-thumb {
-  background: #121212;
+/* ── 加载动画 ── */
+.giscus-loading,
+.giscus .giscus-loading {
+  border: 4px solid var(--gsc-border) !important;
+  border-top-color: var(--gsc-primary) !important;
+  width: 32px;
+  height: 32px;
+  animation: gsc-spin 0.8s linear infinite;
 }
 
-@media (prefers-color-scheme: dark) {
-  .gsc-root * {
-    scrollbar-color: #2A2A38 #111118;
-  }
-  .gsc-root *::-webkit-scrollbar-track {
-    background: #111118;
-  }
-  .gsc-root *::-webkit-scrollbar-thumb {
-    background: #2A2A38;
-  }
+@keyframes gsc-spin {
+  to { transform: rotate(360deg); }
 }
