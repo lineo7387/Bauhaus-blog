@@ -8,8 +8,10 @@ const { id } = Astro.props;
 <section class="bg-surface-raised border-b-4 border-foreground" id="comments">
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <!-- Section header -->
-    <div class="flex items-center gap-3 mb-8">
-      <div class="w-10 h-10 bg-brand-blue border-2 border-foreground flex items-center justify-center">
+    <div class="flex items-center gap-3 mb-5">
+      <div
+        class="w-10 h-10 bg-brand-blue border-2 border-foreground flex items-center justify-center"
+      >
         <svg
           width="20"
           height="20"
@@ -20,7 +22,9 @@ const { id } = Astro.props;
           stroke-linecap="square"
           class="text-on-brand-blue"
         >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          <path
+            d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+          ></path>
         </svg>
       </div>
       <h2 class="text-2xl font-black uppercase tracking-tight text-text">
@@ -35,68 +39,68 @@ const { id } = Astro.props;
 
 <script is:inline>
   (function () {
-    var GISCUS_ORIGIN = 'https://giscus.app';
+    var GISCUS_ORIGIN = "https://giscus.app";
 
     async function getThemeDataUri() {
-      var isDark = document.documentElement.classList.contains('dark');
-      var cssPath = '/themes/giscus-' + (isDark ? 'dark' : 'light') + '.css';
+      var isDark = document.documentElement.classList.contains("dark");
+      var cssPath = "/themes/giscus-" + (isDark ? "dark" : "light") + ".css";
       try {
         var res = await fetch(cssPath);
         var css = await res.text();
-        return 'data:text/css;charset=utf-8,' + encodeURIComponent(css);
+        return "data:text/css;charset=utf-8," + encodeURIComponent(css);
       } catch (e) {
-        return isDark ? 'dark' : 'light';
+        return isDark ? "dark" : "light";
       }
     }
 
     async function loadGiscus() {
-      var existing = document.querySelector('script[data-giscus-script]');
+      var existing = document.querySelector("script[data-giscus-script]");
       if (existing) existing.remove();
 
-      var container = document.querySelector('.giscus');
+      var container = document.querySelector(".giscus");
       if (!container) return;
-      container.innerHTML = '';
+      container.innerHTML = "";
 
       var theme = await getThemeDataUri();
 
-      var s = document.createElement('script');
-      s.src = GISCUS_ORIGIN + '/client.js';
-      s.crossOrigin = 'anonymous';
+      var s = document.createElement("script");
+      s.src = GISCUS_ORIGIN + "/client.js";
+      s.crossOrigin = "anonymous";
       s.async = true;
-      s.dataset.giscusScript = 'true';
-      s.dataset.repo = 'lineo7387/lineo7387.github.io';
-      s.dataset.repoId = 'R_kgDOR8IPRQ';
-      s.dataset.category = 'Announcements';
-      s.dataset.categoryId = 'DIC_kwDOR8IPRc4C7HTE';
-      s.dataset.mapping = 'pathname';
-      s.dataset.strict = '0';
-      s.dataset.reactionsEnabled = '1';
-      s.dataset.emitMetadata = '0';
-      s.dataset.inputPosition = 'bottom';
+      s.dataset.giscusScript = "true";
+      s.dataset.repo = "lineo7387/lineo7387.github.io";
+      s.dataset.repoId = "R_kgDOR8IPRQ";
+      s.dataset.category = "Announcements";
+      s.dataset.categoryId = "DIC_kwDOR8IPRc4C7HTE";
+      s.dataset.mapping = "pathname";
+      s.dataset.strict = "0";
+      s.dataset.reactionsEnabled = "1";
+      s.dataset.emitMetadata = "0";
+      s.dataset.inputPosition = "bottom";
       s.dataset.theme = theme;
-      s.dataset.lang = 'zh-CN';
-      s.dataset.loading = 'lazy';
+      s.dataset.lang = "zh-CN";
+      s.dataset.loading = "lazy";
 
       container.appendChild(s);
     }
 
     async function sendThemeToGiscus() {
-      var iframe = document.querySelector('iframe.giscus-frame');
+      var iframe = document.querySelector("iframe.giscus-frame");
       if (!iframe || !iframe.contentWindow) return;
       var theme = await getThemeDataUri();
       iframe.contentWindow.postMessage(
         { giscus: { setConfig: { theme: theme } } },
-        GISCUS_ORIGIN
+        GISCUS_ORIGIN,
       );
     }
 
     window.__giscusSendTheme = sendThemeToGiscus;
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', loadGiscus);
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", loadGiscus);
     } else {
       loadGiscus();
     }
-    document.addEventListener('astro:page-load', loadGiscus);
+    document.addEventListener("astro:page-load", loadGiscus);
   })();
 </script>

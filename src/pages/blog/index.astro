@@ -40,18 +40,18 @@ const paginatedPosts = allSorted.slice(0, postsPerPage);
       <div class="grid lg:grid-cols-2 gap-12 items-end">
         <div>
           <span
-            class="inline-block bg-brand-yellow text-xs font-bold uppercase tracking-widest text-on-brand-yellow px-3 py-1 mb-6"
+            class="inline-block bg-brand-yellow text-xs font-bold uppercase tracking-widest text-on-brand-yellow px-3 py-1 mb-6 anim-slide-left delay-hero-0"
           >
             All Articles
           </span>
           <h1
-            class="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter text-hero-text leading-[0.9]"
+            class="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter text-hero-text leading-[0.9] anim-line-pop delay-hero-80"
           >
             The<br />
             <span class="text-brand-yellow">Blog</span>
           </h1>
         </div>
-        <div class="text-hero-text-muted">
+        <div class="text-hero-text-muted anim-slide-up delay-hero-150">
           <p class="text-lg font-medium">
             Discover {allSorted.length} article{
               allSorted.length !== 1 ? "s" : ""
@@ -72,10 +72,10 @@ const paginatedPosts = allSorted.slice(0, postsPerPage);
   </section>
 
   <!-- Filters Section -->
-  <section class="bg-muted border-b-4 border-foreground py-8">
+  <section class="bg-muted border-b-4 border-foreground py-8 overflow-hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div
-        class="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between"
+        class="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between scroll-anim anim-slide-left delay-0"
       >
         <CategoryFilter categories={categories} activeCategory="" />
       </div>
@@ -83,13 +83,13 @@ const paginatedPosts = allSorted.slice(0, postsPerPage);
   </section>
 
   <!-- Posts Grid -->
-  <section class="bg-surface-raised py-16 lg:py-24">
+  <section class="bg-surface-raised py-16 lg:py-24 overflow-hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div id="posts-container">
+      <div id="posts-container" class="scroll-anim anim-slide-up delay-0">
         <BlogList posts={paginatedPosts} columns={3} allPosts={allSorted} />
       </div>
 
-      <div class="mt-16 lg:mt-24">
+      <div class="mt-16 lg:mt-24 scroll-anim anim-slide-up delay-100">
         <Pagination
           currentPage={1}
           totalPages={totalPages}

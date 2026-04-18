@@ -839,3 +839,193 @@ html.dark .callout-header {
 .prose table tbody tr:hover {
   background-color: rgba(240, 192, 32, 0.15) !important;
 }
+
+/* ============================================
+   Page Entry Animations (Bauhaus)
+   ============================================ */
+
+/* ── Keyframes ── */
+
+/* 向上滑入（主力文本） */
+@keyframes anim-slide-up {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 标题行弹出（带回弹，硬感） */
+@keyframes anim-line-pop {
+  0%   { opacity: 0; transform: translateY(30px); }
+  60%  { opacity: 1; transform: translateY(-4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* 圆形从缩放展开 */
+@keyframes anim-circle-pop {
+  from { opacity: 0; transform: scale(0) rotate(-15deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* 方形旋转入场（保持 45deg 旋转状态） */
+@keyframes anim-square-spin {
+  from { opacity: 0; transform: rotate(45deg) scale(0); }
+  to   { opacity: 1; transform: rotate(45deg) scale(1); }
+}
+
+/* 中心方块缩放弹出 */
+@keyframes anim-scale-in {
+  from { opacity: 0; transform: scale(0); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* 三角形从顶部掉落 */
+@keyframes anim-drop-in {
+  from { opacity: 0; transform: translateY(-60px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 标签左侧滑入 */
+@keyframes anim-slide-left {
+  from { opacity: 0; transform: translateX(-40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* 右侧滑入 */
+@keyframes anim-slide-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Newsletter 弹入（轻微 overshoot） */
+@keyframes anim-bounce-in {
+  0%   { opacity: 0; transform: translateY(60px) scale(0.95); }
+  70%  { opacity: 1; transform: translateY(-5px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 小装饰圆弹出 */
+@keyframes anim-dot-pop {
+  0%   { opacity: 0; transform: scale(0); }
+  70%  { opacity: 1; transform: scale(1.3); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* 浮动装饰（持续） */
+@keyframes anim-float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-12px) rotate(3deg); }
+}
+
+/* ── Base animation fill mode ── */
+@layer utilities {
+  /* 停在最后一帧 */
+  .anim-fill {
+    animation-fill-mode: both;
+  }
+
+  /* Hero 几何图形动画 */
+  .anim-circle-pop  { animation: anim-circle-pop  600ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .anim-square-spin { animation: anim-square-spin 700ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+  .anim-scale-in    { animation: anim-scale-in    500ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .anim-drop-in     { animation: anim-drop-in     450ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+  .anim-dot-pop     { animation: anim-dot-pop     400ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+  /* Hero 文本动画 */
+  .anim-slide-up    { animation: anim-slide-up    500ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+  .anim-line-pop    { animation: anim-line-pop    450ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+  .anim-slide-left  { animation: anim-slide-left  500ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+
+  /* Section 滚动入场 */
+  .anim-bounce-in   { animation: anim-bounce-in  600ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  .anim-slide-right { animation: anim-slide-right 500ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+
+  /* 持续装饰 */
+  .anim-float       { animation: anim-float 6s ease-in-out infinite; }
+  .anim-float-slow  { animation: anim-float 8s ease-in-out infinite 1s; }
+
+  /* 滚动触发型（初始暂停，等待 .is-visible） */
+  .scroll-anim {
+    opacity: 0;
+    animation-play-state: paused;
+  }
+
+  .scroll-anim.is-visible {
+    opacity: 1;
+    animation-play-state: running;
+  }
+}
+
+/* ── Hero 页面加载专用延迟 ── */
+@layer utilities {
+  .delay-hero-0    { animation-delay: 0ms; }
+  .delay-hero-50   { animation-delay: 50ms; }
+  .delay-hero-80   { animation-delay: 80ms; }
+  .delay-hero-100  { animation-delay: 100ms; }
+  .delay-hero-150  { animation-delay: 150ms; }
+  .delay-hero-200  { animation-delay: 200ms; }
+  .delay-hero-230  { animation-delay: 230ms; }
+  .delay-hero-300  { animation-delay: 300ms; }
+  .delay-hero-310  { animation-delay: 310ms; }
+  .delay-hero-390  { animation-delay: 390ms; }
+  .delay-hero-400  { animation-delay: 400ms; }
+  .delay-hero-470  { animation-delay: 470ms; }
+  .delay-hero-480  { animation-delay: 480ms; }
+}
+
+/* ── Section 滚动触发型延迟 ── */
+@layer utilities {
+  .delay-0   { animation-delay: 0ms; }
+  .delay-50  { animation-delay: 50ms; }
+  .delay-100 { animation-delay: 100ms; }
+  .delay-150 { animation-delay: 150ms; }
+  .delay-200 { animation-delay: 200ms; }
+  .delay-300 { animation-delay: 300ms; }
+  .delay-400 { animation-delay: 400ms; }
+}
+
+/* ── Recent posts 网格卡片 nth-child 延迟 ── */
+.recent-grid > :global(.scroll-anim):nth-child(1) { animation-delay: 100ms; }
+.recent-grid > :global(.scroll-anim):nth-child(2) { animation-delay: 180ms; }
+.recent-grid > :global(.scroll-anim):nth-child(3) { animation-delay: 260ms; }
+.recent-grid > :global(.scroll-anim):nth-child(4) { animation-delay: 340ms; }
+.recent-grid > :global(.scroll-anim):nth-child(5) { animation-delay: 420ms; }
+.recent-grid > :global(.scroll-anim):nth-child(6) { animation-delay: 500ms; }
+
+/* ── Skills 网格卡片 nth-child 延迟 ── */
+.skills-grid > :global(.scroll-anim):nth-child(1)  { animation-delay: 50ms; }
+.skills-grid > :global(.scroll-anim):nth-child(2)  { animation-delay: 100ms; }
+.skills-grid > :global(.scroll-anim):nth-child(3)  { animation-delay: 150ms; }
+.skills-grid > :global(.scroll-anim):nth-child(4)  { animation-delay: 200ms; }
+.skills-grid > :global(.scroll-anim):nth-child(5)  { animation-delay: 250ms; }
+.skills-grid > :global(.scroll-anim):nth-child(6)  { animation-delay: 300ms; }
+.skills-grid > :global(.scroll-anim):nth-child(7)  { animation-delay: 350ms; }
+.skills-grid > :global(.scroll-anim):nth-child(8)  { animation-delay: 400ms; }
+.skills-grid > :global(.scroll-anim):nth-child(9)  { animation-delay: 450ms; }
+.skills-grid > :global(.scroll-anim):nth-child(10) { animation-delay: 500ms; }
+.skills-grid > :global(.scroll-anim):nth-child(11) { animation-delay: 550ms; }
+.skills-grid > :global(.scroll-anim):nth-child(12) { animation-delay: 600ms; }
+
+/* ── 无障碍：尊重 prefers-reduced-motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .anim-slide-up,
+  .anim-line-pop,
+  .anim-circle-pop,
+  .anim-square-spin,
+  .anim-scale-in,
+  .anim-drop-in,
+  .anim-slide-left,
+  .anim-slide-right,
+  .anim-bounce-in,
+  .anim-dot-pop,
+  .scroll-anim,
+  .anim-float,
+  .anim-float-slow {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}

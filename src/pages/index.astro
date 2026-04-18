@@ -47,24 +47,24 @@ const recentPosts = categories
       >
         <div class="max-w-xl">
           <span
-            class="inline-block bg-brand-yellow text-xs font-bold uppercase tracking-widest px-3 py-1 mb-6"
+            class="inline-block bg-brand-yellow text-xs font-bold uppercase tracking-widest px-3 py-1 mb-6 anim-slide-left delay-hero-0"
           >
             Design Philosophy
           </span>
           <h1
-            class="text-5xl sm:text-6xl lg:text-8xl font-black uppercase tracking-tighter leading-[0.9] text-text mb-6"
+            class="text-5xl sm:text-6xl lg:text-8xl font-black uppercase tracking-tighter leading-[0.9] text-text mb-6 [&>span]:block"
           >
-            Code<br />
-            <span class="text-brand-red">Meets</span><br />
-            Design
+            <span class="anim-line-pop delay-hero-80">Code<br /></span>
+            <span class="text-brand-red anim-line-pop delay-hero-150">Meets</span><br />
+            <span class="anim-line-pop delay-hero-230">Design</span>
           </h1>
           <p
-            class="text-lg font-medium text-text/70 leading-relaxed mb-8 max-w-md"
+            class="text-lg font-medium text-text/70 leading-relaxed mb-8 max-w-md anim-slide-up delay-hero-310"
           >
             A personal tech blog exploring web development, design systems, and
             the craft of building modern applications.
           </p>
-          <div class="flex flex-wrap gap-4">
+          <div class="flex flex-wrap gap-4 anim-slide-up delay-hero-390">
             <Button href={`${BASE}/blog`} variant="primary" size="lg">
               Explore Articles
             </Button>
@@ -77,43 +77,43 @@ const recentPosts = categories
 
       <!-- Right: Geometric Composition -->
       <div
-        class="relative bg-brand-blue border-t-4 lg:border-t-0 lg:border-l-4 border-foreground min-h-[300px] lg:min-h-0 order-1 lg:order-2"
+        class="relative bg-brand-blue border-t-4 lg:border-t-0 lg:border-l-4 border-foreground min-h-[300px] lg:min-h-0 order-1 lg:order-2 overflow-hidden"
       >
         <div class="absolute inset-0 flex items-center justify-center">
           <!-- Large circle -->
           <div
-            class="absolute w-48 h-48 md:w-64 md:h-64 bg-foreground/20 rounded-full border-4 border-foreground"
+            class="absolute w-48 h-48 md:w-64 md:h-64 bg-foreground/20 rounded-full border-4 border-foreground anim-circle-pop delay-hero-100"
           >
           </div>
           <!-- Overlapping rotated square -->
           <div
-            class="absolute w-36 h-36 md:w-48 md:h-48 bg-brand-yellow/80 border-4 border-foreground rotate-45"
+            class="absolute w-36 h-36 md:w-48 md:h-48 bg-brand-yellow/80 border-4 border-foreground rotate-45 anim-square-spin delay-hero-200"
           >
           </div>
           <!-- Centered square -->
           <div
-            class="absolute w-24 h-24 md:w-32 md:h-32 bg-inverse-surface border-4 border-foreground flex items-center justify-center"
+            class="absolute w-24 h-24 md:w-32 md:h-32 bg-inverse-surface border-4 border-foreground flex items-center justify-center anim-scale-in delay-hero-300"
           >
             <div class="w-12 h-12 md:w-16 md:h-16 bg-brand-red shape-triangle">
             </div>
           </div>
           <!-- Small decorative circles -->
           <div
-            class="absolute top-8 right-8 w-8 h-8 bg-brand-yellow border-2 border-foreground rounded-full"
+            class="absolute top-8 right-8 w-8 h-8 bg-brand-yellow border-2 border-foreground rounded-full anim-dot-pop delay-hero-400"
           >
           </div>
           <div
-            class="absolute bottom-12 left-12 w-6 h-6 bg-inverse-surface border-2 border-foreground rounded-full"
+            class="absolute bottom-12 left-12 w-6 h-6 bg-inverse-surface border-2 border-foreground rounded-full anim-dot-pop delay-hero-480"
           >
           </div>
         </div>
         <!-- Geometric decorations -->
         <div
-          class="absolute top-0 left-0 w-16 h-16 bg-brand-red shape-triangle"
+          class="absolute top-0 left-0 w-16 h-16 bg-brand-red shape-triangle anim-drop-in delay-hero-50"
         >
         </div>
         <div
-          class="absolute bottom-0 right-0 w-12 h-12 bg-brand-yellow border-l-4 border-t-4 border-foreground"
+          class="absolute bottom-0 right-0 w-12 h-12 bg-brand-yellow border-l-4 border-t-4 border-foreground anim-square-spin delay-hero-0"
         >
         </div>
       </div>
@@ -123,15 +123,16 @@ const recentPosts = categories
   <!-- Featured Post Section -->
   {
     featuredPost && (
-      <section class="bg-brand-yellow border-b-4 border-foreground py-16 lg:py-24">
+      <section class="bg-brand-yellow border-b-4 border-foreground py-16 lg:py-24 overflow-hidden">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex items-center gap-4 mb-8">
-            <h2 class="text-2xl md:text-3xl font-black uppercase tracking-tight text-text">
+            <h2 class="text-2xl md:text-3xl font-black uppercase tracking-tight text-text scroll-anim anim-line-pop delay-0">
               Featured Article
             </h2>
-            <div class="flex-1 h-4 bg-foreground" />
+            <div class="flex-1 h-4 bg-foreground scroll-anim anim-slide-up delay-50" />
           </div>
-          <FeaturedPost
+          <div class="scroll-anim anim-slide-up delay-100">
+            <FeaturedPost
             title={featuredPost.data.title}
             excerpt={featuredPost.data.description}
             date={featuredPost.data.pubDate}
@@ -139,57 +140,60 @@ const recentPosts = categories
             image={featuredPost.data.heroImage}
             category={featuredPost.data.category}
             author={featuredPost.data.author}
-          />
+            />
+          </div>
         </div>
       </section>
     )
   }
 
   <!-- Recent Posts Section -->
-  <section class="bg-brand-blue border-b-4 border-foreground py-16 lg:py-24">
+  <section class="bg-brand-blue border-b-4 border-foreground py-16 lg:py-24 overflow-hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between mb-8">
         <h2
-          class="text-2xl md:text-3xl font-black uppercase tracking-tight text-hero-text"
+          class="text-2xl md:text-3xl font-black uppercase tracking-tight text-hero-text scroll-anim anim-slide-left delay-0"
         >
           Recent Articles
         </h2>
-        <Button href={`${BASE}/blog`} variant="yellow" size="md">
+        <Button href={`${BASE}/blog`} variant="yellow" size="md" class="scroll-anim anim-scale-in delay-100">
           View All
         </Button>
       </div>
-      <BlogList posts={recentPosts} columns={3} allPosts={allPosts} />
+      <div class="scroll-anim anim-slide-up delay-0">
+        <BlogList posts={recentPosts} columns={3} allPosts={allPosts} />
+      </div>
     </div>
   </section>
 
   <!-- About Preview Section -->
   <section
-    class="bg-surface-raised border-b-4 border-foreground py-16 lg:py-24"
+    class="bg-surface-raised border-b-4 border-foreground py-16 lg:py-24 overflow-hidden"
   >
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="grid lg:grid-cols-2 gap-12 items-center">
-        <div>
+        <div class="scroll-anim anim-slide-left delay-0">
           <span
             class="inline-block bg-brand-red text-xs font-bold uppercase tracking-widest text-on-brand-red px-3 py-1 mb-6"
           >
             About Us
           </span>
           <h2
-            class="text-4xl md:text-5xl font-black uppercase tracking-tight text-text mb-6 leading-[0.95]"
+            class="text-4xl md:text-5xl font-black uppercase tracking-tight text-text mb-6 leading-[0.95] scroll-anim anim-line-pop delay-100"
           >
             Building<br />
             <span class="text-brand-blue">with Care</span>
           </h2>
-          <p class="text-lg font-medium text-text/70 leading-relaxed mb-8">
+          <p class="text-lg font-medium text-text/70 leading-relaxed mb-8 scroll-anim anim-slide-up delay-200">
             I write about web development, design systems, and the craft of
             building meaningful digital experiences. Every article is crafted to
             help you create better, more thoughtful applications.
           </p>
-          <Button href={`${BASE}/about`} variant="secondary" size="lg">
+          <Button href={`${BASE}/about`} variant="secondary" size="lg" class="scroll-anim anim-scale-in delay-300">
             Our Story
           </Button>
         </div>
-        <div class="relative">
+        <div class="relative scroll-anim anim-slide-right delay-150">
           <!-- Geometric composition for about preview -->
           <div
             class="aspect-square bg-muted border-4 border-foreground p-8 relative overflow-hidden"
@@ -227,20 +231,20 @@ const recentPosts = categories
     </div>
 
     <div
-      class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10"
+      class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 scroll-anim anim-bounce-in delay-0"
     >
       <h2
-        class="text-4xl md:text-5xl font-black uppercase tracking-tight text-hero-text mb-4"
+        class="text-4xl md:text-5xl font-black uppercase tracking-tight text-hero-text mb-4 scroll-anim anim-slide-up delay-0"
       >
         Stay Updated
       </h2>
-      <p class="text-lg font-medium text-hero-text-muted mb-8">
+      <p class="text-lg font-medium text-hero-text-muted mb-8 scroll-anim anim-slide-up delay-100">
         Get the latest articles on web development and design delivered to your
         inbox. No spam, just thoughtful content.
       </p>
       <form
         id="newsletter-form"
-        class="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto"
+        class="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto scroll-anim anim-slide-up delay-200"
       >
         <input
           type="email"
@@ -250,7 +254,7 @@ const recentPosts = categories
         />
         <Button type="submit" variant="yellow" size="lg"> Subscribe </Button>
       </form>
-      <p class="text-sm font-medium text-hero-text-muted mt-4">
+      <p class="text-sm font-medium text-hero-text-muted mt-4 scroll-anim anim-slide-up delay-300">
         Join developers learning together
       </p>
     </div>

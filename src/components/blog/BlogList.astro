@@ -42,7 +42,7 @@ const postsWithIndex = await Promise.all(
 );
 ---
 
-<div class={`grid ${gridCols[columns]} gap-8`}>
+<div class={`grid ${gridCols[columns]} gap-8 recent-grid`}>
   {
     postsWithIndex.map(({ post, categoryIndex }) => (
       <BlogCard

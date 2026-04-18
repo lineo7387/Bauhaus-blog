@@ -50,15 +50,15 @@ const sortedCategories = Object.entries(categories)
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
       <div class="grid lg:grid-cols-2 gap-12 items-end">
         <div>
-          <span class="inline-block bg-brand-yellow text-xs font-bold uppercase tracking-widest text-on-brand-yellow px-3 py-1 mb-6">
+          <span class="inline-block bg-brand-yellow text-xs font-bold uppercase tracking-widest text-on-brand-yellow px-3 py-1 mb-6 anim-slide-left delay-hero-0">
             All Categories
           </span>
-          <h1 class="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter text-hero-text leading-[0.9]">
+          <h1 class="text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter text-hero-text leading-[0.9] anim-line-pop delay-hero-80">
             Skill<br />
             <span class="text-brand-yellow">Categories</span>
           </h1>
         </div>
-        <div class="text-hero-text-muted">
+        <div class="text-hero-text-muted anim-slide-up delay-hero-150">
           <p class="text-lg font-medium">
             {sortedCategories.length} skill{sortedCategories.length !== 1 ? 's' : ''} · {allPosts.length} article{allPosts.length !== 1 ? 's' : ''} total
           </p>
@@ -71,9 +71,9 @@ const sortedCategories = Object.entries(categories)
   </section>
 
   <!-- Categories Grid -->
-  <section class="bg-surface-raised border-b-4 border-foreground py-16 lg:py-24">
+  <section class="bg-surface-raised border-b-4 border-foreground py-16 lg:py-24 overflow-hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 skills-grid">
         {sortedCategories.map((cat) => {
           const colors = CATEGORY_COLORS[cat.name.toLowerCase()] ?? CATEGORY_COLORS['python'];
           const displayName = getSkillDisplayName(cat.name);
@@ -84,7 +84,7 @@ const sortedCategories = Object.entries(categories)
           return (
             <a
               href={`${BASE}/skills/${cat.name}`}
-              class={`group relative border-4 border-foreground p-6 shadow-hard-md card-lift overflow-hidden flex flex-col
+              class={`group relative border-4 border-foreground p-6 shadow-hard-md card-lift overflow-hidden flex flex-col scroll-anim
                 ${colors.bg}
                 ${colors.text}
               `}
@@ -145,15 +145,15 @@ const sortedCategories = Object.entries(categories)
   </section>
 
   <!-- CTA Section -->
-  <section class="bg-muted border-b-4 border-foreground py-16 lg:py-24">
-    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-      <h2 class="text-3xl md:text-4xl font-black uppercase tracking-tight text-text mb-6">
+  <section class="bg-muted border-b-4 border-foreground py-16 lg:py-24 overflow-hidden">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center scroll-anim anim-bounce-in delay-0">
+      <h2 class="text-3xl md:text-4xl font-black uppercase tracking-tight text-text mb-6 scroll-anim anim-line-pop delay-0">
         Looking for Something Specific?
       </h2>
-      <p class="text-lg font-medium text-text/70 mb-8">
+      <p class="text-lg font-medium text-text/70 mb-8 scroll-anim anim-slide-up delay-100">
         Browse all articles or search by keyword.
       </p>
-      <div class="flex flex-wrap justify-center gap-4">
+      <div class="flex flex-wrap justify-center gap-4 scroll-anim anim-scale-in delay-200">
         <Button href={`${BASE}/blog`} variant="primary" size="lg">
           Browse All Articles
         </Button>
