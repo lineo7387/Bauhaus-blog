@@ -21,22 +21,51 @@
 ## 目录结构
 
 ```
-/
-├── src/
-│   ├── components/          # Astro 组件
-│   │   ├── blog/            # 博客相关组件
-│   │   ├── layout/          # 布局组件（Header, Footer）
-│   │   └── ui/              # UI 组件（Button, Card）
-│   ├── content/
-│   │   ├── _plans/          # AI 技能路线图
-│   │   └── blog/            # 博客文章（按技能分目录）
-│   ├── layouts/             # 页面布局
-│   ├── pages/               # 页面路由
-│   ├── styles/              # 全局样式
-│   ├── data/                # 静态数据
-│   └── utils/               # 工具函数
-├── public/                  # 静态资源
-└── astro.config.mjs
+src/
+├── components/
+│   ├── blog/
+│   │   ├── BlogCard.astro         # 单篇文章卡片（图片、标题、摘要、分类色）
+│   │   ├── BlogList.astro          # 响应式文章网格容器
+│   │   ├── CategoryFilter.astro    # 分类筛选按钮行
+│   │   ├── FeaturedPost.astro      # 精选文章大卡片（双栏布局）
+│   │   ├── RelatedPosts.astro      # 当前文章关联推荐（最多 3 篇）
+│   │   ├── PostNavigation.astro    # 上一篇 / 下一篇章节导航
+│   │   ├── Pagination.astro         # 分页导航（页码、上一页/下一页）
+│   │   ├── SearchBar.astro         # 搜索输入框（提交 ?q= 到 /blog）
+│   │   └── TableOfContents.astro   # 文章侧边目录（h2/h3 自动提取）
+│   ├── layout/
+│   │   ├── Header.astro           # 顶部导航（Logo、链接、暗黑模式、移动端菜单）
+│   │   ├── HeaderSearch.astro      # 搜索弹窗（Pagefind 全站搜索）
+│   │   └── Footer.astro           # 页脚（三栏：简介、导航、社交链接）
+│   └── ui/
+│       ├── Button.astro            # 多态按钮（<a> 或 <button>，支持 4 种样式）
+│       ├── Card.astro              # 薄封装，转发到 BlogCard
+│       └── GeometricDecoration.astro # 几何装饰图形（圆形/方形/三角形）
+├── content/
+│   ├── _plans/                     # AI 技能路线图（Markdown）
+│   │   ├── _index.md              # 路线图总索引
+│   │   └── {skill}.md            # 各技能路线图（python、vue、react...）
+│   └── blog/                       # 博客文章（按技能分目录）
+├── layouts/
+│   ├── BaseLayout.astro            # 全站基础布局（<head>、Header、Footer）
+│   └── BlogPostLayout.astro        # 博客文章布局（目录侧栏、文章结构）
+├── pages/
+│   ├── index.astro                # 首页
+│   ├── about.astro                # 关于页
+│   ├── contact.astro              # 联系页
+│   ├── blog/
+│   │   ├── index.astro             # 博客列表首页
+│   │   └── [...slug].astro        # 动态路由：文章页 / 分类页 / 分页
+│   ├── skills/
+│   │   ├── index.astro             # 技能总览页
+│   │   └── [skill].astro          # 单个技能文章列表页
+│   └── authors/[author].astro      # 作者文章列表页
+├── config/
+│   └── category-colors.ts         # 分类颜色配置（hex、bg、text、hover）
+├── utils/
+│   ├── base.ts                     # BASE 常量（站点根路径）
+│   └── post.ts                     # 技能名称映射 & 文章排序工具
+└── styles/                         # 全局样式
 ```
 
 ## 命令

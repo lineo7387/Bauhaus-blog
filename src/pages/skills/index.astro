@@ -1,10 +1,10 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import Button from '../components/ui/Button.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Button from '../../components/ui/Button.astro';
 import { getCollection } from 'astro:content';
-import { BASE } from '../utils/base';
-import { CATEGORY_COLORS } from '../config/category-colors';
-import { getSkillDisplayName } from '../utils/post';
+import { BASE } from '../../utils/base';
+import { CATEGORY_COLORS } from '../../config/category-colors';
+import { getSkillDisplayName } from '../../utils/post';
 
 const allPosts = await getCollection('blog', ({ data }) => !data.draft);
 const plans = await getCollection('plans');
