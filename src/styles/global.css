@@ -839,30 +839,3 @@ html.dark .callout-header {
 .prose table tbody tr:hover {
   background-color: rgba(240, 192, 32, 0.15) !important;
 }
-
-/* ============================================
-   Giscus 评论 — Bauhaus 风格覆盖
-   ============================================ */
-
-.giscus {
-  border: 2px solid var(--color-foreground);
-  box-shadow: var(--shadow-hard-md);
-  background-color: var(--color-surface-raised);
-  animation: giscus-fade-in 300ms ease-out;
-}
-
-.giscus-frame {
-  border: none !important;
-  border-radius: 0 !important;
-}
-
-@keyframes giscus-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
