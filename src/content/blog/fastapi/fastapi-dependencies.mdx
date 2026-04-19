@@ -1,0 +1,251 @@
+---
+title: FastAPI 依赖注入系统
+description: 深入理解 FastAPI 的 Depends 机制、依赖链、类依赖、异步依赖与多级注入，掌握构建可复用逻辑组件的核心技能
+pubDate: 2026-04-19
+category: fastapi
+tags: [fastapi, python, dependency-injection, depends]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 15
+planId: fastapi-dependencies
+---
+
+## 什么是依赖注入
+
+**依赖注入（Dependency Injection）** 是一种设计模式，核心思想是：将一个组件所需的「外部资源」从组件内部剥离出来，改为由外部系统「注入」进去。在 FastAPI 中，这个机制通过 `Depends` 实现，让你的路径操作函数不再臃肿，逻辑职责单一。
+
+FastAPI 的依赖注入系统受到 Python 类型注解的深度支持，配合 Pydantic 模型可以构建出安全、可测试、可复用的逻辑链路。
+
+## 函数依赖：最简单的注入
+
+### 基础用法
+
+```python
+from fastapi import FastAPI, Depends
+
+app = FastAPI()
+
+# 定义一个依赖函数
+def get_query_param(name: str = "guest"):
+    return {"greeting": f"Hello, {name}!"}
+
+@app.get("/greet")
+def greet_user(params: dict = Depends(get_query_param)):
+    return params
+```
+
+`Depends(get_query_param)` 告诉 FastAPI：在调用 `greet_user` 之前，先执行 `get_query_param`，将其返回值注入到函数参数中。执行顺序完全由 FastAPI 内部管理。
+
+### 带参数的条件依赖
+
+依赖函数也可以接收参数，通过闭包或工厂函数实现：
+
+```python
+def create_param_dep(param_name: str, default: str = ""):
+    def param_dep():
+        return {"key": param_name, "value": default}
+    return param_dep
+
+@app.get("/config")
+def get_config(conf: dict = Depends(create_param_dep("app_name", "FastAPI"))):
+    return conf
+```
+
+## 查询参数与路径参数的依赖验证
+
+依赖注入最实用的场景是对请求参数做统一校验：
+
+```python
+from typing import Optional
+from fastapi import Header, Query
+
+def verify_token(x_token: str = Header(...)):
+    if x_token != "secret-key":
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return x_token
+
+def pagination_params(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100)
+):
+    return {"skip": skip, "limit": limit}
+
+@app.get("/items")
+def list_items(
+    pagination: dict = Depends(pagination_params),
+    token: str = Depends(verify_token)
+):
+    # token 已校验，pagination 包含分页参数
+    return {"message": "authorized", "params": pagination}
+```
+
+**关键点**：`Depends` 的参数本身可以是任意可调用对象（函数、类），FastAPI 会在启动时注册这些依赖，构建一棵依赖树。
+
+## 类依赖
+
+当依赖需要维护状态时，使用类更自然：
+
+```python
+class Pagination:
+    def __init__(self, default_limit: int = 20):
+        self.skip = 0
+        self.limit = default_limit
+
+    def to_dict(self):
+        return {"skip": self.skip, "limit": self.limit}
+
+@app.get("/posts")
+def list_posts(pager: Pagination = Depends(Pagination)):
+    # FastAPI 会自动实例化 Pagination
+    return pager.to_dict()
+
+# 构造函数注入（带参数）
+@app.get("/admin/posts")
+def list_admin_posts(
+    pager: Pagination = Depends(Pagination(default_limit=50))
+):
+    return pager.to_dict()
+```
+
+FastAPI 调用 `Depends(Pagination)` 时，会自动将 `Pagination` 作为可调用对象处理，传入构造函数参数后实例化，再将实例传给路径函数。
+
+## 异步依赖
+
+FastAPI 原生支持异步依赖，使用 `async def` 即可：
+
+```python
+from datetime import datetime, timezone
+
+async def get_current_time():
+    # 模拟异步 I/O（如数据库查询）
+    await asyncio.sleep(0.01)
+    return datetime.now(timezone.utc)
+
+@app.get("/timestamp")
+async def show_time(now: datetime = Depends(get_current_time)):
+    return {"timestamp": now.isoformat()}
+```
+
+**注意**：异步依赖和同步依赖可以混合使用，FastAPI 会自动处理协程调度。避免在同步依赖中执行耗时的阻塞 I/O。
+
+## 依赖链：多级注入
+
+依赖之间可以形成链式结构——一个依赖可以依赖另一个依赖：
+
+```python
+from fastapi.security import OAuth2PasswordBearer
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+
+# Step 1：验证 token 格式
+async def verify_format(token: str = Depends(oauth2_scheme)):
+    if not token.startswith("Bearer_"):
+        raise HTTPException(status_code=401, detail="Malformed token")
+    return token
+
+# Step 2：从 token 中提取用户 ID
+async def extract_user_id(token: str = Depends(verify_format)):
+    user_id = token.replace("Bearer_", "").split("_")[0]
+    return {"user_id": user_id, "token": token}
+
+# Step 3：加载完整用户对象（模拟数据库查询）
+async def get_current_user(claims: dict = Depends(extract_user_id)):
+    return {
+        "id": claims["user_id"],
+        "name": "Alice",
+        "role": "admin"
+    }
+
+@app.get("/profile")
+async def user_profile(user: dict = Depends(get_current_user)):
+    return user
+```
+
+FastAPI 会自动解析依赖链，确保每个依赖在被使用前已完成初始化。
+
+## 依赖的返回值与复用
+
+依赖函数可以返回任意值，供路径函数使用。最常见的模式是返回数据库会话或认证用户对象：
+
+```python
+from contextlib import asynccontextmanager
+
+# 模拟数据库会话依赖
+async def get_db():
+    conn = await connect_to_database()
+    try:
+        yield conn
+    finally:
+        await conn.close()
+
+@app.post("/users")
+async def create_user(
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    # 两个依赖同时生效：db 提供数据访问，current_user 提供认证信息
+    user = await db.create_user(current_user["id"])
+    return user
+```
+
+## 使用 `yield` 做资源清理
+
+当依赖需要管理资源生命周期时（如数据库连接、文件句柄），使用 `yield` 确保清理逻辑一定执行：
+
+```python
+import logging
+
+async def db_session():
+    session = await create_async_session()
+    try:
+        yield session
+    finally:
+        await session.close()
+        logging.info("Database session closed")
+
+@app.post("/orders")
+async def create_order(session=Depends(db_session)):
+    order = await session.create("orders", {"status": "pending"})
+    return order
+# 函数退出后，session 自动关闭
+```
+
+`yield` 之前的代码在请求进入前执行，`yield` 之后的代码在请求完成后（无论成功还是异常）执行，类似于上下文管理器的 `__exit__`。
+
+## 依赖覆盖（Testing）
+
+FastAPI 的依赖系统天然支持测试覆盖——通过 `app.dependency_overrides` 替换真实依赖为 mock 版本：
+
+```python
+from fastapi.testclient import TestClient
+
+# 创建测试专用的 mock 依赖
+def mock_get_current_user():
+    return {"id": "test-123", "name": "Test User", "role": "admin"}
+
+client = TestClient(app)
+
+# 覆盖依赖
+app.dependency_overrides[get_current_user] = mock_get_current_user
+
+response = client.get("/profile")
+assert response.status_code == 200
+assert response.json()["name"] == "Test User"
+
+# 清理覆盖
+app.dependency_overrides.clear()
+```
+
+这使得无需启动真实数据库或模拟复杂的认证流程，就能对每个端点进行独立测试。
+
+## 小结
+
+依赖注入是 FastAPI 最强大的特性之一，它让请求处理函数保持纯粹的「业务逻辑」，而将认证、校验、分页、资源管理等横切关注点统一在依赖层管理。
+
+核心要点：
+- `Depends(callable)` 接受任何可调用对象，自动管理调用顺序
+- 类依赖通过构造函数参数实现配置化
+- `yield` 用于资源初始化和清理
+- 依赖链通过嵌套 `Depends` 构建，数据流清晰
+- `dependency_overrides` 是测试的核心工具

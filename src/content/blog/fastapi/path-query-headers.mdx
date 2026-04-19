@@ -1,0 +1,315 @@
+---
+title: 路径参数、查询参数与请求头
+description: 深入讲解 FastAPI 中的路径参数、查询字符串、请求头读取，以及类型注解、自动验证与错误处理的完整机制
+pubDate: 2026-04-19
+category: fastapi
+tags: [fastapi, python, path, query, headers, 路由]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: path-query-headers
+---
+
+# 路径参数、查询参数与请求头
+
+任何 RESTful API 的核心都是**如何接收客户端传来的数据**。FastAPI 通过 Python 类型注解与装饰器语法，将 URL 路径、查询字符串和 HTTP 请求头的读取变得简洁而安全。本文将系统讲解这三种数据来源的使用方式与验证机制。
+
+## 路径参数
+
+**路径参数**是 URL 路径中用 `{}` 包裹的可变部分，用于定位资源。例如 `/users/42` 中的 `42` 就是用户 ID 路径参数。
+
+### 基本用法
+
+```python
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/users/{user_id}")
+def get_user(user_id: int):
+    """根据 ID 获取用户"""
+    return {"user_id": user_id, "name": f"用户{user_id}"}
+```
+
+请求 `GET /users/42` 返回：
+
+```json
+{"user_id": 42, "name": "用户42"}
+```
+
+> **关键**：只需在函数参数前加类型注解，FastAPI 会自动完成**路径匹配**和**类型转换**。如果 `user_id` 不是整数（如 `/users/abc`），FastAPI 会自动返回 **422 Unprocessable Entity** 错误，无需手动校验。
+
+### 路径参数顺序
+
+路径参数必须放在**固定路径**之后，且要注意注册顺序：
+
+```python
+# ⚠️ 错误：{item_id} 会匹配到字符串 "new"，导致 "new" 被当作 item_id
+@app.get("/items/new")
+def get_new_items():
+    return {"items": []}
+
+@app.get("/items/{item_id}")
+def get_item(item_id: int):
+    return {"item_id": item_id}
+
+# ✅ 正确：固定路径优先注册
+@app.get("/items/new")
+def get_new_items():
+    return {"items": []}
+
+@app.get("/items/{item_id}")
+def get_item(item_id: int):
+    return {"item_id": item_id}
+
+# ✅ 更好的设计：用查询参数代替固定路径
+@app.get("/items/")
+def get_items(new_only: bool = False):
+    if new_only:
+        return {"items": []}
+    return {"items": [{"id": 1}]}
+
+@app.get("/items/{item_id}")
+def get_item(item_id: int):
+    return {"item_id": item_id}
+```
+
+### 带验证的路径参数
+
+使用 `Path` 装饰器可以对路径参数施加额外约束：
+
+```python
+from fastapi import FastAPI, Path
+from typing import Annotated
+
+app = FastAPI()
+
+@app.get("/items/{item_id}")
+def get_item(
+    item_id: Annotated[int, Path(gt=0, le=1000, description="物品 ID，必须在 1-1000 之间")]
+):
+    """路径参数带数值范围验证"""
+    return {"item_id": item_id}
+```
+
+> **注意**：FastAPI 自动验证 `Path` 中的 `gt`（大于）、`ge`（大于等于）、`lt`（小于）、`le`（小于等于），超出范围直接返回 422 错误，无需手写 `if item_id > 1000`。
+
+## 查询参数
+
+**查询参数**是 URL 中 `?` 后面的键值对，用于传递过滤、分页等可选条件。
+
+### 基本用法
+
+```python
+from fastapi import FastAPI
+
+app = FastAPI()
+
+# items 是一个列表，skip 和 limit 是可选查询参数
+fake_items_db = [{"name": "物品A"}, {"name": "物品B"}, {"name": "物品C"}]
+
+@app.get("/items/")
+def get_items(skip: int = 0, limit: int = 10):
+    """分页获取物品列表"""
+    return fake_items_db[skip : skip + limit]
+```
+
+- `GET /items/` → `skip=0, limit=10`（使用默认值）
+- `GET /items/?skip=2&limit=5` → `skip=2, limit=5`
+
+### 必需查询参数
+
+不加默认值的参数会变成**必需查询参数**：
+
+```python
+@app.get("/search")
+def search(q: str, page: int = 1):
+    """q 是必需参数，page 是可选参数"""
+    return {"query": q, "page": page}
+```
+
+- `GET /search?q=python` → 正常返回
+- `GET /search` → 422 错误（缺少必需参数 `q`）
+
+### 布尔类型与别名
+
+查询参数支持**布尔类型**（接受 `true/false/1/0`）和**别名**（用 alias 映射 URL 参数名）：
+
+```python
+from fastapi import Query
+from typing import Annotated
+
+@app.get("/products/")
+def get_products(
+    # 别名：URL 用 category_id，函数参数用 cat_id
+    cat_id: int = Query(alias="category_id", default=1),
+    # 布尔类型
+    featured: bool = False,
+    # 正则约束
+    brand: str = Query(pattern="^[A-Z][a-zA-Z]+$", default=None)
+):
+    return {"category": cat_id, "featured": featured, "brand": brand}
+```
+
+### 列表与多值查询参数
+
+```python
+@app.get("/tags/")
+def get_by_tags(tags: list[str] = Query(default=[])):
+    """接收多个同名的查询参数值"""
+    return {"tags": tags}
+
+# GET /tags/?tags=vue&tags=react&tags=fastapi
+# 返回: {"tags": ["vue", "react", "fastapi"]}
+```
+
+## 请求头 Header
+
+**请求头**（Header）用于传递元数据，如认证令牌、内容类型、客户端版本等。
+
+### 基础读取
+
+```python
+from fastapi import FastAPI, Header
+from typing import Annotated
+
+app = FastAPI()
+
+@app.get("/me")
+def get_me(
+    authorization: Annotated[str | None, Header()] = None
+):
+    """读取 Authorization 请求头"""
+    return {"token": authorization}
+```
+
+FastAPI 会自动处理 HTTP 请求头的大小写转换（HTTP 头不区分大小写），因此 `Authorization`、`authorization`、`AUTHORIZATION` 均被映射到 `authorization` 参数。
+
+### 常用请求头示例
+
+```python
+from fastapi import FastAPI, Header
+from typing import Annotated
+
+app = FastAPI()
+
+@app.get("/client-info")
+def client_info(
+    user_agent: Annotated[str | None, Header()] = None,
+    x_request_id: Annotated[str | None, Header()] = None,
+    accept_language: Annotated[str | None, Header()] = None,
+):
+    """
+    读取多个常用请求头
+    """
+    return {
+        "user_agent": user_agent,
+        "request_id": x_request_id,
+        "language": accept_language
+    }
+```
+
+### 使用 `Header` 排除默认值字段
+
+有些 HTTP 头名称含有连字符（如 `X-Custom-Header`），FastAPI 默认会将连字符转为下划线（`x_custom_header`）。如需保持原名，使用 `convert_underscores=False`：
+
+```python
+from fastapi import Header
+
+@app.get("/webhook")
+def webhook(
+    x_hook_secret: Annotated[str | None, Header(convert_underscores=False)] = None
+):
+    return {"secret": x_hook_secret}
+```
+
+## 综合示例：物品管理 API
+
+整合路径参数、查询参数和请求头，实现一个完整的 CRUD 端点：
+
+```python
+from fastapi import FastAPI, Header, Query, Path, HTTPException
+from typing import Annotated
+
+app = FastAPI()
+
+# 模拟数据库
+items_db: dict[int, dict] = {
+    1: {"name": "MacBook Pro", "price": 19999, "category": "electronics"},
+    2: {"name": "机械键盘", "price": 599, "category": "electronics"},
+    3: {"name": "人体工学椅", "price": 2999, "category": "furniture"},
+}
+
+@app.get("/items/{item_id}")
+def get_item(
+    item_id: Annotated[int, Path(gt=0, description="物品 ID")],
+    category: Annotated[str | None, Query(description="按分类筛选")] = None,
+    x_trace_id: Annotated[str | None, Header(alias="X-Trace-ID")] = None,
+):
+    """
+    获取单个物品，支持分类过滤
+    - 路径参数：item_id（必需）
+    - 查询参数：category（可选）
+    - 请求头：X-Trace-ID（可选，用于链路追踪）
+    """
+    # 链路追踪日志
+    print(f"[{x_trace_id}] 查询物品 {item_id}, 分类={category}")
+
+    if item_id not in items_db:
+        raise HTTPException(status_code=404, detail="物品不存在")
+
+    item = items_db[item_id]
+
+    # 如果指定了分类且不匹配，返回 404
+    if category and item["category"] != category:
+        raise HTTPException(status_code=404, detail="分类不匹配")
+
+    return {"trace_id": x_trace_id, **item}
+
+
+@app.get("/items/")
+def list_items(
+    skip: Annotated[int, Query(ge=0, description="跳过条数")] = 0,
+    limit: Annotated[int, Query(ge=1, le=100, description="返回条数")] = 10,
+    category: Annotated[str | None, Query(description="按分类筛选")] = None,
+):
+    """列表查询，支持分页"""
+    results = [
+        {"id": k, **v}
+        for k, v in items_db.items()
+        if category is None or v["category"] == category
+    ]
+    return {
+        "total": len(results),
+        "skip": skip,
+        "limit": limit,
+        "items": results[skip : skip + limit]
+    }
+```
+
+## 类型安全与自动验证
+
+FastAPI 之所以强大，核心在于**类型注解即验证规则**。所有路径参数、查询参数都会根据类型注解自动验证：
+
+| 类型注解 | 验证规则 |
+|----------|----------|
+| `int` | 必须是整数 |
+| `float` | 必须是数字（含小数） |
+| `str` | 必须是字符串 |
+| `bool` | 接受 `true/false/1/0` |
+| `Path(ge=0)` | 整数且 ≥ 0 |
+| `Query(le=100)` | 整数且 ≤ 100 |
+| `list[str]` | 字符串列表 |
+
+> **优势**：传统的 Flask/Django 需要手写 `if not isinstance(value, int): raise 422`；FastAPI 只需写类型注解，验证逻辑由框架自动处理，大幅减少样板代码。
+
+## 总结
+
+本文覆盖了 FastAPI 中数据来源的三大渠道：
+
+- **路径参数**：URL 路径的可变部分，`{param}` 语法，通过函数参数类型注解接收，`Path()` 添加验证约束
+- **查询参数**：`?key=value` 形式的可选数据，通过函数参数默认值接收，`Query()` 添加验证与描述
+- **请求头**：HTTP 元数据，`Header()` 装饰器读取，自动处理大小写与别名映射
+
+FastAPI 将这三者的读取方式统一为**函数参数**的形式，配合类型注解实现零成本的输入验证。下一篇文章我们将学习 **请求体与 Pydantic 模型**，掌握 FastAPI 最核心的数据建模能力。

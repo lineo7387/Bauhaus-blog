@@ -1,0 +1,372 @@
+---
+title: 请求体与 Pydantic 模型
+description: 使用 Pydantic BaseModel 定义请求体数据结构，掌握数据验证、序列化、嵌套模型、默认值与自定义验证器的完整用法
+pubDate: 2026-04-19
+category: fastapi
+tags: [fastapi, pydantic, python, 请求体, 数据验证]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: request-body-pydantic
+---
+
+# 请求体与 Pydantic 模型
+
+当客户端需要向服务器提交复杂结构化数据（如 JSON 对象）时，**请求体**是最合适的方式。FastAPI 深度集成 **Pydantic**——Python 最强大的数据验证库——来实现声明式的数据建模、自动验证和序列化。本文将系统讲解 Pydantic 模型的所有核心用法。
+
+## 为什么需要 Pydantic
+
+在没有 Pydantic 的时代，处理请求体通常依赖手动解析和条件判断：
+
+```python
+# 传统方式：手动验证（冗长、易错）
+@app.post("/users/")
+def create_user(request: Request):
+    data = await request.json()
+    name = data.get("name")
+    email = data.get("email")
+    if not name:
+        return JSONResponse({"error": "name is required"}, status_code=400)
+    if not email or "@" not in email:
+        return JSONResponse({"error": "invalid email"}, status_code=400)
+    # ...
+```
+
+Pydantic 将这一切简化为**类型注解即验证规则**：
+
+```python
+import re
+from pydantic import BaseModel, EmailStr, field_validator
+
+class UserCreate(BaseModel):
+    name: str
+    email: EmailStr
+    age: int | None = None
+
+    @field_validator("name")
+    @classmethod
+    def name_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("name cannot be empty")
+        return v.strip()
+
+@app.post("/users/")
+def create_user(user: UserCreate):
+    # user 已经过完整验证，可直接使用
+    return {"created": user.model_dump()}
+```
+
+## Pydantic BaseModel 基础
+
+### 定义模型
+
+```python
+from pydantic import BaseModel
+
+class Item(BaseModel):
+    """物品创建模型"""
+    name: str
+    description: str | None = None
+    price: float
+    quantity: int = 0
+```
+
+> **注意**：所有字段默认**必需**，只有在赋默认值（或使用 `None`）后才变为可选。
+
+### 在路由中使用
+
+```python
+from fastapi import FastAPI, Body
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Item(BaseModel):
+    name: str
+    description: str | None = None
+    price: float
+    quantity: int = 0
+
+@app.post("/items/")
+def create_item(item: Item):
+    """接收 Item 请求体，自动验证并解析"""
+    total = item.price * item.quantity
+    return {
+        "item": item.model_dump(),
+        "total_value": total
+    }
+```
+
+发送请求：
+
+```bash
+curl -X POST "http://127.0.0.1:8000/items/" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "机械键盘", "price": 599.0, "quantity": 3}'
+```
+
+返回：
+
+```json
+{
+  "item": {
+    "name": "机械键盘",
+    "description": null,
+    "price": 599.0,
+    "quantity": 3
+  },
+  "total_value": 1797.0
+}
+```
+
+## 字段验证器
+
+Pydantic 提供了多种内置约束类型，远比手动 `if` 判断优雅且可靠。
+
+### 内置约束类型
+
+| 约束类型 | 说明 | 示例 |
+|----------|------|------|
+| `EmailStr` | 邮箱格式验证 | `email: EmailStr` |
+| `HttpUrl` | URL 格式验证 | `website: HttpUrl` |
+| `Field` | 精细化字段约束 | `Field(gt=0, le=100)` |
+| `conint/constr/conlist` | 复合类型约束 | `conint(gt=0, le=100)` |
+| `UUID1/UUID4` | UUID 格式验证 | `id: UUID4` |
+
+### 使用 Field 精细控制
+
+```python
+from pydantic import BaseModel, Field
+from typing import Annotated
+
+class UserRegister(BaseModel):
+    # 字符串约束：长度范围、模式
+    username: Annotated[
+        str,
+        Field(min_length=3, max_length=20, pattern="^[a-zA-Z][a-zA-Z0-9_]*$")
+    ]
+    # 邮箱
+    email: str = Field(..., description="用户邮箱地址")
+    # 数字约束：价格不能为负
+    age: Annotated[int, Field(ge=0, le=150)] = 0
+    # 列表约束：标签列表，1-5 个
+    tags: list[str] = Field(default=[], min_length=1, max_length=5)
+```
+
+> **`...`（Ellipsis）语法**：在类型注解中表示**必需字段**，`Field(...)` 即该字段必须提供。
+
+### 自定义验证器 field_validator
+
+当内置约束无法满足需求时，使用 `@field_validator` 添加自定义逻辑：
+
+```python
+from pydantic import BaseModel, field_validator
+
+class ArticleCreate(BaseModel):
+    title: str
+    slug: str
+    content: str
+    tags: list[str] = []
+
+    @field_validator("slug")
+    @classmethod
+    def slug_from_title(cls, v: str) -> str:
+        """自动从标题生成 slug"""
+        # 只允许小写字母、数字、连字符
+        slug = re.sub(r"[^a-z0-9]+", "-", v.lower()).strip("-")
+        if not slug:
+            raise ValueError("slug cannot be empty after normalization")
+        return slug
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, v):
+        """规范化标签：去重、转为小写"""
+        if isinstance(v, list):
+            return list(set(tag.lower().strip() for tag in v if tag.strip()))
+        return v
+```
+
+## 嵌套模型
+
+真实业务中的数据结构往往是多层嵌套的，Pydantic 支持**无限层级的嵌套模型**。
+
+### 嵌套定义
+
+```python
+from pydantic import BaseModel, Field
+from typing import list
+
+class Address(BaseModel):
+    """地址模型"""
+    city: str
+    district: str
+    street: str
+    zip_code: str = Field(pattern=r"^\d{6}$")
+
+class Department(BaseModel):
+    """部门模型"""
+    id: int
+    name: str
+    budget: float = Field(ge=0)
+
+class Employee(BaseModel):
+    """员工模型（含嵌套）"""
+    id: int
+    name: str
+    email: str
+    department: Department  # 嵌套 Department
+    home_address: Address | None = None
+    skills: list[str] = []
+
+class Company(BaseModel):
+    """公司模型（嵌套多层）"""
+    name: str
+    employees: list[Employee]  # 嵌套 Employee 列表
+    founded_year: int = Field(ge=1900, le=2100)
+```
+
+### 请求示例
+
+```json
+{
+  "name": "星辰科技",
+  "founded_year": 2020,
+  "employees": [
+    {
+      "id": 1,
+      "name": "李明",
+      "email": "liming@example.com",
+      "department": {
+        "id": 101,
+        "name": "技术部",
+        "budget": 500000.0
+      },
+      "home_address": {
+        "city": "北京",
+        "district": "海淀区",
+        "street": "中关村大街 1 号",
+        "zip_code": "100000"
+      },
+      "skills": ["Python", "FastAPI", "PostgreSQL"]
+    }
+  ]
+}
+```
+
+FastAPI 自动验证每一层嵌套的数据结构和类型，任何不合规的数据都会在请求阶段被拒绝，并返回详细的错误信息。
+
+## 模型继承
+
+Pydantic 支持模型继承，便于提取公共字段：
+
+```python
+from pydantic import BaseModel
+
+class BaseItem(BaseModel):
+    """物品基类：所有物品的公共字段"""
+    name: str
+    description: str | None = None
+    price: float = Field(gt=0)
+
+class BookItem(BaseItem):
+    """图书类：继承基类，添加 ISBN"""
+    isbn: str
+    author: str
+    pages: int = Field(gt=0)
+
+class DigitalItem(BaseItem):
+    """数字产品类：继承基类，添加下载链接"""
+    download_url: str
+    file_size_mb: float = Field(gt=0)
+
+@app.post("/books/")
+def create_book(book: BookItem):
+    return book
+
+@app.post("/digital/")
+def create_digital(item: DigitalItem):
+    return item
+```
+
+> **优势**：公共字段（如 `name`、`price`）只需定义一次，派生模型自动获得约束验证。
+
+## 序列化与数据转换
+
+### model_dump 与 model_dump_json
+
+```python
+item = Item(name="键盘", price=299.0, quantity=2)
+
+# 转为 Python 字典
+item.model_dump()        # {"name": "键盘", "description": None, "price": 299.0, "quantity": 2}
+
+# 转为 JSON 字符串
+item.model_dump_json()   # '{"name":"键盘","description":null,"price":299.0,"quantity":2}'
+
+# 排除 None 值
+item.model_dump(exclude_none=True)   # {"name": "键盘", "price": 299.0, "quantity": 2}
+
+# 排除特定字段
+item.model_dump(exclude={"quantity"})  # {"name": "键盘", "description": None, "price": 299.0}
+```
+
+### 别名与字段重命名
+
+```python
+from pydantic import BaseModel, Field, ConfigDict
+
+class User(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    user_id: int = Field(alias="id")
+    user_name: str = Field(alias="name")
+    email_address: str = Field(default="", validation_alias="email")
+```
+
+- `populate_by_name=True`：允许用 Python 属性名（`user_id`）**或**别名（`id`）来填充数据
+- 请求体：`{"id": 1, "name": "Alice"}` → 模型实例 `user_id=1, user_name="Alice"`
+
+## ComputedField 与数据预处理
+
+### computed_field（计算字段）
+
+```python
+from pydantic import BaseModel, computed_field
+
+class Rectangle(BaseModel):
+    width: float = Field(gt=0)
+    height: float = Field(gt=0)
+
+    @computed_field
+    @property
+    def area(self) -> float:
+        """自动计算面积（不存储，只在序列化时动态生成）"""
+        return self.width * self.height
+
+    @computed_field
+    @property
+    def perimeter(self) -> float:
+        return 2 * (self.width + self.height)
+
+rect = Rectangle(width=10, height=5)
+print(rect.model_dump())
+# {"width": 10, "height": 5, "area": 50.0, "perimeter": 30.0}
+```
+
+> **用途**：`computed_field` 非常适合**派生数据**（如总价、面积、全名），保持数据的一致性，同时避免冗余存储。
+
+## 总结
+
+本文全面讲解了 FastAPI + Pydantic 的数据建模能力：
+
+- **BaseModel**：声明式数据结构定义，类型注解即验证规则
+- **Field**：精细化约束（长度、范围、模式、正则）
+- **field_validator**：自定义验证逻辑，处理数据规范化
+- **嵌套模型**：支持任意深度的复杂数据结构自动验证
+- **模型继承**：提取公共字段，减少重复定义
+- **序列化**：`model_dump`、`model_dump_json`、别名与字段重命名
+- **computed_field**：动态计算派生字段
+
+掌握 Pydantic 模型，就掌握了 FastAPI 一半的核心能力。下一篇文章我们将学习 **响应模型与数据转换**，了解如何精确控制 API 的输出格式。

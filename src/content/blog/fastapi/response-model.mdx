@@ -1,0 +1,406 @@
+---
+title: 响应模型与数据转换
+description: 使用 response_model 控制 API 输出格式，掌握 exclude_unset、response_model_exclude、状态码配置与模型嵌套的完整用法
+pubDate: 2026-04-19
+category: fastapi
+tags: [fastapi, python, response_model, 响应, 数据转换]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: response-model
+---
+
+# 响应模型与数据转换
+
+FastAPI 不仅能自动验证输入，还能**精确控制输出**。`response_model` 参数让你声明 API 的响应数据结构，Pydantic 负责从内部模型到公开 API 格式的安全转换。本文将系统讲解响应模型的所有核心用法。
+
+## response_model 基础
+
+### 为什么需要响应模型
+
+在实际项目中，内部数据模型往往包含敏感字段（如密码哈希、管理员标记）或冗余字段（如数据库主键、ORM 关联对象）。直接返回内部模型会暴露不该暴露的数据。
+
+```python
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+# 内部模型：包含所有字段（含敏感信息）
+class UserInDB(BaseModel):
+    id: int
+    username: str
+    email: str
+    password_hash: str  # 敏感！不应暴露给客户端
+    is_admin: bool     # 敏感！不应暴露给普通用户
+    created_at: str
+    updated_at: str
+
+# 公开模型：只包含应该返回给客户端的字段
+class UserPublic(BaseModel):
+    id: int
+    username: str
+    email: str
+```
+
+### 使用 response_model
+
+```python
+from fastapi import FastAPI
+from pydantic import BaseModel
+from datetime import datetime
+
+app = FastAPI()
+
+class UserPublic(BaseModel):
+    id: int
+    username: str
+    email: str
+    is_active: bool = True
+
+# 路由中指定 response_model
+@app.get("/users/{user_id}", response_model=UserPublic)
+def get_user(user_id: int):
+    # 实际从数据库读取（包含密码哈希等敏感字段）
+    db_user = {
+        "id": user_id,
+        "username": "alice",
+        "email": "alice@example.com",
+        "is_active": True,
+        "password_hash": "$2b$12$xxxxx",  # 内部数据，不会出现在响应中
+        "is_admin": False
+    }
+    # FastAPI 会将 db_user 转换为 UserPublic 的结构
+    return db_user
+```
+
+> **关键**：FastAPI 使用 `response_model` 作为**输出过滤器**，内部数据可以很复杂，但 API 响应始终是干净的公开结构。`password_hash` 和 `is_admin` 不会出现在响应中，即使它们存在于返回的字典里。
+
+## 状态码与响应类型
+
+### 自定义状态码
+
+```python
+from fastapi import FastAPI, Response, status
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class ItemCreate(BaseModel):
+    name: str
+    price: float
+
+class Item(BaseModel):
+    id: int
+    name: str
+    price: float
+
+items_db: dict[int, Item] = {}
+
+# 201 Created — 资源创建成功
+@app.post("/items/", response_model=Item, status_code=status.HTTP_201_CREATED)
+def create_item(item: ItemCreate):
+    item_id = len(items_db) + 1
+    new_item = Item(id=item_id, **item.model_dump())
+    items_db[item_id] = new_item
+    return new_item
+
+# 204 No Content — 删除成功（无返回体）
+@app.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_item(item_id: int):
+    if item_id not in items_db:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="物品不存在")
+    del items_db[item_id]
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+# 200 OK — 默认（可省略）
+@app.get("/items/", response_model=list[Item])
+def list_items():
+    return list(items_db.values())
+```
+
+### 常用 HTTP 状态码速查
+
+| 状态码 | 含义 | 适用场景 |
+|--------|------|----------|
+| `200 OK` | 默认成功 | GET、PUT、PATCH |
+| `201 Created` | 资源创建成功 | POST 创建资源 |
+| `204 No Content` | 成功无返回体 | DELETE |
+| `400 Bad Request` | 客户端请求错误 | 业务层参数校验失败 |
+| `401 Unauthorized` | 未认证 | 缺少 Token |
+| `403 Forbidden` | 无权限 | Token 无效或权限不足 |
+| `404 Not Found` | 资源不存在 | 查询不存在的资源 |
+
+## exclude_unset 与部分更新
+
+**部分更新**（PATCH）是 API 设计中的常见需求：客户端只需传递要修改的字段，其他字段保持不变。`exclude_unset` 是实现这一模式的关键工具。
+
+### 问题：如何区分"传了空值"和"没传字段"？
+
+```python
+from pydantic import BaseModel
+
+class ItemUpdate(BaseModel):
+    name: str | None = None
+    price: float | None = None
+    description: str | None = None
+```
+
+如果客户端发送 `{"name": ""}`，空字符串 `""` 会被视为有效值覆盖原有数据，这不是 PATCH 的预期行为。
+
+### 使用 exclude_unset 精确判断
+
+```python
+from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Item(BaseModel):
+    id: int
+    name: str
+    price: float
+    description: str = ""
+
+items_db: dict[int, Item] = {
+    1: Item(id=1, name="键盘", price=299.0, description="机械键盘"),
+    2: Item(id=2, name="鼠标", price=199.0),
+}
+
+class ItemUpdate(BaseModel):
+    name: str | None = None
+    price: float | None = None
+    description: str | None = None
+
+@app.patch("/items/{item_id}", response_model=Item)
+def update_item(item_id: int, item_update: ItemUpdate):
+    """
+    部分更新：只修改客户端传入的字段
+    - {"name": "新键盘"} → 只更新 name
+    - {"price": 399.0} → 只更新 price
+    - {} → 不修改任何字段
+    """
+    if item_id not in items_db:
+        raise HTTPException(status_code=404, detail="物品不存在")
+
+    db_item = items_db[item_id]
+
+    # exclude_unset=True：只取客户端实际传入的字段（不含默认 None）
+    update_data = item_update.model_dump(exclude_unset=True)
+
+    if not update_data:
+        # 客户端没有传任何有效字段
+        return db_item
+
+    # 逐字段更新
+    for field, value in update_data.items():
+        setattr(db_item, field, value)
+
+    return db_item
+```
+
+> **原理**：`model_dump(exclude_unset=True)` 返回一个**只包含客户端实际传递的字段**的字典，不包含未传字段的 `None` 值。这样就能区分"传了空值"和"没传字段"两种情况。
+
+## 模型嵌套与字段过滤
+
+### response_model_include 与 exclude
+
+在已有模型的基础上，直接在路由层面排除特定字段：
+
+```python
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class UserFull(BaseModel):
+    id: int
+    username: str
+    email: str
+    password_hash: str
+    is_admin: bool
+    created_at: str
+
+class UserPublic(BaseModel):
+    """公开用户信息（已在模型层定义）"""
+    id: int
+    username: str
+    email: str
+
+# 方式一：在路由中动态过滤字段
+@app.get("/users/{user_id}", response_model=UserPublic)
+def get_user(user_id: int):
+    return get_user_from_db(user_id)  # 返回 UserFull，FastAPI 自动过滤
+
+# 方式二：直接用 response_model_include/exclude（适合简单场景）
+@app.get("/users/{user_id}/summary", response_model=UserFull,
+         response_model_include={"id", "username", "email"})
+def get_user_summary(user_id: int):
+    """只返回 id、username、email"""
+    return get_user_from_db(user_id)
+
+@app.get("/users/{user_id}/admin", response_model=UserFull,
+         response_model_exclude={"password_hash"})
+def get_user_admin(user_id: int):
+    """返回除密码外的所有字段"""
+    return get_user_from_db(user_id)
+```
+
+### 返回列表类型
+
+```python
+@app.get("/items/", response_model=list[Item])
+def list_items():
+    """返回 Item 列表"""
+    return list(items_db.values())
+
+# 也可以用 dict 实现更细粒度的列表过滤
+@app.get("/items/names", response_model=list[dict])
+def list_item_names():
+    """只返回 id 和 name"""
+    return [
+        {"id": k, "name": v.name}
+        for k, v in items_db.items()
+    ]
+```
+
+## 数据转换与别名
+
+### 响应数据别名（序列化时）
+
+```python
+from pydantic import BaseModel, Field
+from typing import Annotated
+
+class UserResponse(BaseModel):
+    model_config = {"by_alias": True}  # 序列化时使用 alias 名称
+
+    user_id: int = Field(alias="userId")
+    user_name: str = Field(alias="userName")
+    joined_date: str = Field(alias="joinedDate")
+
+@app.get("/users/{user_id}", response_model=UserResponse)
+def get_user(user_id: int):
+    return {
+        "user_id": 1,
+        "user_name": "Alice",
+        "joined_date": "2026-01-15"
+    }
+```
+
+返回 JSON 使用 camelCase 命名（适合前端 JavaScript 消费）：
+
+```json
+{"userId": 1, "userName": "Alice", "joinedDate": "2026-01-15"}
+```
+
+## 联合类型响应
+
+### Union 响应模型
+
+一个接口可能返回不同类型的响应数据，使用 `list[Model1 | Model2]` 或 `Union` 声明：
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import Union
+
+app = FastAPI()
+
+class SuccessResponse(BaseModel):
+    message: str
+    data: dict
+
+class ErrorResponse(BaseModel):
+    error: str
+    code: int
+
+@app.get("/resource/{resource_id}", response_model=Union[SuccessResponse, ErrorResponse])
+def get_resource(resource_id: int):
+    resource = find_resource(resource_id)
+    if resource is None:
+        # 返回错误结构（HTTPException 会被 FastAPI 转换为 JSON 错误体）
+        raise HTTPException(status_code=404, detail="资源不存在")
+    return SuccessResponse(message="成功", data=resource)
+```
+
+## 完整示例：带分页和元信息的响应
+
+```python
+from fastapi import FastAPI, Query
+from pydantic import BaseModel
+from typing import Generic, TypeVar
+
+app = FastAPI()
+
+T = TypeVar("T")
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """通用分页响应模型"""
+    items: list[T]
+    total: int
+    skip: int
+    limit: int
+    has_more: bool
+
+class Item(BaseModel):
+    id: int
+    name: str
+    price: float
+
+items_db = [
+    Item(id=i, name=f"物品{i}", price=float(i * 100))
+    for i in range(1, 51)
+]
+
+@app.get("/items/", response_model=PaginatedResponse[Item])
+def list_items(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100)
+):
+    """
+    返回分页列表
+    - items: 当前页数据
+    - total: 总条数
+    - skip/limit: 分页参数
+    - has_more: 是否有下一页
+    """
+    paginated = items_db[skip : skip + limit]
+    return PaginatedResponse(
+        items=paginated,
+        total=len(items_db),
+        skip=skip,
+        limit=limit,
+        has_more=skip + limit < len(items_db)
+    )
+```
+
+返回示例：
+
+```json
+{
+  "items": [
+    {"id": 1, "name": "物品1", "price": 100.0},
+    {"id": 2, "name": "物品2", "price": 200.0}
+  ],
+  "total": 50,
+  "skip": 0,
+  "limit": 10,
+  "has_more": true
+}
+```
+
+## 总结
+
+本文覆盖了 FastAPI 响应处理的全部核心能力：
+
+- **response_model**：声明输出结构，内部数据自动过滤为公开格式
+- **状态码**：通过 `status_code` 参数或 `status` 枚举精确控制 HTTP 状态
+- **exclude_unset**：区分"未传字段"和"传了空值"，实现精确的部分更新
+- **字段过滤**：`response_model_include/exclude` 在路由层面过滤字段
+- **联合类型**：`Union` 支持返回多种响应结构
+- **分页响应**：泛型 `PaginatedResponse[T]` 实现通用分页格式
+
+掌握响应模型，你就拥有了**精确控制 API 对外接口**的能力，既保护了内部实现细节，又为前端提供了干净、一致的契约。下一篇文章我们将学习 **FastAPI 依赖注入系统**，这是 FastAPI 最具特色的架构设计。

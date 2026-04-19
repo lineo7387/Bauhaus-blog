@@ -1,0 +1,211 @@
+---
+title: FastAPI 安装与 Hello World
+description: 从零搭建 FastAPI + Uvicorn 开发环境，运行第一个 Web API 服务，深度理解 ASGI 协议、事件循环、热重载机制与自动交互文档的完整工作原理
+pubDate: 2026-04-19
+category: fastapi
+tags: [fastapi, python, uvicorn, 入门]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 6
+planId: fastapi-installation
+---
+
+# FastAPI 安装与 Hello World
+
+FastAPI 是 Python 生态中近年来最值得关注的新一代 Web 框架——它同时具备**类型安全**、**自动文档生成**和**异步高性能**三大优势。本文将带你从零完成环境搭建，运行起第一个 API 服务，并理解 Uvicorn 的运行原理。
+
+## 环境准备
+
+### Python 版本要求
+
+FastAPI 最低支持 Python 3.8，并充分利用 Python 3.9+ 的类型注解增强特性。建议使用 Python 3.10 或更高版本以获得完整支持。
+
+```bash
+# 确认 Python 版本
+python --version
+# Python 3.12.3
+
+# 推荐使用虚拟环境隔离项目依赖
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+```
+
+### 安装 FastAPI 与 Uvicorn
+
+FastAPI 本身只定义了接口规范，实际的 HTTP 服务器需要另行安装。**Uvicorn** 是目前最流行的 ASGI 服务器，与 FastAPI 配合使用。
+
+```bash
+# 安装 FastAPI（核心框架）与 uvicorn（ASGI 服务器）
+pip install fastapi uvicorn
+
+# 安装完整版（包含所有可选依赖，如请求解析、模板渲染等）
+pip install "fastapi[all]"
+
+# 开发依赖：代码修改自动重启服务
+pip install "uvicorn[standard]"
+```
+
+> **术语**：`ASGI`（Asynchronous Server Gateway Interface）是 WSGI 的异步演进版，允许处理长连接（WebSocket、Server-Sent Events），FastAPI 全面基于 ASGI 构建。
+
+## 创建第一个 FastAPI 应用
+
+### 项目结构
+
+一个最小化的 FastAPI 项目只需一个 Python 文件：
+
+```
+myapi/
+├── main.py        # 应用入口
+└── venv/          # 虚拟环境
+```
+
+### Hello World 代码
+
+```python
+# main.py
+from fastapi import FastAPI
+
+# 创建应用实例
+app = FastAPI()
+
+# 注册 GET 路由
+@app.get("/")
+def read_root():
+    return {"message": "Hello, Bauhaus!"}
+
+# 注册带路径参数的路由
+@app.get("/items/{item_id}")
+def read_item(item_id: int):
+    return {"item_id": item_id, "description": f"这是第 {item_id} 个物品"}
+```
+
+### 启动开发服务器
+
+```bash
+# 标准启动方式
+uvicorn main:app --host 0.0.0.0 --port 8000
+
+# 开启热重载（代码修改后自动重启）
+uvicorn main:app --reload --port 8000
+
+# 指定应用模块和变量名（main:app 中的 app 即 FastAPI 实例变量名）
+```
+
+服务启动后，控制台输出如下：
+
+```
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000
+```
+
+## 访问自动生成文档
+
+FastAPI 最强大的特性之一是**自动交互式 API 文档**：
+
+- **Swagger UI**：`http://127.0.0.1:8000/docs` — 在线测试接口的图形界面
+- **ReDoc**：`http://127.0.0.1:8000/redoc` — 更美观的文档阅读界面
+- **OpenAPI JSON**：`http://127.0.0.1:8000/openapi.json` — 机器可读的接口规范
+
+> **提示**：这两个文档页面是 FastAPI 自动根据路由和类型注解生成的，无需额外配置。在团队协作和前后端对接场景中极为实用。
+
+## Uvicorn 运行原理
+
+理解 Uvicorn 是正确使用 FastAPI 的关键。
+
+### ASGI 协议与事件循环
+
+Uvicorn 基于 **uvloop**（Node.js libuv 的 Python 实现）构建异步事件循环，处理并发请求时无需为每个连接创建独立线程。
+
+```python
+# uvicorn 内部工作流程（简化版）
+# 1. 接收 HTTP 请求
+# 2. 将请求封装为 ASGI Scope 字典
+# 3. 调用 FastAPI ASGI 应用，传入 scope + receive/send 回调
+# 4. FastAPI 根据路由匹配 handler，执行业务逻辑（同步或异步）
+# 5. handler 返回响应，Uvicorn 通过 send 回调写入网络缓冲区
+# 6. 释放连接，等待下一个请求
+```
+
+### 热重载原理
+
+```bash
+uvicorn main:app --reload --reload-dir ./app --exclude-dir tests
+```
+
+`--reload` 模式下，Uvicorn 内部使用 `watchfiles` 库监控文件系统的 `mtime`（修改时间），一旦检测到变更，立即重新导入模块、重新构建 ASGI 应用，而**无需重启进程**。
+
+### 生产环境配置
+
+开发环境使用单 worker，开发阶段足够；生产环境则需要多 worker：
+
+```bash
+# 使用多个 worker 进程（CPU 核心数 × 2）
+uvicorn main:app --workers 4 --host 0.0.0.0 --port 8000
+
+# 或使用 Gunicorn 作为进程管理器 + Uvicorn worker
+pip install gunicorn
+gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+```
+
+> **注意**：在 Windows 环境下 Gunicorn 不兼容，需要使用多 worker 时建议在 Linux/macOS 服务器上部署。
+
+## 完整示例：带配置的应用
+
+```python
+# main.py
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI(
+    title="我的 FastAPI 应用",
+    description="一个展示 FastAPI 基础功能的示例项目",
+    version="1.0.0"
+)
+
+class Item(BaseModel):
+    """物品数据模型"""
+    name: str
+    price: float
+    tags: list[str] = []
+
+items_db: dict[int, Item] = {}
+
+@app.post("/items/", status_code=201)
+def create_item(item: Item):
+    """创建新物品"""
+    item_id = len(items_db) + 1
+    items_db[item_id] = item
+    return {"id": item_id, **item.model_dump()}
+
+@app.get("/items/{item_id}")
+def get_item(item_id: int):
+    """根据 ID 获取物品"""
+    if item_id not in items_db:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="物品不存在")
+    return items_db[item_id]
+
+@app.get("/")
+def root():
+    return {
+        "app": "我的 FastAPI 应用",
+        "docs": "/docs",
+        "version": "1.0.0"
+    }
+```
+
+启动后访问 `http://127.0.0.1:8000/docs`，即可看到自动生成的交互式文档，可以直接在页面上测试 `POST /items/` 和 `GET /items/{item_id}` 接口。
+
+## 总结
+
+本文完成了 FastAPI 的入门全部步骤：
+
+- **环境搭建**：虚拟环境 + `pip install fastapi uvicorn`
+- **最小应用**：创建 `FastAPI()` 实例 + 装饰器注册路由
+- **运行服务**：`uvicorn main:app --reload`
+- **自动文档**：通过 `/docs` 和 `/redoc` 零成本生成交互式 API 文档
+- **Uvicorn 原理**：ASGI 协议 + 事件循环 + 热重载机制
+
+FastAPI 的上手门槛极低，而类型安全与自动文档带来的工程效率提升却是巨大的。下一篇文章我们将深入学习 **路径参数、查询参数与请求头**，掌握 URL 路由设计的核心技巧。
