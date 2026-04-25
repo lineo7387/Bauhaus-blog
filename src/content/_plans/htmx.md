@@ -53,22 +53,22 @@ planOrder:
 
 ## 进阶技能
 
-- [ ] 表单处理与验证
+- [✅] 表单处理与验证
       desc: 使用 htmx 处理表单提交、文件上传、客户端与服务器端验证的错误回显模式
       difficulty: medium
       estimatedWords: 2000
 
-- [ ] hx-swap-oob 与多元素更新
+- [✅] hx-swap-oob 与多元素更新
       desc: 理解 Out-of-Band 交换机制，实现一次请求更新页面多个独立区域
       difficulty: medium
       estimatedWords: 1800
 
-- [ ] 事件系统与扩展
+- [✅] 事件系统与扩展
       desc: htmx 自定义事件体系（htmx:beforeRequest、htmx:afterSwap 等）、事件冒泡与拦截
       difficulty: medium
       estimatedWords: 2200
 
-- [ ] 历史管理与浏览器导航
+- [✅] 历史管理与浏览器导航
       desc: hx-push-url、hx-replace-url 与浏览器历史集成，实现无刷新页面的前进后退支持
       difficulty: medium
       estimatedWords: 1500

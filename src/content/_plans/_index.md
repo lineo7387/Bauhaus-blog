@@ -19,7 +19,7 @@
 | Express | 5.x | in-progress | [_plans/express.md](express.md) | 5 / 13 |
 | FastAPI | 0.115.x | in-progress | [_plans/fastapi.md](fastapi.md) | 8 / 13 |
 | MySQL | 8.x | in-progress | [_plans/mysql.md](mysql.md) | 4 / 12 |
-| htmx | 2.x | in-progress | [_plans/htmx.md](htmx.md) | 4 / 13 |
+| htmx | 2.x | in-progress | [_plans/htmx.md](htmx.md) | 8 / 13 |
 
 ## 状态说明
 

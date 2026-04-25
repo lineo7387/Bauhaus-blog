@@ -1,0 +1,284 @@
+---
+title: 历史管理与浏览器导航
+description: 学习 hx-push-url 与 hx-replace-url 的使用，掌握 htmx 与浏览器历史集成的技术，实现无刷新页面的前进后退支持
+pubDate: 2026-04-25
+category: htmx
+tags: [htmx, history, browser, navigation]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 5
+planId: history-management
+---
+
+# 历史管理与浏览器导航
+
+默认情况下，htmx 的 AJAX 请求不会改变浏览器的地址栏和历史记录。这意味着用户无法通过前进/后退按钮导航，也无法收藏某个"页面状态"。htmx 提供了 `hx-push-url` 和 `hx-replace-url` 两个属性来解决这个问题。
+
+## hx-push-url：将 URL 推入历史
+
+`hx-push-url="true"` 会让 htmx 在发起请求前将当前请求的 URL 推入浏览器历史栈。
+
+### 基础用法
+
+```html
+<nav>
+    <a hx-get="/dashboard"
+       hx-target="#content"
+       hx-push-url="true">
+        仪表盘
+    </a>
+    <a hx-get="/reports"
+       hx-target="#content"
+       hx-push-url="true">
+        报表
+    </a>
+    <a hx-get="/settings"
+       hx-target="#content"
+       hx-push-url="true">
+        设置
+    </a>
+</nav>
+
+<div id="content">
+    <!-- 动态加载的内容 -->
+</div>
+```
+
+点击导航链接时：
+
+1. htmx 向 `/dashboard` 发起 GET 请求
+2. 同时将地址栏更新为 `https://example.com/dashboard`
+3. 浏览器历史栈中新增一条记录
+4. 响应内容替换 `#content`
+
+> **注意**：`hx-push-url` 仅对 `hx-get` 请求有效。POST/PUT/DELETE 请求不会自动推入历史。
+
+### 自定义 URL
+
+有时请求 URL 和展示的 URL 不一致，可以使用自定义值：
+
+```html
+<!-- 搜索后 URL 变为 /search?q=关键词 -->
+<form hx-get="/api/search"
+      hx-target="#results"
+      hx-push-url="/search"
+      hx-include="[name='q']">
+    <input type="search" name="q" placeholder="搜索..." />
+    <button type="submit">搜索</button>
+</form>
+```
+
+用户提交搜索后，地址栏显示 `/search?q=关键词`，但请求实际发送到 `/api/search?q=关键词`。
+
+> **提示**：如果自定义 URL 包含查询参数，htmx 会自动将表单数据追加到 URL 中。
+
+## hx-replace-url：替换当前历史记录
+
+与 `hx-push-url` 不同，`hx-replace-url` 会**替换**当前的历史记录，而不是新增一条。
+
+### 适用场景
+
+- 分页切换（不希望每条分页都进入历史）
+- 筛选条件变化（用最新筛选替换当前状态）
+- 模态框关闭时恢复原始 URL
+
+```html
+<div class="pagination">
+    <a hx-get="/products?page=1"
+       hx-target="#product-list"
+       hx-replace-url="true">1</a>
+    <a hx-get="/products?page=2"
+       hx-target="#product-list"
+       hx-replace-url="true">2</a>
+    <a hx-get="/products?page=3"
+       hx-target="#product-list"
+       hx-replace-url="true">3</a>
+</div>
+```
+
+用户点击页码时，地址栏更新但不新增历史记录。后退按钮会直接回到上一个页面（而不是上一页）。
+
+## 浏览器前进/后退处理
+
+当用户点击浏览器的前进或后退按钮时，htmx 会自动拦截 `popstate` 事件并恢复对应的历史状态。
+
+### 恢复机制
+
+htmx 保存历史状态时存储了以下信息：
+
+- 目标元素的 HTML 内容
+- 页面滚动位置
+- 相关元素的属性状态
+
+当用户前进/后退时，htmx 会自动恢复目标元素的内容，无需重新发起请求。
+
+> **注意**：如果希望前进/后退时重新获取最新数据，可以在 `<body>` 上添加 `hx-history="false"` 禁用 htmx 的本地缓存恢复，让浏览器自然触发页面重载或手动处理 `popstate`。
+
+### 禁用特定元素的历史缓存
+
+某些动态内容（如实时数据）不应该从历史缓存恢复：
+
+```html
+<div id="live-feed" hx-history="false">
+    <!-- 实时更新的内容，每次都不从历史恢复 -->
+</div>
+```
+
+### 手动控制历史缓存
+
+```html
+<meta name="htmx-config" content='{"historyCacheSize":20}'>
+```
+
+`historyCacheSize` 控制 htmx 在内存中保存的历史条目数量，默认是 10。
+
+## hx-boost 的历史管理
+
+`hx-boost` 会为区域内的普通链接和表单自动启用 AJAX 行为，同时也会自动处理 URL 历史：
+
+```html
+<div hx-boost="true">
+    <!-- 链接点击后地址栏自动更新，支持后退 -->
+    <a href="/about">关于我们</a>
+    <a href="/contact">联系方式</a>
+
+    <!-- 表单提交后 URL 也会更新 -->
+    <form action="/search" method="get">
+        <input type="search" name="q" />
+        <button type="submit">搜索</button>
+    </form>
+</div>
+```
+
+默认情况下，`hx-boost` 的链接会自动 `push` URL，表单 GET 请求也会 `push` URL，而表单 POST 请求不会。
+
+### 自定义 boost 行为
+
+```html
+<!-- 区域内所有 boost 请求都使用 replace 而不是 push -->
+<div hx-boost="true" hx-replace-url="true">
+    ...
+</div>
+```
+
+## 与 hx-select 配合的注意事项
+
+当使用 `hx-select` 从响应中提取部分内容时，`hx-push-url` 的行为需要特别注意：
+
+```html
+<div hx-get="/full-page"
+     hx-select="#main"
+     hx-target="#content"
+     hx-push-url="true">
+    加载内容
+</div>
+```
+
+这种情况下，htmx 会：
+
+1. 向 `/full-page` 请求完整页面
+2. 从响应中提取 `#main` 内容更新 `#content`
+3. 将 `/full-page` 推入历史
+
+如果希望 URL 和实际显示内容一致，服务端应该根据 `HX-Request` 头返回不同的内容。
+
+## 完整示例：SPA 风格导航
+
+以下是一个完整的类 SPA 导航实现：
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <style>
+        .nav-link.active { font-weight: bold; color: #1040C0; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a class="nav-link"
+           hx-get="/pages/dashboard"
+           hx-target="#main-content"
+           hx-push-url="/dashboard">
+            仪表盘
+        </a>
+        <a class="nav-link"
+           hx-get="/pages/users"
+           hx-target="#main-content"
+           hx-push-url="/users">
+            用户管理
+        </a>
+        <a class="nav-link"
+           hx-get="/pages/settings"
+           hx-target="#main-content"
+           hx-push-url="/settings">
+            系统设置
+        </a>
+    </nav>
+
+    <main id="main-content">
+        <!-- 初始内容 -->
+    </main>
+
+    <script>
+    // 更新当前导航高亮
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.id === 'main-content') {
+        // 移除所有高亮
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.classList.remove('active');
+        });
+
+        // 根据当前 URL 高亮对应导航
+        const currentPath = window.location.pathname;
+        document.querySelectorAll('.nav-link').forEach(link => {
+            if (link.getAttribute('hx-push-url') === currentPath) {
+                link.classList.add('active');
+            }
+        });
+    }
+});
+    </script>
+</body>
+</html>
+```
+
+### 服务端配合
+
+```python
+@app.route('/pages/<page_name>')
+def page_content(page_name):
+    # 返回 HTML 片段
+    return render_template(f'partials/{page_name}.html')
+
+@app.route('/dashboard')
+def dashboard_full():
+    # 完整页面（直接访问时使用）
+    if request.headers.get('HX-Request'):
+        return render_template('partials/dashboard.html')
+    return render_template('layout.html', content='dashboard')
+
+@app.route('/users')
+def users_full():
+    if request.headers.get('HX-Request'):
+        return render_template('partials/users.html')
+    return render_template('layout.html', content='users')
+```
+
+> **提示**：这套模式（一个路由返回完整页面，一个路由返回片段）是 htmx 应用的标准架构。通过 `HX-Request` 头区分请求来源，让直接访问和 AJAX 访问都能正常工作。
+
+## 总结
+
+htmx 的历史管理让多页应用获得 SPA 的导航体验：
+
+- **`hx-push-url="true"`**：将请求 URL 推入浏览器历史，支持前进/后退
+- **`hx-replace-url="true"`**：替换当前历史记录，不产生新的历史条目
+- **`hx-boost`**：自动为传统链接和表单启用历史管理
+- **`hx-history="false"`**：禁用特定元素的历史缓存恢复
+- **`htmx:afterSwap` 事件**：可配合实现导航高亮等状态同步
+
+htmx 的历史恢复机制缓存了目标元素的 DOM 状态，使得前进/后退无需重新请求服务器，响应即时。对于需要获取最新数据的场景，可禁用缓存或手动处理 `popstate` 事件重新请求。
+
+下一篇文章将进入**生态与实践**章节，学习 **htmx 与后端框架集成**。

@@ -1,0 +1,310 @@
+---
+title: hx-swap-oob 与多元素更新
+description: 深入理解 Out-of-Band 交换机制，学习如何在一次 AJAX 响应中同时更新页面上的多个独立区域
+pubDate: 2026-04-25
+category: htmx
+tags: [htmx, hx-swap-oob, oob, ajax]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 6
+planId: hx-swap-oob
+---
+
+# hx-swap-oob 与多元素更新
+
+实际应用中，一个操作常常需要同时更新页面上的多个区域。例如：点击"加入购物车"后，不仅要更新商品状态，还要更新购物车图标上的数量徽标。htmx 的 **Out-of-Band（OOB）交换** 机制让这种需求变得异常简单。
+
+## 为什么需要 OOB 交换
+
+传统的 htmx 交换只能更新一个目标元素（由 `hx-target` 指定）。假设有一个电商场景：
+
+```html
+<div id="product-42">
+    <button hx-post="/api/cart/add/42"
+            hx-target="#product-42"
+            hx-swap="outerHTML">
+        加入购物车
+    </button>
+</div>
+
+<!-- 页面顶部的购物车图标 -->
+<span id="cart-count">3</span>
+```
+
+点击按钮后，`#product-42` 可以被替换为"已加入购物车"状态，但 `#cart-count` 如何同步更新？
+
+方案一：客户端用 JavaScript 手动更新计数器。方案二：使用 OOB 交换，让服务器在返回的 HTML 中**嵌入多个独立更新区域**。
+
+## hx-swap-oob 基础
+
+`hx-swap-oob="true"` 可以标记响应中的任意元素，让它被交换到页面上**匹配其 ID** 的元素位置。
+
+### 服务端响应
+
+```html
+<!-- 这是服务器返回的完整响应内容 -->
+
+<!-- 主内容：替换按钮区域 -->
+<div id="product-42">
+    <button disabled>✓ 已加入购物车</button>
+</div>
+
+<!-- OOB 内容：同时更新购物车计数 -->
+<span id="cart-count" hx-swap-oob="true">4</span>
+
+<!-- OOB 内容：同时显示一条提示 -->
+<div id="toast" hx-swap-oob="true">商品已加入购物车</div>
+```
+
+在这个响应中：
+
+1. `#product-42` 作为**主内容**，替换 `hx-target` 指向的目标
+2. `#cart-count` 带有 `hx-swap-oob="true"`，htmx 会在页面上找到同 ID 的元素并替换它
+3. `#toast` 同样通过 OOB 被交换到页面上的对应位置
+
+> **关键规则**：OOB 元素的交换依据是 **`id` 属性匹配**。响应中的 OOB 元素必须有 `id`，htmx 会在当前页面上查找相同 `id` 的元素进行替换。
+
+### 指定交换策略
+
+OOB 交换也支持指定 `hx-swap` 策略：
+
+```html
+<!-- 使用 beforeend 将内容追加到目标内部末尾 -->
+<div id="cart-items" hx-swap-oob="beforeend">
+    <li>新商品</li>
+</div>
+
+<!-- 使用 delete 删除目标元素 -->
+<div id="notification-12" hx-swap-oob="delete"></div>
+```
+
+| OOB 值 | 行为 |
+|--------|------|
+| `true` | 默认策略（通常为 `innerHTML`） |
+| `innerHTML` | 替换目标内部内容 |
+| `outerHTML` | 替换目标元素本身 |
+| `beforeend` | 追加到目标内部末尾 |
+| `afterbegin` | 插入到目标内部开头 |
+| `beforebegin` | 在目标之前插入 |
+| `afterend` | 在目标之后插入 |
+| `delete` | 删除目标元素 |
+| `none` | 不执行交换 |
+
+## 常见应用场景
+
+### 购物车计数更新
+
+这是 OOB 最经典的用法之一。
+
+前端：
+
+```html
+<nav>
+    <a href="/cart">
+        购物车
+        <span id="cart-badge" class="badge">3</span>
+    </a>
+</nav>
+
+<div id="product-42">
+    <button hx-post="/api/cart/add/42"
+            hx-target="#product-42"
+            hx-swap="outerHTML">
+        加入购物车
+    </button>
+</div>
+```
+
+服务端返回：
+
+```html
+<!-- 主更新：按钮状态变化 -->
+<div id="product-42">
+    <button disabled>✓ 已加入购物车</button>
+    <a href="/cart">去结算</a>
+</div>
+
+<!-- OOB 更新：徽标数字 +1 -->
+<span id="cart-badge" class="badge" hx-swap-oob="true">4</span>
+```
+
+### Toast 通知
+
+利用 OOB 实现全局消息提示：
+
+```html
+<!-- 页面顶部的通知容器 -->
+<div id="toast-container"></div>
+
+<!-- 页面各处触发操作的按钮 -->
+<button hx-post="/api/save"
+        hx-target="this"
+        hx-swap="outerHTML">
+    保存设置
+</button>
+```
+
+服务端：
+
+```html
+<!-- 主更新：按钮变为已保存状态 -->
+<button disabled>✓ 已保存</button>
+
+<!-- OOB：在通知容器追加一条消息 -->
+<div id="toast-container" hx-swap-oob="beforeend">
+    <div class="toast toast-success">设置保存成功</div>
+</div>
+```
+
+> **提示**：配合 CSS 动画可以让 Toast 自动消失，无需额外 JavaScript。
+
+### 多区域仪表板更新
+
+后台仪表板常有多个独立的数据卡片：
+
+```html
+<div class="dashboard">
+    <div class="card" id="revenue-card">...</div>
+    <div class="card" id="users-card">...</div>
+    <div class="card" id="orders-card">...</div>
+</div>
+
+<button hx-post="/api/refresh-dashboard"
+        hx-target="#revenue-card"
+        hx-swap="outerHTML">
+    刷新数据
+</button>
+```
+
+服务端一次返回所有卡片的更新：
+
+```html
+<!-- 主更新 -->
+<div id="revenue-card" class="card">
+    <h4>今日收入</h4>
+    <p class="value">¥12,580</p>
+</div>
+
+<!-- OOB 更新 -->
+<div id="users-card" class="card" hx-swap-oob="true">
+    <h4>活跃用户</h4>
+    <p class="value">1,234</p>
+</div>
+
+<div id="orders-card" class="card" hx-swap-oob="true">
+    <h4>新订单</h4>
+    <p class="value">56</p>
+</div>
+```
+
+## OOB 与 hx-select 结合
+
+当服务端返回的是完整 HTML 页面时，可以结合 `hx-select` 和 OOB：
+
+```html
+<div hx-get="/full-page"
+     hx-select="#main-content"
+     hx-target="#content-area">
+    加载内容
+</div>
+```
+
+服务端返回完整页面：
+
+```html
+<!DOCTYPE html>
+<html>
+<head>...</head>
+<body>
+    <div id="main-content">...</div>
+    <div id="sidebar-stats" hx-swap-oob="true">...</div>
+</body>
+</html>
+```
+
+htmx 会：
+
+1. 从响应中提取 `#main-content` 作为主内容更新 `#content-area`
+2. 同时处理 `#sidebar-stats` 的 OOB 交换，更新页面上的对应元素
+
+## 处理 OOB 元素不存在的情况
+
+如果响应中包含 OOB 元素但页面上没有对应的 `id`，htmx 默认会**静默忽略**该 OOB 内容。你可以通过配置改变这一行为：
+
+```html
+<meta name="htmx-config" content='{"oobSwapError":"throw"}'>
+```
+
+配置项 `oobSwapError` 支持：
+
+| 值 | 行为 |
+|---|---|
+| `"ignore"` | 静默忽略（默认） |
+| `"throw"` | 抛出错误 |
+
+## 完整示例：待办事项 + 统计
+
+实现一个待办事项应用，每次操作后同时更新列表和顶部统计信息：
+
+```html
+<div class="todo-app">
+    <!-- 统计栏 -->
+    <div id="stats-bar" class="stats">
+        <span>总计: <strong id="total-count">5</strong></span>
+        <span>待完成: <strong id="pending-count">3</strong></span>
+        <span>已完成: <strong id="completed-count">2</strong></span>
+    </div>
+
+    <!-- 添加表单 -->
+    <form hx-post="/api/todos"
+          hx-target="#todo-list"
+          hx-swap="beforeend"
+          hx-on::after-request="this.reset()">
+        <input type="text" name="text" placeholder="新任务..." required />
+        <button type="submit">添加</button>
+    </form>
+
+    <!-- 任务列表 -->
+    <ul id="todo-list">
+        <li id="todo-1">
+            <span>学习 htmx OOB</span>
+            <button hx-post="/api/todos/1/complete"
+                    hx-target="closest li"
+                    hx-swap="outerHTML">
+                完成
+            </button>
+        </li>
+    </ul>
+</div>
+```
+
+完成任务的响应：
+
+```html
+<!-- 主更新：替换该任务行 -->
+<li id="todo-1" class="completed">
+    <span>学习 htmx OOB</span>
+    <span class="done-badge">✓</span>
+</li>
+
+<!-- OOB 更新：同步统计数据 -->
+<div id="stats-bar" class="stats" hx-swap-oob="true">
+    <span>总计: <strong id="total-count">5</strong></span>
+    <span>待完成: <strong id="pending-count">2</strong></span>
+    <span>已完成: <strong id="completed-count">3</strong></span>
+</div>
+```
+
+> **注意**：OOB 的 `#stats-bar` 可以包含多个子元素，htmx 会替换整个容器及其内容。
+
+## 总结
+
+`hx-swap-oob` 是 htmx 中解决"多区域同步更新"问题的利器：
+
+- **核心机制**：响应中标记 `hx-swap-oob="true"` 的元素会被交换到页面上同 `id` 的位置
+- **交换策略**：OOB 支持所有 `hx-swap` 策略，如 `beforeend`、`delete` 等
+- **典型场景**：购物车计数、Toast 通知、仪表板多卡片更新、统计信息同步
+- **无需 JavaScript**：所有多区域更新逻辑都在服务器端处理，返回统一的 HTML 响应
+
+掌握 OOB 后，你可以在一次请求中精确控制页面上任意数量的元素更新。下一篇文章将深入探讨 **htmx 的事件系统与扩展**。
