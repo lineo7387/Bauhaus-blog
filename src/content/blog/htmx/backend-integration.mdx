@@ -1,0 +1,447 @@
+---
+title: 与后端框架集成
+description: 学习 htmx 与 Django、Flask、FastAPI、Laravel 等主流后端框架的配合模式，掌握 HX-Request 头识别、模板片段组织等核心集成技巧
+pubDate: 2026-04-25
+category: htmx
+tags: [htmx, backend, django, flask, fastapi]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 7
+planId: backend-integration
+---
+
+# 与后端框架集成
+
+htmx 的设计理念是"服务器返回 HTML"，这意味着后端框架在其中扮演着核心角色。本文将讲解 htmx 与主流后端框架的集成模式，帮助你构建完整的服务器端渲染应用。
+
+## 集成的核心原则
+
+无论使用哪个后端框架，htmx 集成都遵循以下三个核心原则：
+
+### 1. HX-Request 请求头
+
+htmx 在每个 AJAX 请求中都会自动添加 `HX-Request: true` 请求头，这是后端识别 htmx 请求的关键：
+
+```python
+if request.headers.get('HX-Request'):
+    # htmx 请求：返回 HTML 片段
+    return render_partial('user_card.html', user=user)
+else:
+    # 普通请求：返回完整页面
+    return render_full('user_page.html', user=user)
+```
+
+### 2. 模板片段化
+
+将页面拆分为可独立渲染的模板片段（partial），让同一个片段既能嵌入完整页面，也能独立响应 AJAX：
+
+```
+templates/
+├── layout.html          # 完整页面骨架
+├── users/
+│   ├── list.html        # 完整列表页
+│   └── _list_items.html # 列表项片段（htmx 用）
+└── components/
+    ├── _navbar.html
+    └── _footer.html
+```
+
+### 3. 渐进增强
+
+确保没有 htmx 时页面也能正常工作。表单的 `action` 和 `method`、链接的 `href` 应该与 htmx 属性保持一致。
+
+## 与 Django 集成
+
+Django 的模板系统和 ORM 与 htmx 配合得天衣无缝。
+
+### 基础视图模式
+
+```python
+# views.py
+from django.shortcuts import render
+from django.views.decorators.http import require_http_methods
+
+@require_http_methods(["GET"])
+def task_list(request):
+    tasks = Task.objects.all().order_by('-created_at')
+
+    if request.headers.get('HX-Request'):
+        # htmx 请求：只返回列表片段
+        return render(request, 'tasks/_task_list.html', {
+            'tasks': tasks
+        })
+
+    # 普通请求：返回完整页面
+    return render(request, 'tasks/list.html', {
+        'tasks': tasks
+    })
+```
+
+### 模板组织
+
+```html
+<!-- tasks/list.html -->
+{% extends "layout.html" %}
+
+{% block content %}
+  <h1>任务列表</h1>
+  {% include "tasks/_task_list.html" %}
+{% endblock %}
+```
+
+```html
+<!-- tasks/_task_list.html -->
+<ul id="task-list">
+  {% for task in tasks %}
+    <li id="task-{{ task.id }}">
+      {{ task.title }}
+      <button hx-delete="{% url 'task_delete' task.id %}"
+              hx-target="closest li"
+              hx-swap="delete"
+              hx-confirm="确定删除？">
+        删除
+      </button>
+    </li>
+  {% endfor %}
+</ul>
+```
+
+### Django 中间件简化
+
+可以编写一个中间件来自动处理 htmx 响应：
+
+```python
+# middleware.py
+class HtmxMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        request.htmx = request.headers.get('HX-Request') == 'true'
+        response = self.get_response(request)
+        return response
+```
+
+然后在视图中直接使用：
+
+```python
+def task_list(request):
+    if request.htmx:
+        return render(request, 'tasks/_task_list.html')
+    return render(request, 'tasks/list.html')
+```
+
+### Django 表单集成
+
+```python
+# views.py
+@require_http_methods(["GET", "POST"])
+def task_create(request):
+    if request.method == "POST":
+        form = TaskForm(request.POST)
+        if form.is_valid():
+            task = form.save()
+            if request.htmx:
+                return render(request, 'tasks/_task_item.html', {'task': task})
+            return redirect('task_list')
+    else:
+        form = TaskForm()
+
+    return render(request, 'tasks/_task_form.html', {'form': form})
+```
+
+## 与 Flask 集成
+
+Flask 的轻量特性让它成为 htmx 的理想搭档。
+
+### 基础视图
+
+```python
+from flask import Flask, request, render_template, render_template_string
+
+app = Flask(__name__)
+
+@app.route('/tasks')
+def task_list():
+    tasks = get_tasks()
+
+    if request.headers.get('HX-Request'):
+        return render_template('partials/task_list.html', tasks=tasks)
+
+    return render_template('tasks.html', tasks=tasks)
+```
+
+### 使用蓝图组织
+
+```python
+# tasks.py
+from flask import Blueprint, request, render_template
+
+tasks_bp = Blueprint('tasks', __name__)
+
+@tasks_bp.route('/tasks', methods=['GET'])
+def list_tasks():
+    tasks = Task.query.all()
+    template = 'tasks/_list.html' if request.htmx else 'tasks/index.html'
+    return render_template(template, tasks=tasks)
+
+@tasks_bp.route('/tasks', methods=['POST'])
+def create_task():
+    task = Task.create(request.form)
+    return render_template('tasks/_item.html', task=task)
+```
+
+### 便捷装饰器
+
+```python
+from functools import wraps
+
+def htmx_aware(template_partial, template_full):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            result = f(*args, **kwargs)
+            if request.headers.get('HX-Request'):
+                return render_template(template_partial, **result)
+            return render_template(template_full, **result)
+        return decorated_function
+    return decorator
+
+@app.route('/profile')
+@htmx_aware('users/_profile.html', 'users/profile.html')
+def profile():
+    return {'user': current_user}
+```
+
+## 与 FastAPI 集成
+
+FastAPI 的现代语法与 htmx 搭配可以构建高性能的服务器端渲染应用。
+
+### Jinja2 模板
+
+```python
+from fastapi import FastAPI, Request, Header
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+app = FastAPI()
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/items", response_class=HTMLResponse)
+def list_items(request: Request, hx_request: str | None = Header(None)):
+    items = get_items()
+
+    template_name = "items/_list.html" if hx_request == "true" else "items/index.html"
+
+    return templates.TemplateResponse(
+        template_name,
+        {"request": request, "items": items}
+    )
+```
+
+### 表单处理
+
+```python
+from fastapi import Form
+
+@app.post("/items", response_class=HTMLResponse)
+def create_item(
+    request: Request,
+    title: str = Form(...),
+    description: str = Form(...),
+    hx_request: str | None = Header(None)
+):
+    item = create_item_db(title=title, description=description)
+
+    if hx_request == "true":
+        return templates.TemplateResponse(
+            "items/_item.html",
+            {"request": request, "item": item}
+        )
+
+    return templates.TemplateResponse(
+        "items/index.html",
+        {"request": request, "items": get_items()}
+    )
+```
+
+> **提示**：FastAPI 自动处理请求体解析和验证，结合 htmx 的表单提交非常方便。
+
+### 类型安全的依赖注入
+
+```python
+from fastapi import Depends
+
+async def is_htmx(hx_request: str | None = Header(None)) -> bool:
+    return hx_request == "true"
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(
+    request: Request,
+    htmx: bool = Depends(is_htmx)
+):
+    template = "dashboard/_stats.html" if htmx else "dashboard/index.html"
+    return templates.TemplateResponse(template, {
+        "request": request,
+        "stats": get_stats()
+    })
+```
+
+## 与 Laravel 集成
+
+Laravel 的 Blade 模板引擎与 htmx 配合良好：
+
+```php
+// routes/web.php
+Route::get('/posts', [PostController::class, 'index']);
+
+// app/Http/Controllers/PostController.php
+class PostController extends Controller
+{
+    public function index(Request $request)
+    {
+        $posts = Post::latest()->paginate(10);
+
+        if ($request->header('HX-Request')) {
+            return view('posts._list', compact('posts'));
+        }
+
+        return view('posts.index', compact('posts'));
+    }
+}
+```
+
+```blade
+{{-- resources/views/posts/_list.blade.php --}}
+<div id="post-list">
+    @foreach($posts as $post)
+        <article id="post-{{ $post->id }}">
+            <h3>{{ $post->title }}</h3>
+            <button hx-delete="/posts/{{ $post->id }}"
+                    hx-target="closest article"
+                    hx-swap="delete">
+                删除
+            </button>
+        </article>
+    @endforeach
+</div>
+```
+
+## 与 Ruby on Rails 集成
+
+Rails 的 Turbo 框架与 htmx 理念相似，两者也可以共存：
+
+```ruby
+# app/controllers/posts_controller.rb
+class PostsController < ApplicationController
+  def index
+    @posts = Post.all
+
+    if request.headers['HX-Request']
+      render partial: 'posts/list', layout: false
+    else
+      render :index
+    end
+  end
+end
+```
+
+```erb
+<!-- app/views/posts/_list.html.erb -->
+<div id="posts">
+  <% @posts.each do |post| %>
+    <%= render partial: 'post', locals: { post: post } %>
+  <% end %>
+</div>
+```
+
+## 模板片段组织的最佳实践
+
+无论使用哪个框架，模板组织的通用模式如下：
+
+```
+templates/
+├── layout.html              # 完整页面骨架（head, body 结构）
+├── pages/
+│   ├── dashboard.html       # 完整页面，继承 layout
+│   ├── users.html
+│   └── settings.html
+├── partials/                # htmx 使用的片段
+│   ├── _user_card.html
+│   ├── _comment_list.html
+│   ├── _todo_item.html
+│   └── _notification.html
+└── components/              # 可复用 UI 组件
+    ├── _navbar.html
+    ├── _pagination.html
+    └── _modal.html
+```
+
+关键约定：
+
+- 片段文件名以 `_` 开头表示这是 partial（非独立页面）
+- 片段只包含该区域的 HTML，不包含 `<html>`、`<head>` 等骨架
+- 片段中的 `id` 属性确保唯一，以便 htmx 能精确定位
+
+## 完整示例：Django + htmx 待办应用
+
+```python
+# views.py
+from django.shortcuts import render, get_object_or_404
+from django.views.decorators.http import require_POST
+
+@require_POST
+def toggle_task(request, task_id):
+    task = get_object_or_404(Task, id=task_id)
+    task.completed = not task.completed
+    task.save()
+
+    return render(request, 'tasks/_task_item.html', {'task': task})
+```
+
+```html
+<!-- _task_item.html -->
+<li id="task-{{ task.id }}"
+    class="{% if task.completed %}completed{% endif %}">
+    <span>{{ task.title }}</span>
+    <button hx-post="{% url 'toggle_task' task.id %}"
+            hx-target="closest li"
+            hx-swap="outerHTML">
+        {% if task.completed %}取消完成{% else %}完成{% endif %}
+    </button>
+</li>
+```
+
+```html
+<!-- index.html -->
+{% extends "layout.html" %}
+
+{% block content %}
+  <h1>待办事项</h1>
+  <ul id="task-list">
+    {% for task in tasks %}
+      {% include "tasks/_task_item.html" %}
+    {% endfor %}
+  </ul>
+
+  <form hx-post="{% url 'create_task' %}"
+        hx-target="#task-list"
+        hx-swap="beforeend"
+        hx-on::after-request="this.reset()">
+    <input type="text" name="title" required />
+    <button type="submit">添加</button>
+  </form>
+{% endblock %}
+```
+
+## 总结
+
+htmx 与后端框架的集成非常自然，核心模式在所有框架中都一样：
+
+- **识别 htmx 请求**：通过 `HX-Request` 头判断返回完整页面还是片段
+- **模板片段化**：将 UI 拆分为可独立渲染的 partial
+- **渐进增强**：确保无 JavaScript 时功能依然可用
+- **框架无关**：无论是 Django、Flask、FastAPI、Laravel 还是 Rails，集成模式几乎相同
+
+htmx 把前端交互的复杂度转移到后端模板层，让你可以用熟悉的服务器端技术构建动态 Web 应用。下一篇文章将学习 **CSS 过渡与动画**，为 htmx 交互添加视觉反馈。

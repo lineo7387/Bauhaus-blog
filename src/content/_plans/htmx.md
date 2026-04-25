@@ -75,17 +75,17 @@ planOrder:
 
 ## 生态与实践
 
-- [ ] 与后端框架集成
+- [✅] 与后端框架集成
       desc: htmx 与 Django、Flask、FastAPI、Laravel、Rails 等主流后端框架的配合模式
       difficulty: easy
       estimatedWords: 2000
 
-- [ ] CSS 过渡与动画
+- [✅] CSS 过渡与动画
       desc: 利用 htmx 的 class 工具（hx-add-class、hx-remove-class）与 CSS 过渡实现平滑的界面变化
       difficulty: easy
       estimatedWords: 1200
 
-- [ ] 安全与 CSRF 防护
+- [✅] 安全与 CSRF 防护
       desc: hx-headers 配置、CSRF Token 传递、CORS 处理及 htmx 安全最佳实践
       difficulty: medium
       estimatedWords: 1500

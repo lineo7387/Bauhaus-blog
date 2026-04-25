@@ -1,0 +1,405 @@
+---
+title: CSS 过渡与动画
+description: 学习利用 htmx 的 swap/settle 修饰符与 CSS 过渡实现平滑的界面变化，掌握常用的淡入、滑入、缩放等动画模式
+pubDate: 2026-04-25
+category: htmx
+tags: [htmx, css, transitions, animations]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 4
+planId: css-transitions
+---
+
+# CSS 过渡与动画
+
+htmx 的 AJAX 交换是瞬间完成的，如果没有视觉反馈，用户可能注意不到内容已更新。CSS 过渡和动画为 htmx 交互增添了流畅的视觉体验。本文将讲解如何为 htmx 内容交换添加优雅的动画效果。
+
+## 为什么需要过渡动画
+
+对比以下两种体验：
+
+- **无动画**：点击加载按钮，内容瞬间替换，用户可能不确定是否发生了更新
+- **有动画**：内容平滑淡入或滑入，用户明确感知到状态变化
+
+良好的过渡动画不仅美观，还能降低用户的认知负担，让界面变化更易理解。
+
+## htmx 的交换时间窗口
+
+htmx 在内容交换过程中提供了两个关键的时间窗口，它们与 CSS 过渡完美配合：
+
+### swap 修饰符
+
+`swap:N` 设置**旧内容移除与新内容插入之间的延迟**（毫秒）。
+
+```html
+<div hx-get="/api/update"
+     hx-swap="innerHTML swap:200ms">
+    加载新内容
+</div>
+```
+
+在这个 200ms 的窗口中，旧内容仍在 DOM 中，但 htmx 已为插入新内容做好准备。你可以在这段时间内为旧内容添加退出动画。
+
+### settle 修饰符
+
+`settle:N` 设置**新内容插入后等待 CSS 过渡完成的时间**（毫秒）。
+
+```html
+<div hx-get="/api/update"
+     hx-swap="innerHTML settle:300ms">
+    加载新内容
+</div>
+```
+
+新内容插入后，htmx 会等待 300ms 让 CSS 过渡完成，然后再标记交换为"完成"状态。
+
+### 组合使用
+
+```html
+<div hx-get="/api/content"
+     hx-target="#panel"
+     hx-swap="innerHTML swap:150ms settle:400ms">
+    切换内容
+</div>
+```
+
+完整的时间线：
+
+1. 请求完成，收到响应
+2. 等待 150ms（swap 阶段）—— 旧内容播放退出动画
+3. 移除旧内容，插入新内容
+4. 等待 400ms（settle 阶段）—— 新内容播放进入动画
+5. 触发 `htmx:afterSettle` 事件
+
+## 淡入淡出效果
+
+最基础也是最常用的过渡效果。
+
+```html
+<style>
+/* 默认状态 */
+.fade-item {
+    opacity: 0;
+    transition: opacity 300ms ease-in;
+}
+
+/* htmx 插入后自动添加的类，表示元素已"稳定" */
+.fade-item.htmx-settling {
+    opacity: 1;
+}
+</style>
+
+<div id="content" hx-swap="innerHTML settle:300ms">
+    <div class="fade-item">内容区域</div>
+</div>
+```
+
+> **注意**：htmx 在交换过程中会自动为元素添加和移除 CSS 类，你可以利用这些类触发动画。
+
+更完整的淡入淡出：
+
+```css
+/* 旧内容退出 */
+.htmx-swapping {
+    opacity: 0;
+    transition: opacity 150ms ease-out;
+}
+
+/* 新内容进入 */
+.htmx-added {
+    opacity: 0;
+}
+
+.htmx-settling .htmx-added {
+    opacity: 1;
+    transition: opacity 300ms ease-in;
+}
+```
+
+## 滑入滑出效果
+
+```css
+/* 从右侧滑入 */
+.slide-in {
+    transform: translateX(20px);
+    opacity: 0;
+    transition: all 300ms ease-out;
+}
+
+.slide-in.htmx-settling {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+/* 从下方滑入 */
+.slide-up {
+    transform: translateY(15px);
+    opacity: 0;
+    transition: all 250ms ease-out;
+}
+
+.slide-up.htmx-settling {
+    transform: translateY(0);
+    opacity: 1;
+}
+```
+
+```html
+<ul id="messages" hx-swap="beforeend settle:300ms">
+    <li class="slide-up">现有消息</li>
+</ul>
+```
+
+## 缩放效果
+
+适合强调新添加的内容：
+
+```css
+.scale-in {
+    transform: scale(0.9);
+    opacity: 0;
+    transition: all 200ms ease-out;
+}
+
+.scale-in.htmx-settling {
+    transform: scale(1);
+    opacity: 1;
+}
+```
+
+## 列表项添加/删除动画
+
+对列表项的添加和删除分别设置动画：
+
+```css
+/* 列表项进入动画 */
+.list-item {
+    transition: all 250ms ease-out;
+}
+
+.list-item.htmx-added {
+    animation: slideIn 250ms ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* 列表项删除动画 */
+.list-item.htmx-swapping {
+    animation: slideOut 200ms ease-in forwards;
+}
+
+@keyframes slideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+}
+```
+
+```html
+<ul id="todo-list" hx-swap="beforeend settle:250ms">
+    <li class="list-item">任务一</li>
+    <li class="list-item">任务二</li>
+</ul>
+```
+
+## htmx-indicator 进阶动画
+
+为加载指示器添加更丰富的动画效果：
+
+```css
+.htmx-indicator {
+    opacity: 0;
+    transition: opacity 200ms;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-indicator.htmx-request {
+    opacity: 1;
+}
+
+/* 旋转加载动画 */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #ccc;
+    border-top-color: #1040C0;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+```
+
+```html
+<button hx-get="/api/data" hx-indicator="#loading">
+    加载数据
+</button>
+<span id="loading" class="htmx-indicator spinner"></span>
+```
+
+## Toast 通知的自动消失动画
+
+结合 OOB 交换和 CSS 动画实现自动消失的 Toast：
+
+```css
+.toast {
+    padding: 12px 16px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    animation: toastIn 300ms ease-out, toastOut 300ms ease-in 3s forwards;
+}
+
+.toast-success {
+    background: #D4EDDA;
+    color: #155724;
+}
+
+.toast-error {
+    background: #F8D7DA;
+    color: #721C24;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes toastOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}
+```
+
+```html
+<!-- 页面顶部的通知容器 -->
+<div id="toast-container" hx-swap-oob="beforeend"></div>
+```
+
+服务端响应中嵌入 Toast：
+
+```html
+<div id="toast-container" hx-swap-oob="beforeend">
+    <div class="toast toast-success">操作成功</div>
+</div>
+```
+
+Toast 会在 3 秒后自动淡出消失（通过 `animation-delay` 和 `forwards` 实现）。
+
+## 完整示例：带过渡的模态框
+
+```html
+<style>
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 200ms;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-backdrop.htmx-settling {
+    opacity: 1;
+}
+
+.modal-content {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    transform: scale(0.95);
+    transition: transform 200ms ease-out;
+}
+
+.modal-backdrop.htmx-settling .modal-content {
+    transform: scale(1);
+}
+</style>
+
+<button hx-get="/modal/content"
+        hx-target="#modal-container"
+        hx-swap="innerHTML settle:200ms">
+    打开模态框
+</button>
+
+<div id="modal-container"></div>
+```
+
+服务端返回：
+
+```html
+<div class="modal-backdrop"
+     hx-get="/modal/close"
+     hx-target="#modal-container"
+     hx-swap="innerHTML swap:150ms">
+    <div class="modal-content">
+        <h2>模态框标题</h2>
+        <p>这里是模态框内容。</p>
+        <button hx-get="/modal/close"
+                hx-target="#modal-container"
+                hx-swap="innerHTML swap:150ms">
+            关闭
+        </button>
+    </div>
+</div>
+```
+
+点击关闭时，`swap:150ms` 给淡出动画留出时间。
+
+## 性能注意事项
+
+- 优先使用 `transform` 和 `opacity` 属性做动画，它们不会触发布局重排
+- 复杂的动画可能影响低端设备性能，保持动画简洁
+- 尊重用户的 `prefers-reduced-motion` 偏好设置：
+
+```css
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+```
+
+## 总结
+
+htmx 与 CSS 过渡的结合让界面变化自然而流畅：
+
+- **`swap:N`**：旧内容退出动画的时间窗口
+- **`settle:N`**：新内容进入动画的时间窗口
+- **htmx 自动类**：利用 `.htmx-swapping`、`.htmx-added`、`.htmx-settling` 触发动画
+- **常用模式**：淡入淡出、滑入滑出、缩放、Toast 自动消失
+- **性能优先**：使用 `transform` 和 `opacity`，尊重 `prefers-reduced-motion`
+
+htmx 不负责动画本身，它只提供精确的时间窗口。CSS 负责定义动画效果，两者分工清晰。下一篇文章将学习 **安全与 CSRF 防护**。

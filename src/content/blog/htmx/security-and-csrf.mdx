@@ -1,0 +1,337 @@
+---
+title: 安全与 CSRF 防护
+description: 学习 htmx 应用中的安全最佳实践，掌握 CSRF Token 传递、请求头配置、CORS 处理及常见的安全防护策略
+pubDate: 2026-04-25
+category: htmx
+tags: [htmx, security, csrf, cors]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 5
+planId: security-and-csrf
+---
+
+# 安全与 CSRF 防护
+
+安全是 Web 应用不可忽视的方面。htmx 虽然简化了前端交互，但安全责任仍然需要认真对待。本文将讲解 htmx 应用中的 CSRF 防护、请求头安全配置以及常见的安全最佳实践。
+
+## CSRF 攻击原理
+
+CSRF（跨站请求伪造）攻击利用用户已认证的会话，诱导用户在不知情的情况下执行非预期的操作。例如：
+
+1. 用户已登录银行网站，浏览器保存了认证 Cookie
+2. 用户访问恶意网站，该网站包含一个自动提交的表单：
+
+```html
+<!-- 恶意网站上的隐藏表单 -->
+<form action="https://bank.com/transfer" method="POST" id="evil">
+    <input type="hidden" name="to" value="attacker" />
+    <input type="hidden" name="amount" value="10000" />
+</form>
+<script>document.getElementById('evil').submit();</script>
+```
+
+3. 浏览器自动携带银行网站的 Cookie 提交请求
+4. 银行服务器验证了 Cookie 但未验证请求来源，转账成功
+
+## htmx 中的 CSRF 防护
+
+htmx 的 AJAX 请求同样面临 CSRF 风险，因为浏览器会自动发送目标域的 Cookie。防护的核心是**确保每个状态改变请求都携带服务器颁发的、不可猜测的 Token**。
+
+### 使用 meta 标签存储 Token
+
+最常见的做法是将 CSRF Token 放在 meta 标签中：
+
+```html
+<head>
+    <meta name="csrf-token" content="{{ csrf_token }}">
+</head>
+```
+
+然后使用 JavaScript 为所有 htmx 请求自动添加 Token：
+
+```javascript
+document.body.addEventListener('htmx:configRequest', function(evt) {
+    const token = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (token) {
+        evt.detail.headers['X-CSRF-Token'] = token;
+    }
+});
+```
+
+`htmx:configRequest` 事件在每个请求发送前触发，`evt.detail.headers` 允许你添加自定义请求头。
+
+### 各框架的 CSRF Token 获取方式
+
+| 框架 | Token 获取方式 |
+|------|---------------|
+| Django | `{% csrf_token %}` 模板标签 |
+| Flask-WTF | `{{ csrf_token() }}` |
+| Laravel | `@csrf` Blade 指令 |
+| Rails | `form_authenticity_token` |
+| FastAPI | 自行生成并存入模板上下文 |
+
+### Django 完整示例
+
+```html
+<!-- base.html -->
+<head>
+    {% csrf_token %}
+    <meta name="csrf-token" content="{{ csrf_token }}">
+</head>
+```
+
+```javascript
+// main.js
+document.body.addEventListener('htmx:configRequest', function(evt) {
+    const token = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+               || document.querySelector('meta[name="csrf-token"]')?.content;
+    if (token) {
+        evt.detail.headers['X-CSRFToken'] = token;
+    }
+});
+```
+
+Django 默认检查 `X-CSRFToken` 头中的 Token。
+
+### 使用 htmx 扩展封装
+
+可以将 CSRF 逻辑封装为可复用的扩展：
+
+```javascript
+htmx.defineExtension('csrf-token', {
+    onEvent: function(name, evt) {
+        if (name === 'htmx:configRequest') {
+            const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+            const tokenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+            const token = tokenMeta?.content || tokenInput?.value;
+
+            if (token) {
+                evt.detail.headers['X-CSRF-Token'] = token;
+            }
+        }
+    }
+});
+```
+
+启用扩展：
+
+```html
+<body hx-ext="csrf-token">
+    <!-- 此页面所有 htmx 请求自动携带 CSRF Token -->
+</body>
+```
+
+## 安全的请求头配置
+
+### hx-headers 属性
+
+对于需要在特定元素上添加请求头的场景，使用 `hx-headers`：
+
+```html
+<button hx-post="/api/admin/delete"
+        hx-headers='{"X-Admin-Key": "secret_key_123"}'
+        hx-confirm="此操作不可逆，确定继续？">
+    删除数据
+</button>
+```
+
+> **警告**：不要在 HTML 中硬编码真实的密钥。上面的示例仅说明语法，生产环境应通过更安全的方式传递敏感信息。
+
+### 全局默认请求头
+
+通过 `htmx.config` 设置全局默认请求头：
+
+```javascript
+htmx.config.defaultHeaders = {
+    'X-Requested-With': 'XMLHttpRequest',
+    'Accept': 'text/html'
+};
+```
+
+## CORS 处理
+
+当 htmx 请求跨域资源时，浏览器会自动应用 CORS（跨域资源共享）策略。
+
+### 预检请求
+
+对于非简单请求（如自定义请求头、非 GET/POST 方法），浏览器会发送 OPTIONS 预检请求：
+
+```
+OPTIONS /api/data HTTP/1.1
+Origin: https://frontend.com
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: hx-request, x-csrf-token
+```
+
+服务器需要正确响应：
+
+```
+Access-Control-Allow-Origin: https://frontend.com
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE
+Access-Control-Allow-Headers: hx-request, x-csrf-token
+Access-Control-Allow-Credentials: true
+```
+
+### htmx 跨域注意事项
+
+- htmx 默认发送 `HX-Request: true` 头，服务器 CORS 配置需要允许此头
+- 如果跨域请求需要携带 Cookie，确保元素或配置中设置了 `hx-credentials="true"`
+- 生产环境应严格限制 `Access-Control-Allow-Origin`，不要使用 `*`
+
+## 安全最佳实践
+
+### 1. 始终验证请求来源
+
+不要仅依赖 Cookie 验证用户身份。对于敏感操作，额外验证请求头：
+
+```python
+# Flask 示例
+@app.before_request
+def verify_request():
+    if request.method in ['POST', 'PUT', 'DELETE', 'PATCH']:
+        # 验证 CSRF Token
+        token = request.headers.get('X-CSRF-Token')
+        if not token or not validate_csrf(token):
+            abort(403)
+```
+
+### 2. 使用 hx-confirm 防止误操作
+
+```html
+<button hx-delete="/api/account"
+        hx-confirm="此操作将永久删除账户及所有数据，确定继续？">
+    删除账户
+</button>
+```
+
+### 3. 限制敏感操作的触发方式
+
+```html
+<!-- 不好的做法：任何点击都触发敏感操作 -->
+<div hx-post="/api/delete-all">点击这里</div>
+
+<!-- 好的做法：明确的按钮，需要确认 -->
+<button hx-post="/api/delete-all"
+        hx-confirm="确定删除所有数据？"
+        class="btn-danger">
+    清空所有数据
+</button>
+```
+
+### 4. 验证 Content-Type
+
+确保服务器正确验证请求的内容类型，防止 CSRF 绕过：
+
+```python
+# 拒绝非预期的 Content-Type
+if request.content_type not in ['application/x-www-form-urlencoded',
+                                 'multipart/form-data',
+                                 'application/json']:
+    abort(415)
+```
+
+### 5. 使用 SameSite Cookie
+
+配置会话 Cookie 的 SameSite 属性：
+
+```python
+# Flask
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# Django
+SESSION_COOKIE_SAMESITE = 'Lax'
+```
+
+| SameSite 值 | 行为 |
+|-------------|------|
+| `Strict` | 完全禁止跨站携带 Cookie，最严格 |
+| `Lax` | 允许顶级导航 GET 请求携带，推荐默认值 |
+| `None` | 允许所有跨站请求携带，必须配合 Secure 属性 |
+
+### 6. 敏感接口使用 POST 而非 GET
+
+```html
+<!-- 不好的做法：敏感操作使用 GET -->
+<a hx-get="/api/delete/123">删除</a>
+
+<!-- 好的做法：使用 DELETE 或 POST -->
+<button hx-delete="/api/items/123">删除</button>
+```
+
+GET 请求不应该改变服务器状态，且更容易被 CSRF 攻击（如通过 `<img>` 标签）。
+
+## 完整示例：安全的 Django 表单
+
+```html
+<!-- template.html -->
+<head>
+    <meta name="csrf-token" content="{{ csrf_token }}">
+</head>
+<body>
+    <form hx-post="{% url 'update_profile' %}"
+          hx-target="#result"
+          hx-swap="innerHTML"
+          enctype="multipart/form-data">
+
+        <input type="text" name="display_name" value="{{ user.display_name }}" />
+        <input type="email" name="email" value="{{ user.email }}" required />
+
+        <button type="submit">保存更改</button>
+    </form>
+
+    <div id="result"></div>
+
+    <hr>
+
+    <button hx-delete="{% url 'delete_account' %}"
+            hx-confirm="此操作将永久删除您的账户，所有数据将无法恢复。确定继续？"
+            hx-target="body"
+            class="btn-danger">
+        删除账户
+    </button>
+
+    <script>
+    document.body.addEventListener('htmx:configRequest', function(evt) {
+        const token = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (token) {
+            evt.detail.headers['X-CSRFToken'] = token;
+        }
+    });
+    </script>
+</body>
+```
+
+```python
+# views.py
+from django.shortcuts import render
+from django.views.decorators.http import require_http_methods
+from django.middleware.csrf import get_token
+
+@require_http_methods(["POST"])
+def update_profile(request):
+    # Django 自动验证 CSRF Token
+    user = request.user
+    user.display_name = request.POST.get('display_name')
+    user.email = request.POST.get('email')
+    user.save()
+    return render(request, 'partials/success.html', {'message': '资料已更新'})
+
+@require_http_methods(["DELETE"])
+def delete_account(request):
+    # 双重确认 + CSRF 验证
+    user = request.user
+    user.delete()
+    return render(request, 'partials/account_deleted.html')
+```
+
+## 总结
+
+htmx 应用的安全防护与传统 Web 应用基本一致：
+
+- **CSRF 防护**：通过 `meta` 标签 + `htmx:configRequest` 事件自动传递 Token
+- **请求头配置**：使用 `hx-headers` 或扩展添加自定义头，注意预检请求兼容性
+- **CORS**：正确配置跨域头，限制 `Access-Control-Allow-Origin`
+- **最佳实践**：`hx-confirm` 防误操作、`SameSite` Cookie、验证 Content-Type、敏感操作用 POST/DELETE
+
+安全不是 htmx 的特有问题，而是所有 Web 应用的基本功课。htmx 的简洁性让你可以把更多精力放在正确的安全策略上。下一篇文章将进入高级主题，学习 **自定义扩展开发**。
