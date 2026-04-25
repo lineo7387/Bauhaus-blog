@@ -1,0 +1,313 @@
+---
+title: JavaScript 运算符与控制流
+description: 全面掌握 JavaScript 各类运算符的行为细节，以及 if/else、switch、三元表达式和循环语句的使用技巧
+pubDate: 2026-04-25
+category: javascript
+tags: [javascript, operators, control-flow]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 7
+planId: operators-and-control-flow
+---
+
+# JavaScript 运算符与控制流
+
+控制流决定了代码的执行顺序，运算符则是逻辑的载体。掌握它们的行为细节，是写出无 Bug 代码的基础。
+
+## 算术运算符
+
+JavaScript 的算术运算遵循 IEEE 754 双精度浮点标准，这带来一些非直觉的结果：
+
+```js
+0.1 + 0.2;           // 0.30000000000000004（浮点精度问题）
+0.1 + 0.2 === 0.3    // false
+
+// 解决方案：使用整数运算或 toFixed
+parseFloat((0.1 + 0.2).toFixed(2)); // 0.3
+```
+
+### 特殊算术运算
+
+```js
+10 / 0;      // Infinity
+-10 / 0;     // -Infinity
+"hello" * 2; // NaN（非数字）
+
+// 取模：结果符号与被除数一致
+-7 % 3;      // -1
+7 % -3;      // 1
+```
+
+### 幂运算符
+
+ES2016 新增 `**` 运算符：
+
+```js
+2 ** 3;   // 8（相当于 Math.pow(2, 3)）
+2 ** 0;   // 1
+2 ** -2;  // 0.25
+```
+
+---
+
+## 比较运算符
+
+### 字符串比较
+
+字符串按 **Unicode 码点逐一比较**：
+
+```js
+"apple" < "banana";  // true（'a' < 'b'）
+"apple" < "Apple";   // false（大写字母码点小于小写）
+"10" < "2";          // true（字符串逐字符比较，'1' < '2'）
+```
+
+### 数字比较中的陷阱
+
+```js
+null == 0;  // true（null 被转换为 0）
+null < 1;   // true
+null >= 1;  // false
+undefined == 0; // false（undefined 只与 undefined/null 相等）
+```
+
+> **原则**：使用 `===` 避免隐式类型转换导致的意外结果。只在明确需要类型转换时才用 `==`。
+
+---
+
+## 逻辑运算符
+
+### 短路求值
+
+逻辑运算符从左到右求值，一旦能确定结果就停止（短路）：
+
+```js
+// &&
+false && expensiveOperation(); // 不执行 expensiveOperation()
+null && "hello";              // null
+"abc" && 123;                 // 123（返回最后一个求值结果）
+
+// ||
+true || fallback();            // true，不执行 fallback()
+undefined ?? "default";        // "default"（空值合并）
+
+// ??（ES2020 空值合并）vs ||
+undefined ?? "a";  // "a"
+null ?? "a";        // "a"
+false ?? "a";       // false（false 不是 null/undefined，?? 不触发）
+false || "a";       // "a"
+0 ?? "a";           // 0（0 不是 null/undefined）
+0 || "a";           // "a"
+```
+
+### 逻辑赋值运算符（ES2021）
+
+```js
+a ||= b;  // a = a || b（a 为假值时赋值）
+a &&= b;  // a = a && b（a 为真值时赋值）
+a ??= b;  // a = a ?? b（a 为 null/undefined 时赋值）
+```
+
+---
+
+## 位运算符
+
+位运算直接操作 32 位整数，在特定场景下非常高效：
+
+```js
+// 按位与：判断奇偶
+n & 1;     // 1 为奇数，0 为偶数
+
+// 按位或：取整
+num | 0;   // 去除小数部分（相当于 Math.floor）
+
+// 按位异或：不借助临时变量交换两数
+let a = 5, b = 3;
+a ^= b; b ^= a; a ^= b; // a=3, b=5
+
+// 左移：乘以 2 的幂
+1 << 3;    // 8
+// 右移：除以 2 的幂
+8 >> 1;    // 4
+// 无符号右移（始终填充 0，常用于将负数转为正数）
+-8 >>> 1;  // 2147483644
+```
+
+---
+
+## 控制流语句
+
+### if / else if / else
+
+```js
+function getGrade(score) {
+  if (score >= 90) {
+    return "A";
+  } else if (score >= 80) {
+    return "B";
+  } else if (score >= 60) {
+    return "C";
+  } else {
+    return "D";
+  }
+}
+```
+
+### switch
+
+`switch` 使用**严格相等**比较，适合多条件分支：
+
+```js
+function getDayName(day) {
+  switch (day) {
+    case 0:
+      return "Sunday";
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+      return "Weekday";
+    case 5:
+      return "Friday";
+    case 6:
+      return "Saturday";
+    default:
+      return "Invalid day";
+  }
+}
+```
+
+### 三元表达式
+
+适用于简单分支，避免嵌套：
+
+```js
+// 推荐：简洁的单行分支
+const status = age >= 18 ? "adult" : "minor";
+
+// 不推荐：过度嵌套
+const result = a ? (b ? (c ? "yes" : "no") : "no") : "no";
+```
+
+### for 循环
+
+```js
+// 传统 for 循环
+for (let i = 0; i < items.length; i++) {
+  console.log(items[i]);
+}
+
+// 缓存长度优化（避免每次计算数组长度）
+for (let i = 0, len = items.length; i < len; i++) { ... }
+
+// 逆序遍历（无需比较 len，性能更好）
+for (let i = items.length - 1; i >= 0; i--) { ... }
+```
+
+### for...of 与 for...in
+
+```js
+const fruits = ["apple", "banana", "cherry"];
+
+// for...of：遍历可迭代对象（值）
+for (const fruit of fruits) {
+  console.log(fruit);
+}
+
+// for...in：遍历对象的可枚举属性（键）
+const obj = { a: 1, b: 2 };
+for (const key in obj) {
+  console.log(key, obj[key]); // "a 1", "b 2"
+}
+```
+
+> 遍历数组**优先使用 `for...of`**，避免使用 `for...in`（会遍历到原型属性，可能打乱顺序）。
+
+### while 与 do...while
+
+```js
+// while：条件不满足时一次都不执行
+let i = 0;
+while (i < 3) {
+  console.log(i++); // 0, 1, 2
+}
+
+// do...while：至少执行一次
+let j = 0;
+do {
+  console.log(j++);
+} while (j < 0); // 输出 0
+```
+
+### break、continue 与标签
+
+```js
+// continue：跳过当前迭代
+for (let i = 0; i < 5; i++) {
+  if (i === 2) continue;
+  console.log(i); // 0, 1, 3, 4
+}
+
+// 标签（label）：指定循环的 break/continue 目标
+outerLoop:
+for (let i = 0; i < 3; i++) {
+  for (let j = 0; j < 3; j++) {
+    if (i === 1 && j === 1) break outerLoop; // 直接跳出外层循环
+    console.log(i, j);
+  }
+}
+```
+
+---
+
+## 高级技巧
+
+### 早期返回（Early Return）
+
+减少嵌套层级，提高可读性：
+
+```js
+// 嵌套写法
+function processOrder(order) {
+  if (order) {
+    if (order.items) {
+      if (order.items.length > 0) {
+        // 处理逻辑...
+      }
+    }
+  }
+}
+
+// 早期返回写法
+function processOrder(order) {
+  if (!order) return;
+  if (!order.items || order.items.length === 0) return;
+  // 处理逻辑...
+}
+```
+
+### 可选链（ES2020）
+
+安全访问深层属性，避免大量条件判断：
+
+```js
+// 传统写法
+const city = user && user.profile && user.profile.address && user.profile.address.city;
+
+// 现代写法：可选链
+const city = user?.profile?.address?.city;
+const first = arr?.[0];       // 数组索引也可选链
+const greet = obj?.method?.(); // 方法调用也可选链
+```
+
+---
+
+## 小结
+
+- **浮点精度**：`0.1 + 0.2 !== 0.3`，金融计算用整数或 `toFixed`
+- **比较运算**：始终优先使用 `===`，避免 `==` 隐式转换陷阱
+- **空值合并**：`??` 区分 `null/undefined` 与其他假值，`||` 无法做到
+- **位运算**：判断奇偶、取整、位掩码等场景的高效替代方案
+- **循环选择**：遍历数组用 `for...of`，遍历对象用 `for...in`，倒序遍历性能更优
+- **代码风格**：通过早期返回减少嵌套，配合可选链提升可读性

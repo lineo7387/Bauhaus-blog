@@ -1,0 +1,350 @@
+---
+title: JavaScript 对象与原型
+description: 深入理解 JavaScript 对象创建、属性描述符、原型链查找机制，以及原型链继承、构造函数继承和组合继承等多种实现方式
+pubDate: 2026-04-25
+category: javascript
+tags: [javascript, object, prototype, inheritance]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: object-and-prototype
+---
+
+# JavaScript 对象与原型
+
+JavaScript 是一门**基于原型（prototype-based）**的面向对象语言，继承通过原型链实现，而非类继承。理解原型链的运作机制，是掌握 JavaScript 面向对象的核心。
+
+## 对象的创建
+
+### 对象字面量
+
+最直接的创建方式：
+
+```javascript
+const person = {
+  name: "Alice",
+  age: 30,
+  greet() {
+    return `Hello, I'm ${this.name}`;
+  },
+};
+```
+
+### 构造函数
+
+通过 `new` 调用函数创建对象实例：
+
+```javascript
+function Person(name, age) {
+  this.name = name;
+  this.age = age;
+}
+
+Person.prototype.greet = function () {
+  return `Hello, I'm ${this.name}`;
+};
+
+const alice = new Person("Alice", 30);
+console.log(alice.greet()); // "Hello, I'm Alice"
+```
+
+### Object.create()
+
+显式指定原型创建对象：
+
+```javascript
+const parent = { role: "parent" };
+const child = Object.create(parent);
+console.log(child.role); // "parent"（从原型链继承）
+```
+
+---
+
+## 属性描述符
+
+每个对象属性都有**属性描述符（Property Descriptor）**，控制属性的行为特征。
+
+### 数据属性描述符
+
+| 特性 | 说明 | 默认值 |
+|------|------|--------|
+| `value` | 属性值 | `undefined` |
+| `writable` | 是否可写 | `false` |
+| `enumerable` | 是否可枚举（for...in / Object.keys） | `false` |
+| `configurable` | 是否可删除或修改描述符 | `false` |
+
+### 存取属性描述符（Accessor）
+
+通过 getter/setter 定义属性：
+
+```javascript
+const temperature = {
+  _celsius: 25, // 私有属性（约定以下划线开头）
+
+  get celsius() {
+    return this._celsius;
+  },
+  set celsius(val) {
+    this._celsius = val;
+  },
+  get fahrenheit() {
+    return this._celsius * 9 / 5 + 32;
+  },
+};
+
+console.log(temperature.fahrenheit); // 77
+temperature.celsius = 30;
+console.log(temperature.fahrenheit); // 86
+```
+
+### 操作属性描述符
+
+```javascript
+const obj = {};
+
+// 定义属性
+Object.defineProperty(obj, "name", {
+  value: "Alice",
+  writable: false,    // 不可写
+  enumerable: true,
+  configurable: false, // 不可删除或重新定义
+});
+
+// 查看描述符
+console.log(Object.getOwnPropertyDescriptor(obj, "name"));
+// { value: 'Alice', writable: false, enumerable: true, configurable: false }
+```
+
+### 批量定义
+
+```javascript
+Object.defineProperties(obj, {
+  age: { value: 30, writable: true },
+  gender: { value: "female" },
+});
+```
+
+---
+
+## 原型链
+
+### 原型对象
+
+每个对象都有一个指向其**原型（prototype）**的内部链接。通过构造函数创建的对象，原型指向构造函数的 `prototype` 属性。
+
+```javascript
+function Dog(name) {
+  this.name = name;
+}
+
+Dog.prototype.bark = function () {
+  return `${this.name} says: Woof!`;
+};
+
+const rex = new Dog("Rex");
+console.log(Object.getPrototypeOf(rex) === Dog.prototype); // true
+console.log(Object.getPrototypeOf(Dog.prototype) === Object.prototype); // true
+```
+
+### 原型链查找
+
+当访问对象的属性时，JavaScript 按以下顺序查找：
+
+1. 对象自身属性
+2. 对象的原型（`__proto__`）
+3. 原型的原型
+4. ……直到 `Object.prototype`（其 `__proto__` 为 `null`）
+
+```javascript
+console.log(rex.toString()); // "[object Object]"
+// toString 来自 Object.prototype
+```
+
+### 原型链图示
+
+```
+rex (实例)
+  |- name: "Rex"
+  `- [[Prototype]] -> Dog.prototype
+                        |- bark: function
+                        `- [[Prototype]] -> Object.prototype
+                                              |- toString: function
+                                              `- [[Prototype]] -> null
+```
+
+### constructor 属性
+
+每个原型对象都有 `constructor` 属性，指向构造函数本身：
+
+```javascript
+console.log(Dog.prototype.constructor === Dog); // true
+console.log(rex.constructor === Dog);           // true（继承自原型）
+```
+
+---
+
+## 继承模式
+
+### 原型链继承
+
+最基础的继承方式，将父实例作为子原型：
+
+```javascript
+function Parent(name) {
+  this.name = name;
+}
+Parent.prototype.sayName = function () {
+  return this.name;
+};
+
+function Child(name, age) {
+  this.age = age;
+}
+// 子类的原型指向父类实例
+Child.prototype = new Parent("Parent");
+Child.prototype.constructor = Child; // 修复 constructor 指向
+
+const child = new Child("Child", 10);
+console.log(child.sayName()); // "Child"
+console.log(child instanceof Child);  // true
+console.log(child instanceof Parent); // true
+```
+
+**缺点**：所有实例共享父类引用属性。
+
+### 构造函数继承（借用构造函数）
+
+在子类构造函数中调用父类构造函数：
+
+```javascript
+function Parent(name, hobbies) {
+  this.name = name;
+  this.hobbies = hobbies; // 引用类型属性
+}
+Parent.prototype.sayName = function () { return this.name; };
+
+function Child(name, hobbies, school) {
+  Parent.call(this, name, hobbies); // 借用构造函数
+  this.school = school;
+}
+
+const child = new Child("Alice", ["reading", "swimming"], "No.1 School");
+child.hobbies.push("coding");
+console.log(child.hobbies); // ["reading", "swimming", "coding"]
+// 不会影响其他实例，实现了引用类型属性的独立
+```
+
+**缺点**：方法无法复用（每次实例化都创建新的函数副本）。
+
+### 组合继承（Combination Inheritance）
+
+结合原型链继承和构造函数继承，是最常用的继承模式：
+
+```javascript
+function Parent(name) {
+  this.name = name;
+  this.colors = ["red", "blue"];
+}
+Parent.prototype.sayName = function () {
+  return this.name;
+};
+
+function Child(name, age) {
+  Parent.call(this, name); // 继承实例属性
+  this.age = age;
+}
+
+// 继承原型方法
+Child.prototype = new Parent();
+Child.prototype.constructor = Child;
+Child.prototype.sayAge = function () {
+  return this.age;
+};
+
+const c1 = new Child("Alice", 10);
+const c2 = new Child("Bob", 12);
+c1.colors.push("green");
+console.log(c1.colors); // ["red", "blue", "green"]
+console.log(c2.colors); // ["red", "blue"]（不受影响）
+console.log(c1.sayName()); // "Alice"
+console.log(c2.sayName()); // "Bob"
+```
+
+### 原型继承（Object.create 继承）
+
+```javascript
+const parent = {
+  name: "Parent",
+  getName() { return this.name; },
+};
+
+const child = Object.create(parent);
+child.age = 10;
+child.getAge = function () { return this.age; };
+
+console.log(child.getName()); // "Parent"（继承自原型）
+```
+
+### 寄生组合继承（Parasitic Combination Inheritance）
+
+组合继承的优化版本，避免调用两次父构造函数：
+
+```javascript
+function inheritPrototype(subType, superType) {
+  const prototype = Object.create(superType.prototype); // 创建父原型副本
+  prototype.constructor = subType;                       // 修复 constructor
+  subType.prototype = prototype;                        // 赋值给子类
+}
+
+function Parent(name) {
+  this.name = name;
+}
+Parent.prototype.sayName = function () { return this.name; };
+
+function Child(name, age) {
+  Parent.call(this, name);
+  this.age = age;
+}
+
+inheritPrototype(Child, Parent);
+Child.prototype.sayAge = function () { return this.age; };
+```
+
+> **现代最佳实践**：ES6 `class` 语法在底层依然使用原型链，但语法更简洁直观。
+
+---
+
+## in 操作符与 hasOwnProperty
+
+```javascript
+const parent = { inherited: true };
+const child = Object.create(parent);
+child.own = "I am own property";
+
+child.hasOwnProperty("own");         // true
+child.hasOwnProperty("inherited");   // false（继承属性）
+child.hasOwnProperty("toString");     // false（Object.prototype）
+
+"own" in child;         // true（含自身属性）
+"inherited" in child;   // true（含原型属性）
+```
+
+遍历自身属性（不含原型）：
+
+```javascript
+Object.keys(child);                    // ["own"]
+Object.getOwnPropertyNames(child);     // ["own"]（含不可枚举属性）
+Object.getOwnPropertySymbols(child);    // Symbol 属性
+```
+
+---
+
+## 小结
+
+- **对象创建**有字面量、构造函数、`Object.create()` 三种方式
+- **属性描述符**控制属性的可写、可枚举、可配置特性，支持 getter/setter
+- **原型链**是 JavaScript 实现继承的核心机制，属性查找沿原型链向上追溯
+- **继承模式**：原型链继承、构造函数继承、组合继承（最常用）、寄生组合继承（最优）
+- `hasOwnProperty()` / `Object.hasOwn()` 判断属性是否为自有，`in` 操作符包含原型
+- ES6 `class` 是原型链继承的语法糖，底层机制不变

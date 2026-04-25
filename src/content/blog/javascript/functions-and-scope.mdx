@@ -1,0 +1,334 @@
+---
+title: JavaScript 函数与作用域
+description: 深入理解函数声明与表达式、IIFE、闭包、词法作用域，以及 call/apply/bind 的使用场景与区别
+pubDate: 2026-04-25
+category: javascript
+tags: [javascript, functions, closure, scope]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: functions-and-scope
+---
+
+# JavaScript 函数与作用域
+
+函数是 JavaScript 的核心构建单元。理解函数的多种形式、作用域规则以及闭包机制，是从"会用 JS"到"精通 JS"的关键一步。
+
+## 函数声明 vs 函数表达式
+
+### 函数声明（Function Declaration）
+
+函数声明会被**完整提升**——声明和函数体都提升，可以在定义前调用：
+
+```js
+sayHello(); // "Hello" — 函数声明在定义前调用是合法的
+
+function sayHello() {
+  return "Hello";
+}
+```
+
+### 函数表达式（Function Expression）
+
+函数表达式只提升变量名，不提升函数体：
+
+```js
+greet(); // TypeError: greet is not a function
+
+var greet = function () {
+  return "Hi";
+};
+```
+
+### 箭头函数（Arrow Function）
+
+ES6 引入的简洁语法，**不创建自己的 `this` 上下文**：
+
+```js
+const add = (a, b) => a + b;
+const greet = name => `Hello, ${name}`;  // 单参数可省略括号
+const log = () => console.log("no args");
+```
+
+箭头函数没有 `arguments` 对象，也没有原型（不能用 `new` 实例化）。
+
+---
+
+## IIFE（立即调用函数表达式）
+
+IIFE 在定义后立即执行，常用于创建独立作用域、避免全局污染：
+
+```js
+(function () {
+  const privateVar = "我是私有变量";
+  console.log(privateVar);
+})();
+
+// 箭头函数版本
+(() => {
+  const temp = Date.now();
+  console.log("IIFE ran at:", temp);
+})();
+
+// 传参
+(function (global, undefined) {
+  // global 是 window，undefined 是传入的值（防止外部 undefined 被重写）
+})(window);
+```
+
+---
+
+## 作用域
+
+### 词法作用域（Lexical Scope）
+
+JavaScript 采用**词法作用域**（也称静态作用域）——函数的作用域在**定义时**确定，而非运行时：
+
+```js
+const x = 10;
+function outer() {
+  const x = 20;
+  function inner() {
+    console.log(x); // 访问外层 outer 的 x === 20
+  }
+  inner();
+}
+outer();
+```
+
+### 块级作用域
+
+`let` 和 `const` 在 `{}` 块内创建词法作用域：
+
+```js
+{
+  let blockVar = "仅在此块内可见";
+  const blockConst = 100;
+}
+// console.log(blockVar); // ReferenceError
+```
+
+### 全局作用域
+
+在浏览器中，顶层变量挂在 `window` 对象上；在 Node.js 中挂在 `global` 上。避免在全局作用域创建变量。
+
+```js
+var globalVar = "我是全局变量";
+console.log(window.globalVar); // "我是全局变量"
+
+// 使用 const/let 不会添加到全局对象
+let scriptVar = "不会污染全局对象";
+// console.log(window.scriptVar); // undefined
+```
+
+---
+
+## 闭包
+
+**闭包**是指一个函数能够"记住"并访问其词法作用域外部的变量，即使该函数在其定义之外执行。
+
+### 闭包的基本形式
+
+```js
+function createCounter() {
+  let count = 0; // 私有变量，被闭包记住
+  return function () {
+    count++;
+    return count;
+  };
+}
+
+const counter = createCounter();
+console.log(counter()); // 1
+console.log(counter()); // 2
+console.log(counter()); // 3
+```
+
+`createCounter` 返回的匿名函数形成了闭包，它"捕获"了 `count` 变量，使每次调用 `counter()` 都能保留和修改这个值。
+
+### 经典问题：循环中的闭包
+
+```js
+// 错误写法：var i 是函数作用域，所有回调共享同一个 i
+for (var i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 100);
+}
+// 输出：3, 3, 3（循环结束后 i === 3）
+
+// 解决方案 1：用 let（每次迭代创建新绑定）
+for (let i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 100);
+}
+// 输出：0, 1, 2
+
+// 解决方案 2：IIFE 创建独立作用域
+for (var i = 0; i < 3; i++) {
+  ((j) => setTimeout(() => console.log(j), 100))(i);
+}
+// 输出：0, 1, 2
+```
+
+### 闭包的实用场景
+
+**模块模式** — 模拟私有变量：
+
+```js
+function createBankAccount(initialBalance) {
+  let balance = initialBalance; // 私有变量
+
+  return {
+    deposit(amount) {
+      if (amount <= 0) throw new Error("存款必须为正数");
+      balance += amount;
+    },
+    withdraw(amount) {
+      if (amount > balance) throw new Error("余额不足");
+      balance -= amount;
+    },
+    getBalance() {
+      return balance;
+    },
+  };
+}
+
+const account = createBankAccount(100);
+account.deposit(50);
+account.withdraw(30);
+console.log(account.getBalance()); // 120
+// account.balance; // undefined — 无法直接访问
+```
+
+**函数工厂**：
+
+```js
+function multiply(factor) {
+  return function (num) {
+    return num * factor;
+  };
+}
+
+const double = multiply(2);
+const triple = multiply(3);
+console.log(double(5));  // 10
+console.log(triple(5)); // 15
+```
+
+**记忆化（Memoization）**：
+
+```js
+function memoize(fn) {
+  const cache = new Map();
+  return function (...args) {
+    const key = JSON.stringify(args);
+    if (cache.has(key)) return cache.get(key);
+    const result = fn.apply(this, args);
+    cache.set(key, result);
+    return result;
+  };
+}
+```
+
+---
+
+## call、apply、bind
+
+这三个方法都用于**显式绑定 `this`**，但行为有所不同。
+
+### call — 立即调用，参数逐个传入
+
+```js
+function greet(greeting, punctuation) {
+  return `${greeting}, ${this.name}${punctuation}`;
+}
+
+const person = { name: "Alice" };
+greet.call(person, "Hello", "!"); // "Hello, Alice!"
+```
+
+### apply — 立即调用，参数以数组传入
+
+```js
+greet.apply(person, ["Hi", "?"]); // "Hi, Alice?"
+// 等价于
+greet.call(person, "Hi", "?");
+```
+
+`apply` 的典型用法：把数组展开为参数调用：
+
+```js
+Math.max.apply(null, [3, 1, 4, 1, 5]); // 5
+// ES6 等价
+Math.max(...[3, 1, 4, 1, 5]);
+```
+
+### bind — 返回绑定后的新函数（不立即调用）
+
+```js
+const boundGreet = greet.bind(person, "Hey");
+boundGreet("!"); // "Hey, Alice!"
+// 预设了第一个参数，后续只需传剩余参数
+```
+
+`bind` 常用于将回调函数的 `this` 固定：
+
+```js
+class Button {
+  constructor(text) {
+    this.text = text;
+    // 必须在构造函数中 bind，否则点击时 this 指向按钮元素
+    this.handleClick = this.handleClick.bind(this);
+  }
+
+  handleClick() {
+    console.log(`Clicked: ${this.text}`);
+  }
+}
+```
+
+### 三者对比
+
+| 方法 | 调用时机 | 参数形式 | 返回值 |
+|------|---------|---------|--------|
+| `call` | 立即执行 | 逐个传入 `fn.call(thisArg, arg1, arg2, ...)` | 函数执行结果 |
+| `apply` | 立即执行 | 数组形式 `fn.apply(thisArg, [args])` | 函数执行结果 |
+| `bind` | 返回新函数 | 逐个传入 `fn.bind(thisArg, arg1, ...)` | 绑定后的新函数 |
+
+---
+
+## arguments 与剩余参数
+
+### arguments 对象
+
+非严格模式下，函数内部可通过 `arguments` 访问实参集合（类数组，非真正的数组）：
+
+```js
+function sum() {
+  return Array.from(arguments).reduce((a, b) => a + b, 0);
+}
+sum(1, 2, 3); // 6
+```
+
+箭头函数没有 `arguments`，会向上层作用域查找。
+
+### 剩余参数（Rest Parameters）
+
+ES6 推荐的写法，直接获得真正的数组：
+
+```js
+function sum(...numbers) {
+  return numbers.reduce((a, b) => a + b, 0);
+}
+sum(1, 2, 3); // 6
+```
+
+---
+
+## 小结
+
+- **函数声明**完整提升，**函数表达式**只提升变量名
+- 箭头函数没有自己的 `this` 和 `arguments`
+- IIFE 用于创建独立作用域，避免全局污染
+- 闭包让函数"记住"定义时的词法环境，是实现私有变量和记忆化的基础
+- 循环中使用 `let` 创建块级作用域，避免闭包陷阱
+- `call` / `apply` 立即调用，`bind` 返回新函数，三者都是显式绑定 `this` 的手段

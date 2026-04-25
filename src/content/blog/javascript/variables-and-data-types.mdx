@@ -1,0 +1,278 @@
+---
+title: JavaScript 变量与数据类型
+description: 深入理解 var、let、const 的作用域规则，以及 JavaScript 原始类型与引用类型的本质区别与类型判断方法
+pubDate: 2026-04-25
+category: javascript
+tags: [javascript, es6, types]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 8
+planId: variables-and-data-types
+---
+
+# JavaScript 变量与数据类型
+
+JavaScript 是一门**动态类型语言**，变量本身没有类型约束，赋予什么值就决定当前类型。理解变量声明与数据类型的运作机制，是写出健壮代码的起点。
+
+## 变量声明：var、let、const
+
+ES6 之前 `var` 是唯一的变量声明方式，ES6 引入了 `let` 与 `const`，它们解决了 `var` 的多个设计缺陷。
+
+### var 的特性
+
+`var` 具有**函数作用域**而非块级作用域，且存在**变量提升（hoisting）**现象——声明被提升至函数顶部，但赋值留在原处。
+
+```js
+function demo() {
+  console.log(myVar); // undefined（声明提升，赋值未提升）
+  var myVar = 10;
+  console.log(myVar); // 10
+}
+```
+
+再看一个经典陷阱：循环中的 `var` 共享同一变量。
+
+```js
+for (var i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 100);
+}
+// 输出：3, 3, 3（循环结束后 i === 3）
+```
+
+### let 的特性
+
+`let` 是**块级作用域**，只在当前 `{}` 块内有效，且不允许在声明前访问（**暂时性死区 TDZ**）。
+
+```js
+{
+  let block = "只在块内可见";
+  console.log(block); // 正常
+}
+// console.log(block); // ReferenceError
+
+console.log(again); // ReferenceError
+let again = 1;
+```
+
+循环中的 `let` 每次迭代都会创建新绑定：
+
+```js
+for (let i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 100);
+}
+// 输出：0, 1, 2（每次迭代是独立变量）
+```
+
+### const 的特性
+
+`const` 同样为块级作用域，**必须初始化**，且**不能重新赋值**。
+
+```js
+const PI = 3.14159;
+PI = 3.14; // TypeError: Assignment to constant variable
+```
+
+但要注意：`const` 保证的是**变量绑定的不可变性**，而非值的不可变性。对象和数组的内容仍然可以修改。
+
+```js
+const person = { name: "Alice", age: 30 };
+person.age = 31;         // 合法，对象属性可修改
+person.gender = "female"; // 合法，添加属性
+// person = {};          // TypeError，不能重新赋值整个对象
+```
+
+如果需要彻底冻结对象，使用 `Object.freeze()`。
+
+### 最佳实践
+
+**默认使用 `const`**，当变量需要被重新赋值时使用 `let`，**永远不使用 `var`**。
+
+```js
+// 推荐
+const baseUrl = "https://api.example.com";
+let retryCount = 0;
+
+// 不推荐
+var oldStyle = "legacy";
+```
+
+---
+
+## 原始类型 vs 引用类型
+
+JavaScript 数据分为**原始类型（Primitive）**和**引用类型（Reference）**两大类。
+
+### 七种原始类型
+
+| 类型 | 说明 | 示例 |
+|------|------|------|
+| `string` | 字符串 | `"hello"` |
+| `number` | 双精度浮点数 | `42`、`3.14`、`NaN`、`Infinity` |
+| `boolean` | 布尔值 | `true`、`false` |
+| `undefined` | 未定义 | `undefined` |
+| `null` | 空值（历史 bug，typeof 为 `"object"`） | `null` |
+| `symbol` | 唯一标识 | `Symbol("id")` |
+| `bigint` | 大整数 | `9007199254740991n` |
+
+原始类型具有以下特点：
+
+- **值直接存储在栈中**，赋值时复制值
+- **不可变**（所有修改操作返回新值，原值不变）
+
+```js
+let a = 10;
+let b = a; // 复制值
+b = 20;
+console.log(a); // 10，原值不受影响
+```
+
+### 引用类型
+
+引用类型（对象）存储在**堆内存**中，变量保存的是**引用地址**。
+
+```js
+let obj1 = { name: "Bob", scores: [90, 85] };
+let obj2 = obj1;      // 复制引用地址，两者指向同一对象
+obj2.name = "Charlie";
+console.log(obj1.name); // "Charlie"（原对象被修改）
+```
+
+```js
+// 函数参数传递同样适用引用复制
+function mutate(arr) {
+  arr.push(999);
+}
+const list = [1, 2, 3];
+mutate(list);
+console.log(list); // [1, 2, 3, 999]
+```
+
+### 复制：浅拷贝 vs 深拷贝
+
+由于引用类型的赋值是地址复制，需要显式拷贝：
+
+```js
+// 浅拷贝（只拷贝一层）
+const shallow = { ...obj1 };          // 对象
+const arrCopy = [...list];             // 数组
+
+// 深拷贝（完整复制）
+const deep = JSON.parse(JSON.stringify(obj1)); // 简单方案，函数/Symbol 会丢失
+// 生产环境推荐使用 structuredClone()
+const deepClone = structuredClone(obj1);
+```
+
+---
+
+## 类型判断
+
+### typeof 操作符
+
+`typeof` 对原始类型有效，但对 `null` 和对象类型区分度不足：
+
+```js
+typeof "str"         // "string"
+typeof 42            // "number"
+typeof true          // "boolean"
+typeof undefined     // "undefined"
+typeof null          // "object"（历史 bug，非 null）
+typeof {}            // "object"
+typeof []            // "object"（数组本质是对象）
+typeof function() {} // "function"
+typeof Symbol("x")   // "symbol"
+typeof 123n          // "bigint"
+```
+
+### instanceof 操作符
+
+`instanceof` 检查对象的原型链，适用于自定义类型和内置对象：
+
+```js
+[] instanceof Array         // true
+[] instanceof Object         // true（Array 继承自 Object）
+new Date() instanceof Date   // true
+"str" instanceof String      // false（原始字符串不是对象）
+```
+
+### Array.isArray()
+
+判断数组的可靠方式，不受原型链干扰：
+
+```js
+Array.isArray([]);              // true
+Array.isArray({});              // false
+Array.isArray(new Array(3));    // true
+```
+
+### 严格相等与类型转换
+
+始终使用 `===` 而非 `==`：
+
+```js
+0 == false    // true（类型转换后相等）
+0 === false   // false（类型不同）
+"" == false   // true
+"" === false  // false
+null == undefined // true
+null === undefined // false
+```
+
+---
+
+## 类型转换
+
+JavaScript 中的类型转换分为**显式转换**和**隐式转换**。
+
+### 显式转换
+
+```js
+// 转字符串
+String(42);           // "42"
+(42).toString();      // "42"
+Number("3.14");        // 3.14
+parseInt("42px");      // 42（取整数部分）
+parseFloat("3.14km");  // 3.14
+
+// 转数字
+Number("   10  ");     // 10
+Number("");            // 0
+Number("abc");         // NaN
+Boolean(1);            // true
+Boolean("");           // false
+```
+
+### 隐式转换
+
+算术运算中经常发生隐式转换，容易引发意外结果：
+
+```js
+"5" + 3;   // "53"（数字被转字符串）
+"5" - 3;   // 2（字符串被转数字）
+"5" * "2"; // 10
+true + 1;   // 2
+false + 1;  // 1
+
+// 数组与数字相加
+[1, 2] + [3, 4]; // "1,23,4"（先 toString 再拼接）
+```
+
+### Object.is()
+
+`Object.is()` 提供比 `===` 更精确的相等判断：
+
+```js
+Object.is(NaN, NaN);        // true（=== 也为 true）
+Object.is(0, -0);           // false（=== 为 true）
+Object.is(null, undefined); // false
+Object.is({}, {});          // false（不同引用）
+```
+
+---
+
+## 小结
+
+- **`const` 优先**，只在需要重新赋值时用 `let`，告别 `var`
+- 原始类型存值，引用类型存地址——赋值操作不会复制对象
+- 使用 `typeof` 判断原始类型，`instanceof` / `Array.isArray()` 判断对象类型
+- 隐式类型转换是 Bug 的温床，优先显式转换并使用严格相等 `===`

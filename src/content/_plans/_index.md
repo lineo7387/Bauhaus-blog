@@ -20,6 +20,7 @@
 | FastAPI | 0.115.x | in-progress | [_plans/fastapi.md](fastapi.md) | 8 / 13 |
 | MySQL | 8.x | in-progress | [_plans/mysql.md](mysql.md) | 4 / 12 |
 | htmx | 2.x | completed | [_plans/htmx.md](htmx.md) | 13 / 13 |
+| JavaScript | ES2025 | in-progress | [_plans/javascript.md](javascript.md) | 4 / 18 |
 
 ## 状态说明
 

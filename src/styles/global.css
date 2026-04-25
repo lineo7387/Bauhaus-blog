@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;900&display=swap');
 @import "tailwindcss";
+@import "@pagefind/default-ui/css/ui.css";
 @plugin "@tailwindcss/typography";
 
 /* Class-based dark mode: dark: variant targets elements inside html.dark */
@@ -24,6 +25,7 @@
   --color-primary-fastapi: #059138;
   --color-primary-mysql: #F29111;
   --color-primary-htmx: #3366CC;
+  --color-primary-javascript: #F7DF1E;
   --color-primary-green: #3DAA41;
   --color-primary-orange: #E65C00;
 
