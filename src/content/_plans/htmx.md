@@ -64,7 +64,7 @@ planOrder:
       estimatedWords: 1800
 
 - [✅] 事件系统与扩展
-      desc: htmx 自定义事件体系（htmx:beforeRequest、htmx:afterSwap 等）、事件冒泡与拦截
+      desc: htmx 自定义事件体系（htmx:before-request、htmx:after-swap 等）、事件冒泡与拦截
       difficulty: medium
       estimatedWords: 2200
 

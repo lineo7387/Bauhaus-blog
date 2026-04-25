@@ -73,17 +73,17 @@ htmx.defineExtension('logger', {
 ```javascript
 htmx.defineExtension('request-logger', {
     onEvent: function(name, evt) {
-        if (name === 'htmx:beforeRequest') {
+        if (name === 'htmx:before-request') {
             console.log('发送请求到:', evt.detail.requestConfig.path);
         }
-        if (name === 'htmx:afterRequest') {
+        if (name === 'htmx:after-request') {
             console.log('请求完成，成功:', evt.detail.successful);
         }
     }
 });
 ```
 
-> **注意**：`onEvent` 对所有 htmx 事件都会被调用，包括 `htmx:load`、`htmx:configRequest`、`htmx:afterSwap` 等。通过事件名过滤来处理你关心的事件。
+> **注意**：`onEvent` 对所有 htmx 事件都会被调用，包括 `htmx:load`、`htmx:config-request`、`htmx:after-swap` 等。通过事件名过滤来处理你关心的事件。
 
 ### transformResponse(text, xhr, elt)
 
@@ -154,7 +154,7 @@ htmx.defineExtension('custom-swap', {
 ```javascript
 htmx.defineExtension('auto-csrf', {
     onEvent: function(name, evt) {
-        if (name === 'htmx:configRequest') {
+        if (name === 'htmx:config-request') {
             const meta = document.querySelector('meta[name="csrf-token"]');
             const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
             const token = meta?.content || input?.value;
@@ -181,7 +181,7 @@ htmx.defineExtension('auto-csrf', {
 ```javascript
 htmx.defineExtension('auto-retry', {
     onEvent: function(name, evt) {
-        if (name === 'htmx:sendError') {
+        if (name === 'htmx:send-error') {
             const elt = evt.detail.elt;
             const retryCount = parseInt(elt.getAttribute('data-retry-count') || '0');
             const maxRetries = parseInt(elt.getAttribute('data-max-retries') || '3');
@@ -199,7 +199,7 @@ htmx.defineExtension('auto-retry', {
             }
         }
 
-        if (name === 'htmx:afterRequest' && evt.detail.successful) {
+        if (name === 'htmx:after-request' && evt.detail.successful) {
             // 成功时重置重试计数
             evt.detail.elt.removeAttribute('data-retry-count');
         }
@@ -225,7 +225,7 @@ htmx.defineExtension('loading-states', {
     onEvent: function(name, evt) {
         const elt = evt.detail.elt;
 
-        if (name === 'htmx:beforeRequest') {
+        if (name === 'htmx:before-request') {
             // 为触发元素添加加载类
             elt.classList.add('is-loading');
             elt.setAttribute('aria-busy', 'true');
@@ -239,7 +239,7 @@ htmx.defineExtension('loading-states', {
             }
         }
 
-        if (name === 'htmx:afterRequest') {
+        if (name === 'htmx:after-request') {
             elt.classList.remove('is-loading');
             elt.removeAttribute('aria-busy');
 
@@ -284,7 +284,7 @@ htmx.defineExtension('loading-states', {
 ```javascript
 htmx.defineExtension('response-targets', {
     onEvent: function(name, evt) {
-        if (name !== 'htmx:beforeSwap') return;
+        if (name !== 'htmx:before-swap') return;
 
         const xhr = evt.detail.xhr;
         const elt = evt.detail.elt;
@@ -350,7 +350,7 @@ htmx 自带了一些扩展，你可以基于它们进行二次开发。内置扩
 htmx.defineExtension('json-enc-enhanced', {
     onEvent: function(name, evt) {
         // 先调用 json-enc 的逻辑
-        if (name === 'htmx:configRequest') {
+        if (name === 'htmx:config-request') {
             // 自定义 JSON 编码逻辑
             const elt = evt.detail.elt;
             if (elt.getAttribute('hx-ext')?.includes('json-enc-enhanced')) {

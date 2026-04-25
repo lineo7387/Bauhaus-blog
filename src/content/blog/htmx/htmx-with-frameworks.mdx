@@ -180,8 +180,8 @@ function NotificationBell() {
             }
         };
 
-        document.body.addEventListener('htmx:afterSwap', handler);
-        return () => document.body.removeEventListener('htmx:afterSwap', handler);
+        document.body.addEventListener('htmx:after-swap', handler);
+        return () => document.body.removeEventListener('htmx:after-swap', handler);
     }, []);
 
     return (
@@ -323,10 +323,10 @@ htmx 的部分应能在没有框架的情况下独立工作：
 
 当 htmx 替换包含框架组件的 DOM 时，框架失去对该区域的控制。
 
-**解决方案**：在 `htmx:afterSwap` 事件中重新初始化框架组件：
+**解决方案**：在 `htmx:after-swap` 事件中重新初始化框架组件：
 
 ```javascript
-document.body.addEventListener('htmx:afterSwap', function(evt) {
+document.body.addEventListener('htmx:after-swap', function(evt) {
     const target = evt.detail.target;
 
     // 重新初始化 Alpine.js 组件

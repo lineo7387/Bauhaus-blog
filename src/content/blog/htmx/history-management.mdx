@@ -224,7 +224,7 @@ htmx 保存历史状态时存储了以下信息：
 
     <script>
     // 更新当前导航高亮
-document.body.addEventListener('htmx:afterSwap', function(evt) {
+document.body.addEventListener('htmx:after-swap', function(evt) {
     if (evt.detail.target.id === 'main-content') {
         // 移除所有高亮
         document.querySelectorAll('.nav-link').forEach(link => {
@@ -277,7 +277,7 @@ htmx 的历史管理让多页应用获得 SPA 的导航体验：
 - **`hx-replace-url="true"`**：替换当前历史记录，不产生新的历史条目
 - **`hx-boost`**：自动为传统链接和表单启用历史管理
 - **`hx-history="false"`**：禁用特定元素的历史缓存恢复
-- **`htmx:afterSwap` 事件**：可配合实现导航高亮等状态同步
+- **`htmx:after-swap` 事件**：可配合实现导航高亮等状态同步
 
 htmx 的历史恢复机制缓存了目标元素的 DOM 状态，使得前进/后退无需重新请求服务器，响应即时。对于需要获取最新数据的场景，可禁用缓存或手动处理 `popstate` 事件重新请求。
 

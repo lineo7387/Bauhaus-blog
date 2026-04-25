@@ -19,32 +19,34 @@ htmx 的声明式属性覆盖了大部分交互需求，但在某些场景下你
 
 htmx 在 AJAX 请求的完整生命周期中触发一系列事件，按时间顺序排列如下：
 
+> **版本注意**：htmx 2.x 中所有事件名统一使用 **kebab-case**（短横线连接），如 `htmx:after-swap`。如果你从 htmx 1.x 迁移而来，需注意 1.x 使用的 camelCase（如 `htmx:afterSwap`）在 2.x 中已不再支持。
+
 ```
 htmx:confirm        → 用户确认阶段
-htmx:beforeRequest  → 请求发送前
-htmx:beforeSend     → XHR 发送前（可修改请求）
+htmx:before-request  → 请求发送前
+htmx:before-send     → XHR 发送前（可修改请求）
 htmx:xhr:loadstart  → XHR 开始加载
 htmx:xhr:progress   → XHR 进度更新（文件上传）
 htmx:xhr:loadend    → XHR 加载结束
-htmx:afterRequest   → 请求完成后
-htmx:beforeSwap     → DOM 交换前
-htmx:afterSwap      → DOM 交换后
-htmx:afterSettle    → 新内容完全稳定后
-htmx:responseError  → HTTP 错误响应
-htmx:sendError      → 网络发送失败
-htmx:swapError      → DOM 交换失败
-htmx:targetError    → 目标元素未找到
-htmx:oobErrorNoTarget → OOB 目标未找到
+htmx:after-request   → 请求完成后
+htmx:before-swap     → DOM 交换前
+htmx:after-swap      → DOM 交换后
+htmx:after-settle    → 新内容完全稳定后
+htmx:response-error  → HTTP 错误响应
+htmx:send-error      → 网络发送失败
+htmx:swap-error      → DOM 交换失败
+htmx:target-error    → 目标元素未找到
+htmx:oob-error-no-target → OOB 目标未找到
 ```
 
 ## 核心事件详解
 
-### htmx:beforeRequest
+### htmx:before-request
 
 在请求即将发送前触发。可以用来阻止请求或修改请求参数。
 
 ```javascript
-document.body.addEventListener('htmx:beforeRequest', function(evt) {
+document.body.addEventListener('htmx:before-request', function(evt) {
     const btn = evt.detail.elt;           // 触发元素
     const target = evt.detail.target;     // 目标元素
     const xhr = evt.detail.xhr;           // XMLHttpRequest 对象
@@ -60,12 +62,12 @@ document.body.addEventListener('htmx:beforeRequest', function(evt) {
 });
 ```
 
-### htmx:afterRequest
+### htmx:after-request
 
 请求完成后触发（无论成功或失败），此时响应已接收但尚未进行 DOM 交换。
 
 ```javascript
-document.body.addEventListener('htmx:afterRequest', function(evt) {
+document.body.addEventListener('htmx:after-request', function(evt) {
     const xhr = evt.detail.xhr;
     const successful = evt.detail.successful;  // 是否成功
 
@@ -77,12 +79,12 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
 });
 ```
 
-### htmx:beforeSwap
+### htmx:before-swap
 
 在 DOM 交换前触发，是**修改响应内容**的最后机会。
 
 ```javascript
-document.body.addEventListener('htmx:beforeSwap', function(evt) {
+document.body.addEventListener('htmx:before-swap', function(evt) {
     const xhr = evt.detail.xhr;
     const shouldSwap = evt.detail.shouldSwap;  // 是否执行交换
     const target = evt.detail.target;
@@ -101,14 +103,14 @@ document.body.addEventListener('htmx:beforeSwap', function(evt) {
 });
 ```
 
-> **注意**：`htmx:beforeSwap` 中的 `shouldSwap` 默认为 `true`，设置为 `false` 可以阻止 DOM 交换。
+> **注意**：`htmx:before-swap` 中的 `shouldSwap` 默认为 `true`，设置为 `false` 可以阻止 DOM 交换。
 
-### htmx:afterSwap
+### htmx:after-swap
 
 DOM 交换完成后触发。适合执行需要访问新插入 DOM 的操作，如重新绑定第三方库、初始化图表等。
 
 ```javascript
-document.body.addEventListener('htmx:afterSwap', function(evt) {
+document.body.addEventListener('htmx:after-swap', function(evt) {
     const target = evt.detail.target;
 
     // 如果更新的区域包含代码块，高亮显示
@@ -124,12 +126,12 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
 });
 ```
 
-### htmx:afterSettle
+### htmx:after-settle
 
 在内容完全"稳定"后触发。与 `afterSwap` 的区别在于，`afterSettle` 等待所有 CSS 过渡和动画完成后再触发。
 
 ```javascript
-document.body.addEventListener('htmx:afterSettle', function(evt) {
+document.body.addEventListener('htmx:after-settle', function(evt) {
     // 执行需要等待动画完成的操作
     scrollToElement(evt.detail.target);
 });
@@ -139,7 +141,7 @@ document.body.addEventListener('htmx:afterSettle', function(evt) {
 
 ```javascript
 // HTTP 错误响应（4xx, 5xx）
-document.body.addEventListener('htmx:responseError', function(evt) {
+document.body.addEventListener('htmx:response-error', function(evt) {
     const xhr = evt.detail.xhr;
     console.error('服务器返回错误:', xhr.status, xhr.statusText);
 
@@ -152,7 +154,7 @@ document.body.addEventListener('htmx:responseError', function(evt) {
 });
 
 // 网络错误（无法连接到服务器）
-document.body.addEventListener('htmx:sendError', function(evt) {
+document.body.addEventListener('htmx:send-error', function(evt) {
     console.error('网络连接失败');
     showOfflineNotification();
 });
@@ -167,7 +169,7 @@ htmx 事件支持标准的事件委托模式，你可以精确监听特定元素
 ```javascript
 // 只监听表单提交相关的事件
 document.querySelectorAll('form').forEach(form => {
-    form.addEventListener('htmx:afterRequest', function(evt) {
+    form.addEventListener('htmx:after-request', function(evt) {
         if (evt.detail.successful) {
             // 表单提交成功后的操作
             form.reset();
@@ -180,7 +182,7 @@ document.querySelectorAll('form').forEach(form => {
 
 ```javascript
 // 监听整个文档，但只在特定条件下处理
-document.addEventListener('htmx:afterSwap', function(evt) {
+document.addEventListener('htmx:after-swap', function(evt) {
     // 检查目标元素是否匹配选择器
     if (evt.detail.target.matches('[data-auto-focus]')) {
         const input = evt.detail.target.querySelector('input');
@@ -261,7 +263,7 @@ htmx 自带了一些有用的扩展：
 ```javascript
 htmx.defineExtension('csrf-token', {
     onEvent: function(name, evt) {
-        if (name === 'htmx:configRequest') {
+        if (name === 'htmx:config-request') {
             const token = document.querySelector('meta[name="csrf-token"]')?.content;
             if (token) {
                 evt.detail.headers['X-CSRF-Token'] = token;
@@ -302,7 +304,7 @@ htmx.defineExtension('csrf-token', {
 
 <script>
 // 统一的错误处理
-document.body.addEventListener('htmx:responseError', function(evt) {
+document.body.addEventListener('htmx:response-error', function(evt) {
     const xhr = evt.detail.xhr;
     let message = '请求失败，请稍后重试';
 
@@ -333,13 +335,13 @@ document.body.addEventListener('htmx:responseError', function(evt) {
 });
 
 // 网络断开处理
-document.body.addEventListener('htmx:sendError', function(evt) {
+document.body.addEventListener('htmx:send-error', function(evt) {
     const errorContainer = document.getElementById('global-error');
     errorContainer.innerHTML = '<div class="alert alert-warning">网络连接失败，请检查网络后重试</div>';
 });
 
 // 请求开始时清除旧错误
-document.body.addEventListener('htmx:beforeRequest', function(evt) {
+document.body.addEventListener('htmx:before-request', function(evt) {
     const errorContainer = document.getElementById('global-error');
     errorContainer.innerHTML = '';
 });
@@ -359,12 +361,12 @@ document.body.addEventListener('htmx:beforeRequest', function(evt) {
 </style>
 
 <script>
-document.body.addEventListener('htmx:beforeRequest', function(evt) {
+document.body.addEventListener('htmx:before-request', function(evt) {
     const elt = evt.detail.elt;
     elt.classList.add('htmx-request-loading');
 });
 
-document.body.addEventListener('htmx:afterRequest', function(evt) {
+document.body.addEventListener('htmx:after-request', function(evt) {
     const elt = evt.detail.elt;
     elt.classList.remove('htmx-request-loading');
 });
