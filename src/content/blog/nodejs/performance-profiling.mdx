@@ -190,14 +190,13 @@ node --prof-process isolate-0x*.log > profile.txt
 
 ## Chrome DevTools 火焰图
 
-对于更直观的分析，可以使用 Chrome DevTools 的 Performance 面板。
+对于更直观的分析，可以使用 Chrome DevTools 的 Performance 面板。有两种方式：实时录制或加载预生成的 profile 文件。
+
+### 方式一：实时录制（需 `--inspect`）
 
 ```bash
-# 启动应用并开启调试
-node --inspect --cpu-prof app.js
-
-# 或者使用程序化 API 生成 CPU profile
-node --cpu-prof --cpu-prof-dir=./profiles app.js
+# 启动应用并开启调试协议
+node --inspect app.js
 ```
 
 在 Chrome DevTools 中：
@@ -207,6 +206,15 @@ node --cpu-prof --cpu-prof-dir=./profiles app.js
 3. 切换到 **Performance** 面板
 4. 点击录制按钮，执行操作后停止
 5. 查看火焰图，找出耗时最长的函数
+
+### 方式二：生成 CPU Profile 文件（`--cpu-prof`）
+
+```bash
+# 运行应用并自动生成 CPU profile 文件
+node --cpu-prof --cpu-prof-dir=./profiles app.js
+```
+
+停止应用后，`./profiles` 目录会生成 `.cpuprofile` 文件。在 Chrome DevTools 的 **Performance** 面板中右键选择 "Load profile..." 即可查看火焰图。
 
 ### 程序化生成 CPU Profile
 

@@ -150,9 +150,11 @@ if (cluster.isPrimary) {
   workers[0].send({ type: 'special-task', data: 'important' });
 
   // 广播给所有 Worker
-  Object.values(cluster.workers).forEach((worker) => {
-    worker.send({ type: 'broadcast', message: '系统维护通知' });
-  });
+  Object.values(cluster.workers)
+    .filter(Boolean)
+    .forEach((worker) => {
+      worker.send({ type: 'broadcast', message: '系统维护通知' });
+    });
 
   // 接收 Worker 消息
   cluster.on('message', (worker, message) => {
@@ -366,10 +368,12 @@ process.on('SIGTERM', () => {
 ```js
 if (cluster.isPrimary) {
   setInterval(() => {
-    Object.values(cluster.workers).forEach((worker) => {
-      // 检查 Worker 是否响应
-      worker.send({ type: 'health-check' });
-    });
+    Object.values(cluster.workers)
+      .filter(Boolean)
+      .forEach((worker) => {
+        // 检查 Worker 是否响应
+        worker.send({ type: 'health-check' });
+      });
   }, 30000);
 } else {
   process.on('message', (msg) => {

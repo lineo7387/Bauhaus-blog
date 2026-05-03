@@ -1,6 +1,6 @@
 ---
 title: 原生扩展与 N-API
-description: 详解使用 node-gyp 编译 C/C++ 扩展、N-API 的 ABI 稳定性、Node-API 与 NAN 的对比，以及使用 node-api-rs 编写 Rust 扩展的入门路径，助你掌握 Node.js 原生扩展开发。
+description: 详解使用 node-gyp 编译 C/C++ 扩展、N-API 的 ABI 稳定性、Node-API 与 NAN 的对比，以及使用 napi-rs 编写 Rust 扩展的入门路径，助你掌握 Node.js 原生扩展开发。
 pubDate: 2026-05-03
 category: nodejs
 tags: [nodejs, native-addon, n-api, node-gyp, rust, c++]
@@ -46,8 +46,8 @@ xcode-select --install
 # Linux (Ubuntu/Debian)
 sudo apt-get install build-essential python3
 
-# Windows
-npm install --global windows-build-tools
+# Windows（安装 Visual Studio Build Tools 或 windows-build-tools）
+npm install -g node-gyp
 
 # 安装 node-gyp
 npm install -g node-gyp
@@ -254,9 +254,9 @@ addon.sleepAsync(2000, (err, result) => {
 console.log('这行会立即打印，不会阻塞');
 ```
 
-## 使用 node-api-rs 编写 Rust 扩展
+## 使用 napi-rs 编写 Rust 扩展
 
-Rust 以其内存安全和零成本抽象著称，是编写原生扩展的绝佳选择。**node-api-rs**（原 neon）项目让 Rust 扩展开发变得简单。
+Rust 以其内存安全和零成本抽象著称，是编写原生扩展的绝佳选择。**napi-rs**（原 neon）项目让 Rust 扩展开发变得简单。
 
 ### 环境准备
 
