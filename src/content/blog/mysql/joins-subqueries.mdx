@@ -1,0 +1,303 @@
+---
+title: MySQL 多表查询与子查询
+description: 深入讲解 INNER JOIN、LEFT JOIN、RIGHT JOIN、FULL JOIN、自关联、子查询、EXISTS 与 UNION 的使用场景和最佳实践，帮助你掌握复杂业务场景下的多表数据检索。
+pubDate: 2026-05-03
+category: mysql
+tags: [mysql, sql, join, subquery, database]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 15
+planId: joins-subqueries
+---
+
+# MySQL 多表查询与子查询
+
+在实际业务中，数据往往分散在多个表中。掌握多表查询与子查询，是处理复杂业务逻辑的必备技能。本文将系统讲解 **JOIN** 的各类用法、**子查询**的嵌套技巧，以及 **UNION** 合并结果集的方法。
+
+---
+
+## 准备示例数据
+
+为了演示方便，先创建三张表：`users`（用户）、`orders`（订单）、`products`（商品）。
+
+```sql
+-- 用户表
+CREATE TABLE users (
+  user_id INT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(50) NOT NULL,
+  email VARCHAR(100),
+  city VARCHAR(50)
+);
+
+-- 订单表
+CREATE TABLE orders (
+  order_id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  product_id INT,
+  amount DECIMAL(10, 2),
+  order_date DATE,
+  FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- 商品表
+CREATE TABLE products (
+  product_id INT PRIMARY KEY AUTO_INCREMENT,
+  product_name VARCHAR(100),
+  price DECIMAL(10, 2)
+);
+```
+
+插入一些示例数据：
+
+```sql
+INSERT INTO users (username, email, city) VALUES
+('alice', 'alice@example.com', 'Beijing'),
+('bob', 'bob@example.com', 'Shanghai'),
+('carol', 'carol@example.com', 'Beijing');
+
+INSERT INTO products (product_name, price) VALUES
+('iPhone 15', 5999.00),
+('MacBook Pro', 14999.00),
+('AirPods Pro', 1999.00);
+
+INSERT INTO orders (user_id, product_id, amount, order_date) VALUES
+(1, 1, 5999.00, '2026-04-01'),
+(1, 3, 1999.00, '2026-04-05'),
+(2, 2, 14999.00, '2026-04-10'),
+(4, 1, 5999.00, '2026-04-15'); -- user_id=4 不存在，用于演示 JOIN 差异
+```
+
+---
+
+## JOIN 连接查询
+
+**JOIN** 用于根据两个或多个表之间的关联条件，将它们的行组合在一起。MySQL 支持多种 JOIN 类型。
+
+### INNER JOIN（内连接）
+
+**INNER JOIN** 只返回两个表中满足连接条件的匹配行。如果某一行在另一个表中没有匹配，则不会出现在结果中。
+
+```sql
+-- 查询有订单的用户及其订单信息
+SELECT
+  u.username,
+  o.order_id,
+  o.amount,
+  o.order_date
+FROM users u
+INNER JOIN orders o ON u.user_id = o.user_id;
+```
+
+结果只包含 `user_id` 在两个表中都存在的记录。`user_id=4` 的订单因为用户不存在而被过滤掉，`carol` 因为没有订单也不会出现。
+
+### LEFT JOIN（左连接）
+
+**LEFT JOIN** 返回左表（`FROM` 后的表）的所有行，即使右表中没有匹配。右表没有匹配时，对应列显示 `NULL`。
+
+```sql
+-- 查询所有用户，包括没有订单的用户
+SELECT
+  u.username,
+  o.order_id,
+  o.amount
+FROM users u
+LEFT JOIN orders o ON u.user_id = o.user_id;
+```
+
+结果中 `carol` 会显示，但 `order_id` 和 `amount` 为 `NULL`。这在统计"所有用户的订单情况"时非常有用。
+
+### RIGHT JOIN（右连接）
+
+**RIGHT JOIN** 与 LEFT JOIN 相反，返回右表的所有行，左表没有匹配时显示 `NULL`。
+
+```sql
+-- 查询所有订单，包括用户已删除的订单
+SELECT
+  u.username,
+  o.order_id,
+  o.amount
+FROM users u
+RIGHT JOIN orders o ON u.user_id = o.user_id;
+```
+
+结果中 `user_id=4` 的订单会显示，但 `username` 为 `NULL`。
+
+### FULL JOIN（全外连接）
+
+MySQL **不原生支持** `FULL JOIN`，但可以用 `UNION` 模拟：
+
+```sql
+-- 模拟 FULL JOIN：返回所有用户和所有订单，无论是否匹配
+SELECT u.username, o.order_id, o.amount
+FROM users u
+LEFT JOIN orders o ON u.user_id = o.user_id
+UNION
+SELECT u.username, o.order_id, o.amount
+FROM users u
+RIGHT JOIN orders o ON u.user_id = o.user_id;
+```
+
+### 多表 JOIN
+
+查询涉及三张或更多表时，可以连续使用 JOIN：
+
+```sql
+-- 查询用户名、订单金额、商品名称
+SELECT
+  u.username,
+  o.amount,
+  p.product_name
+FROM users u
+INNER JOIN orders o ON u.user_id = o.user_id
+INNER JOIN products p ON o.product_id = p.product_id;
+```
+
+建议为每个表指定简短的**别名**（如 `u`、`o`、`p`），使 SQL 更易读。
+
+### 自关联（Self JOIN）
+
+同一张表与自身连接，称为**自关联**。常用于处理层级关系，如员工与上级、分类与父分类。
+
+```sql
+-- 员工表，包含上级ID
+CREATE TABLE employees (
+  emp_id INT PRIMARY KEY,
+  emp_name VARCHAR(50),
+  manager_id INT,
+  FOREIGN KEY (manager_id) REFERENCES employees(emp_id)
+);
+
+-- 查询每个员工及其上级姓名
+SELECT
+  e.emp_name AS employee,
+  m.emp_name AS manager
+FROM employees e
+LEFT JOIN employees m ON e.manager_id = m.emp_id;
+```
+
+---
+
+## 子查询（Subquery）
+
+**子查询**是嵌套在另一个查询中的 SELECT 语句，可以出现在 `SELECT`、`FROM`、`WHERE`、`HAVING` 子句中。
+
+### 标量子查询（返回单个值）
+
+```sql
+-- 查询订单金额高于平均订单金额的记录
+SELECT *
+FROM orders
+WHERE amount > (SELECT AVG(amount) FROM orders);
+```
+
+### 行子查询（返回一行）
+
+```sql
+-- 查询与 alice 同城的用户
+SELECT username, city
+FROM users
+WHERE city = (SELECT city FROM users WHERE username = 'alice')
+  AND username != 'alice';
+```
+
+### 表子查询（返回多行多列）
+
+```sql
+-- 查询每个用户的最新订单
+SELECT o.user_id, o.order_id, o.amount, o.order_date
+FROM orders o
+INNER JOIN (
+  SELECT user_id, MAX(order_date) AS latest_date
+  FROM orders
+  GROUP BY user_id
+) latest ON o.user_id = latest.user_id AND o.order_date = latest.latest_date;
+```
+
+### IN 与 NOT IN
+
+```sql
+-- 查询有订单的用户
+SELECT username
+FROM users
+WHERE user_id IN (SELECT user_id FROM orders);
+
+-- 查询没有订单的用户
+SELECT username
+FROM users
+WHERE user_id NOT IN (SELECT user_id FROM orders);
+```
+
+使用 `NOT IN` 时要注意：如果子查询返回 `NULL`，结果可能为空集。建议用 `NOT EXISTS` 替代。
+
+### EXISTS 与 NOT EXISTS
+
+**EXISTS** 只判断子查询是否返回行，不返回具体数据，性能通常优于 `IN`。
+
+```sql
+-- 查询有订单的用户（EXISTS 写法）
+SELECT username
+FROM users u
+WHERE EXISTS (
+  SELECT 1 FROM orders o WHERE o.user_id = u.user_id
+);
+
+-- 查询没有订单的用户
+SELECT username
+FROM users u
+WHERE NOT EXISTS (
+  SELECT 1 FROM orders o WHERE o.user_id = u.user_id
+);
+```
+
+当子查询结果集很大时，`EXISTS` 通常比 `IN` 更高效，因为它遇到第一个匹配就会停止扫描。
+
+---
+
+## UNION 与 UNION ALL
+
+**UNION** 用于合并两个或多个 SELECT 语句的结果集。
+
+### UNION（去重合并）
+
+```sql
+-- 合并北京和上海的用户名单
+SELECT username, city FROM users WHERE city = 'Beijing'
+UNION
+SELECT username, city FROM users WHERE city = 'Shanghai';
+```
+
+### UNION ALL（保留重复）
+
+```sql
+-- 合并两个来源的订单数据，保留重复
+SELECT order_id, amount FROM orders_2025
+UNION ALL
+SELECT order_id, amount FROM orders_2026;
+```
+
+`UNION ALL` 不做去重，性能更好。如果确定没有重复数据，优先使用 `UNION ALL`。
+
+---
+
+## JOIN vs 子查询：如何选择？
+
+| 场景 | 推荐方式 | 原因 |
+|------|----------|------|
+| 简单的关联查询 | JOIN | 可读性好，优化器处理成熟 |
+| 需要先聚合再关联 | 子查询 / 派生表 | 逻辑清晰，避免重复计算 |
+| 判断存在性 | EXISTS | 短路求值，性能更优 |
+| 大数据量关联 | JOIN + 索引 | 减少嵌套循环扫描 |
+
+---
+
+## 小结
+
+- **INNER JOIN**：只返回匹配行，最常用
+- **LEFT/RIGHT JOIN**：保留一侧全部数据，另一侧补 NULL
+- **自关联**：处理层级、树形结构
+- **子查询**：灵活嵌套，适合复杂条件
+- **EXISTS**：判断存在性，大数据量下性能更好
+- **UNION/UNION ALL**：合并结果集，注意去重差异
+
+掌握这些多表查询技巧后，你就能应对绝大多数业务场景中的复杂数据检索需求。

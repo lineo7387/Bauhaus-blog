@@ -1,0 +1,395 @@
+---
+title: 集群与负载均衡
+description: 深入讲解 Node.js cluster 模块的 Master-Worker 架构、共享端口监听、Round-Robin 调度策略，以及与 PM2 的对比和零停机重启思路，助你构建高可用的 Node.js 服务。
+pubDate: 2026-05-03
+category: nodejs
+tags: [nodejs, cluster, load-balancing, pm2, zero-downtime, performance]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 14
+planId: cluster-load-balancing
+---
+
+# 集群与负载均衡
+
+Node.js 的单线程事件循环模型虽然高效，但默认只能利用一个 CPU 核心。对于多核服务器来说，这意味着大量的计算资源被闲置。**cluster** 模块提供了一种简单的方案：创建多个工作进程，共享同一个服务器端口，从而充分利用多核 CPU。
+
+## 为什么需要集群
+
+假设你有一台 8 核服务器，单进程 Node.js 应用只能使用 1/8 的 CPU 资源。当请求量增加时，事件循环会被阻塞，响应延迟急剧上升。
+
+```js
+const http = require('http');
+
+// 单进程：只能利用一个核心
+http.createServer((req, res) => {
+  res.end('Hello from single process\n');
+}).listen(8000);
+```
+
+使用 cluster 模块后，主进程（Master）创建多个工作进程（Worker），每个 Worker 独立运行事件循环，操作系统将连接分发到不同的 Worker。
+
+## cluster 模块基础
+
+### 最小集群示例
+
+```js
+const cluster = require('cluster');
+const http = require('http');
+const os = require('os');
+
+if (cluster.isPrimary) {
+  console.log(`主进程 ${process.pid} 启动`);
+
+  // 创建与 CPU 核心数相同的工作进程
+  const numCPUs = os.cpus().length;
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
+
+  // Worker 退出时自动重启
+  cluster.on('exit', (worker, code, signal) => {
+    console.log(`工作进程 ${worker.process.pid} 退出 (code: ${code}, signal: ${signal})`);
+    console.log('创建新的工作进程...');
+    cluster.fork();
+  });
+
+  // 监听 Worker 上线
+  cluster.on('online', (worker) => {
+    console.log(`工作进程 ${worker.process.pid} 已上线`);
+  });
+} else {
+  // 工作进程共享 8000 端口
+  http.createServer((req, res) => {
+    res.writeHead(200);
+    res.end(`Hello from ${process.pid}\n`);
+  }).listen(8000);
+
+  console.log(`工作进程 ${process.pid} 启动`);
+}
+```
+
+### 工作原理
+
+cluster 模块的底层机制：
+
+1. **主进程**调用 `cluster.fork()`，内部使用 `child_process.fork()` 创建子进程
+2. 子进程调用 `server.listen()` 时，实际上是通过 IPC 通道向主进程注册
+3. 主进程创建 socket 并绑定端口，通过 **Round-Robin** 或操作系统调度将连接分发给 Worker
+4. Worker 接收到 socket 句柄后，独立处理 HTTP 请求
+
+```
+┌─────────────────────────────────────┐
+│           主进程 (Master)            │
+│  ┌─────────────────────────────┐    │
+│  │   监听端口 8000              │    │
+│  │   Round-Robin 分发连接        │    │
+│  └─────────────────────────────┘    │
+└──────────────┬──────────────────────┘
+               │ IPC
+    ┌──────────┼──────────┬──────────┐
+    ▼          ▼          ▼          ▼
+┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐
+│Worker1│  │Worker2│  │Worker3│  │Worker4│
+│PID 101│  │PID 102│  │PID 103│  │PID 104│
+└───────┘  └───────┘  └───────┘  └───────┘
+```
+
+## 调度策略
+
+Node.js cluster 支持两种连接分发策略。
+
+### Round-Robin（默认）
+
+主进程接受所有连接，按顺序分发给工作进程。这是跨平台的默认策略，能确保负载均匀分布。
+
+```js
+const cluster = require('cluster');
+
+if (cluster.isPrimary) {
+  // 显式设置调度策略（虽然默认就是 round-robin）
+  cluster.schedulingPolicy = cluster.SCHED_RR;
+
+  for (let i = 0; i < 4; i++) {
+    cluster.fork();
+  }
+}
+```
+
+### 操作系统调度
+
+在某些平台（Linux）上，可以让操作系统直接将连接分发给工作进程，跳过主进程的中转。
+
+```js
+if (cluster.isPrimary) {
+  cluster.schedulingPolicy = cluster.SCHED_NONE;
+  // ...
+}
+```
+
+**注意**：`SCHED_NONE` 在大多数场景下不如 `SCHED_RR` 均匀，因为操作系统可能将多个连接分配给同一个进程。
+
+## 主进程与工作进程通信
+
+Worker 之间不直接通信，所有协调通过主进程完成。
+
+```js
+const cluster = require('cluster');
+const http = require('http');
+
+if (cluster.isPrimary) {
+  const workers = [];
+
+  for (let i = 0; i < 4; i++) {
+    const worker = cluster.fork();
+    workers.push(worker);
+  }
+
+  // 向特定 Worker 发送消息
+  workers[0].send({ type: 'special-task', data: 'important' });
+
+  // 广播给所有 Worker
+  Object.values(cluster.workers).forEach((worker) => {
+    worker.send({ type: 'broadcast', message: '系统维护通知' });
+  });
+
+  // 接收 Worker 消息
+  cluster.on('message', (worker, message) => {
+    console.log(`收到 Worker ${worker.id} 消息:`, message);
+  });
+} else {
+  process.on('message', (msg) => {
+    console.log(`Worker ${process.pid} 收到:`, msg);
+
+    if (msg.type === 'special-task') {
+      // 处理任务后向主进程汇报
+      process.send({ type: 'task-complete', result: 'done' });
+    }
+  });
+
+  http.createServer((req, res) => {
+    res.end(`Worker ${process.pid}\n`);
+  }).listen(8000);
+}
+```
+
+## 零停机重启
+
+生产环境需要能够在不中断服务的情况下更新代码。利用 cluster 模块，可以实现**零停机重启**。
+
+```js
+const cluster = require('cluster');
+const os = require('os');
+
+if (cluster.isPrimary) {
+  const workers = os.cpus().length;
+
+  // 启动初始 Worker
+  for (let i = 0; i < workers; i++) {
+    cluster.fork();
+  }
+
+  // 收到重启信号
+  process.on('SIGUSR2', () => {
+    console.log('收到重启信号，开始优雅重启...');
+    restartWorkers();
+  });
+
+  function restartWorkers() {
+    const workerIds = Object.keys(cluster.workers);
+    let index = 0;
+
+    function restartNext() {
+      if (index >= workerIds.length) {
+        console.log('所有 Worker 已重启');
+        return;
+      }
+
+      const worker = cluster.workers[workerIds[index]];
+      index++;
+
+      console.log(`重启 Worker ${worker.process.pid}`);
+
+      // 创建新 Worker
+      const newWorker = cluster.fork();
+
+      // 新 Worker 上线后关闭旧 Worker
+      newWorker.on('listening', () => {
+        console.log(`新 Worker ${newWorker.process.pid} 上线`);
+        worker.kill('SIGTERM');
+        setTimeout(restartNext, 1000); // 间隔重启，避免同时中断
+      });
+    }
+
+    restartNext();
+  }
+
+  cluster.on('exit', (worker, code, signal) => {
+    if (signal !== 'SIGTERM') {
+      console.log(`Worker ${worker.process.pid} 异常退出，重启中...`);
+      cluster.fork();
+    }
+  });
+} else {
+  require('./server.js');
+}
+```
+
+发送重启信号：
+
+```bash
+kill -SIGUSR2 $(cat app.pid)
+```
+
+## 与 PM2 的对比
+
+**PM2** 是生产环境中最流行的 Node.js 进程管理器。它内部也使用 cluster 机制，但提供了更多功能。
+
+| 特性 | 原生 cluster | PM2 |
+|------|-------------|-----|
+| 多进程启动 | 手动编码 | `pm2 start app.js -i max` |
+| 自动重启 | 手动实现 | 内置 |
+| 零停机重启 | 手动实现 | `pm2 reload` |
+| 日志管理 | 自行处理 | 内置聚合和轮转 |
+| 监控 | 自行实现 | 内置 `pm2 monit` |
+| 环境管理 | 自行处理 | 内置 ecosystem 文件 |
+
+### PM2 快速上手
+
+```bash
+# 安装
+npm install -g pm2
+
+# 以集群模式启动（使用所有 CPU 核心）
+pm2 start app.js -i max
+
+# 查看状态
+pm2 status
+
+# 零停机重启
+pm2 reload app
+
+# 监控
+pm2 monit
+
+# 保存配置
+pm2 save
+
+# 开机自启
+pm2 startup
+```
+
+### PM2 Ecosystem 配置
+
+```js
+// ecosystem.config.js
+module.exports = {
+  apps: [{
+    name: 'api-server',
+    script: './server.js',
+    instances: 'max',      // 使用所有 CPU 核心
+    exec_mode: 'cluster',  // 集群模式
+    env: {
+      NODE_ENV: 'development',
+      PORT: 3000
+    },
+    env_production: {
+      NODE_ENV: 'production',
+      PORT: 80
+    },
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    error_file: './logs/err.log',
+    out_file: './logs/out.log',
+    merge_logs: true,
+    max_memory_restart: '500M',
+    restart_delay: 3000
+  }]
+};
+```
+
+启动：
+
+```bash
+pm2 start ecosystem.config.js --env production
+```
+
+## 负载均衡最佳实践
+
+### 状态外置
+
+工作进程是无状态的，用户会话等状态应该存储在 Redis 等外部存储中。
+
+```js
+const session = require('express-session');
+const RedisStore = require('connect-redis')(session);
+
+app.use(session({
+  store: new RedisStore({ client: redisClient }),
+  secret: 'your-secret',
+  resave: false,
+  saveUninitialized: false
+}));
+```
+
+### 长连接处理
+
+WebSocket 连接会被绑定到特定 Worker，重启时需要注意优雅关闭。
+
+```js
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+// 优雅关闭
+process.on('SIGTERM', () => {
+  console.log('收到终止信号，开始优雅关闭...');
+
+  wss.clients.forEach((ws) => {
+    ws.close(1001, 'Server restarting');
+  });
+
+  server.close(() => {
+    console.log('HTTP 服务器已关闭');
+    process.exit(0);
+  });
+
+  // 超时强制退出
+  setTimeout(() => {
+    console.error('强制退出');
+    process.exit(1);
+  }, 30000);
+});
+```
+
+### 健康检查
+
+```js
+if (cluster.isPrimary) {
+  setInterval(() => {
+    Object.values(cluster.workers).forEach((worker) => {
+      // 检查 Worker 是否响应
+      worker.send({ type: 'health-check' });
+    });
+  }, 30000);
+} else {
+  process.on('message', (msg) => {
+    if (msg.type === 'health-check') {
+      process.send({ type: 'health-ok', memory: process.memoryUsage() });
+    }
+  });
+}
+```
+
+## 总结
+
+cluster 模块让 Node.js 应用能够充分利用多核 CPU：
+
+- 主进程负责创建和管理 Worker，Worker 独立处理请求
+- 默认使用 Round-Robin 调度，确保负载均匀
+- Worker 通过 IPC 与主进程通信，Worker 之间不直接通信
+- 利用 cluster 可以实现零停机重启
+- PM2 在生产环境中提供更完善的进程管理功能
+- 应用必须设计为无状态，会话等数据外置到 Redis
+- 长连接需要优雅关闭处理
+
+对于中小型项目，原生 cluster 模块足够使用。生产环境推荐使用 PM2，它提供了更完善的监控、日志和运维能力。

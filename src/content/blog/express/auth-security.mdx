@@ -1,0 +1,348 @@
+---
+title: Express 认证与安全
+description: 系统学习 JWT 鉴权、Session 与 Cookie 管理、bcrypt 密码加密、CSRF 防护及 Express 应用的安全最佳实践。
+pubDate: 2026-05-03
+category: express
+tags: [express, jwt, session, bcrypt, csrf, security, authentication]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 18
+planId: auth-security
+---
+
+# Express 认证与安全
+
+安全是 Web 应用的底线要求。本章将系统学习 Express 应用中最核心的认证机制和安全防护措施，包括用户鉴权、密码管理、会话安全和常见攻击防御。
+
+## 密码安全：bcrypt
+
+永远不要在数据库中存储明文密码。**bcrypt** 是一种自适应哈希算法，通过增加计算成本（cost factor）抵御暴力破解。
+
+### 安装与使用
+
+```bash
+npm install bcrypt
+```
+
+```js
+const bcrypt = require('bcrypt');
+const SALT_ROUNDS = 12; // 成本因子，数值越大越安全但越慢
+
+// 注册时哈希密码
+const hashPassword = async (plainPassword) => {
+  const hash = await bcrypt.hash(plainPassword, SALT_ROUNDS);
+  return hash;
+};
+
+// 登录时校验密码
+const verifyPassword = async (plainPassword, hash) => {
+  const isMatch = await bcrypt.compare(plainPassword, hash);
+  return isMatch;
+};
+
+// 使用示例
+const user = await User.create({
+  email: 'alice@example.com',
+  password: await hashPassword('mySecurePassword123')
+});
+```
+
+> 成本因子 12 在 2025 年的硬件上大约需要 200-300ms 计算，是安全与性能的合理平衡点。
+
+## JWT 鉴权
+
+**JWT**（JSON Web Token）是一种无状态的认证机制，服务端签发令牌后，客户端在每次请求中携带，服务端验证签名即可确认身份。
+
+### 安装依赖
+
+```bash
+npm install jsonwebtoken
+```
+
+### 签发与验证
+
+```js
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET; // 至少 256 位的随机字符串
+const JWT_EXPIRES_IN = '7d';
+
+// 登录成功后签发 Token
+const signToken = (userId) => {
+  return jwt.sign({ id: userId }, JWT_SECRET, {
+    expiresIn: JWT_EXPIRES_IN
+  });
+};
+
+// 验证中间件
+const authenticate = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: '未提供认证令牌' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userId = decoded.id;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: '令牌无效或已过期' });
+  }
+};
+```
+
+### 保护路由
+
+```js
+// routes/profile.js
+const { authenticate } = require('../middleware/auth');
+
+router.get('/profile', authenticate, async (req, res) => {
+  const user = await User.findById(req.userId).select('-password');
+  res.json(user);
+});
+```
+
+### JWT 黑名单（登出功能）
+
+JWT 本身无状态，无法直接"销毁"。实现登出需要使用**令牌黑名单**：
+
+```js
+// 使用 Redis 存储已注销的 Token
+const redis = require('../config/redis');
+
+const blacklistToken = async (token, expiresIn) => {
+  await redis.setex(`bl_${token}`, expiresIn, '1');
+};
+
+const isTokenBlacklisted = async (token) => {
+  return await redis.get(`bl_${token}`);
+};
+
+// 在中间件中检查黑名单
+const authenticate = async (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+
+  if (await isTokenBlacklisted(token)) {
+    return res.status(401).json({ error: '令牌已注销' });
+  }
+
+  // ... 正常验证逻辑
+};
+```
+
+## Session 与 Cookie 认证
+
+对于服务端渲染的应用或需要即时撤销会话的场景，**Session + Cookie** 是更合适的方案。
+
+### express-session 配置
+
+```bash
+npm install express-session connect-redis
+```
+
+```js
+const session = require('express-session');
+const RedisStore = require('connect-redis')(session);
+const redis = require('../config/redis');
+
+app.use(session({
+  store: new RedisStore({ client: redis }),
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  name: 'sessionId', // 修改默认名称，避免暴露技术栈
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // 仅 HTTPS 传输
+    httpOnly: true,    // 禁止 JavaScript 访问 Cookie
+    maxAge: 24 * 60 * 60 * 1000, // 24 小时
+    sameSite: 'strict' // CSRF 防护
+  }
+}));
+```
+
+### Session 认证流程
+
+```js
+// 登录
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+
+  if (!user || !await bcrypt.compare(password, user.password)) {
+    return res.status(401).json({ error: '邮箱或密码错误' });
+  }
+
+  req.session.userId = user.id;
+  res.json({ message: '登录成功' });
+});
+
+// 登出
+app.post('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) return res.status(500).json({ error: '登出失败' });
+    res.clearCookie('sessionId');
+    res.json({ message: '登出成功' });
+  });
+});
+
+// 受保护路由
+app.get('/dashboard', (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: '未登录' });
+  }
+  res.render('dashboard');
+});
+```
+
+## JWT vs Session 选型
+
+| 特性 | JWT | Session |
+|------|-----|---------|
+| 状态 | 无状态 | 有状态（服务端存储） |
+| 扩展性 | 水平扩展友好 | 需要共享 Session 存储（Redis） |
+| 即时撤销 | 需黑名单机制 | 直接删除 Session |
+| 适用场景 | RESTful API、移动应用 | SSR 应用、需要即时控制 |
+| 信息承载 | Token 可携带用户信息 | 仅存储 Session ID |
+
+## CSRF 防护
+
+**CSRF**（Cross-Site Request Forgery）攻击诱导已认证用户在不知情的情况下执行非预期操作。
+
+### CSRF Token 方案
+
+对于使用 Session + Cookie 的表单应用，需要 CSRF 防护：
+
+```bash
+npm install csurf
+```
+
+```js
+const csrf = require('csurf');
+const csrfProtection = csrf({ cookie: true });
+
+// 渲染表单时传递 CSRF Token
+app.get('/form', csrfProtection, (req, res) => {
+  res.render('form', { csrfToken: req.csrfToken() });
+});
+
+// 提交表单时验证 Token
+app.post('/submit', csrfProtection, (req, res) => {
+  res.send('表单提交成功');
+});
+```
+
+```html
+<!-- 表单中嵌入 CSRF Token -->
+<form action="/submit" method="POST">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <button type="submit">提交</button>
+</form>
+```
+
+### SameSite Cookie
+
+现代浏览器的 `SameSite` Cookie 属性是更简洁的 CSRF 防护方案：
+
+- `SameSite=Strict`：完全禁止第三方站点携带 Cookie
+- `SameSite=Lax`：仅允许安全的 GET 请求携带 Cookie（推荐默认值）
+
+```js
+cookie: {
+  sameSite: 'lax' // 或 'strict'、'none'（需配合 secure）
+}
+```
+
+## 其他安全最佳实践
+
+### 输入验证
+
+```js
+const { z } = require('zod');
+
+const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(100),
+  name: z.string().min(1).max(50)
+});
+
+app.post('/register', (req, res, next) => {
+  const result = registerSchema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(400).json({ errors: result.error.errors });
+  }
+  next();
+});
+```
+
+### 防暴力破解
+
+配合 `express-rate-limit` 限制登录尝试频率：
+
+```js
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  skipSuccessfulRequests: true,
+  message: '登录尝试次数过多，请 15 分钟后重试'
+});
+
+app.post('/login', loginLimiter, loginHandler);
+```
+
+### 环境变量管理
+
+```js
+// config.js
+require('dotenv').config();
+
+module.exports = {
+  port: process.env.PORT || 3000,
+  jwtSecret: process.env.JWT_SECRET,
+  dbUri: process.env.MONGO_URI,
+  // 敏感配置绝不硬编码
+};
+```
+
+### Helmet 安全头回顾
+
+```js
+const helmet = require('helmet');
+app.use(helmet());
+```
+
+Helmet 已涵盖 XSS 防护、点击劫持防护、MIME 嗅探防护等关键安全头。
+
+## 安全认证架构总结
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   客户端     │────▶│  Express    │────▶│  数据库      │
+└─────────────┘     └─────────────┘     └─────────────┘
+       │                   │
+       │ ① 登录请求         │ ② bcrypt 验证密码
+       │ (email/password)   │ ③ 生成 JWT / Session
+       │◄───────────────────│ ④ 返回 Token / Set-Cookie
+       │
+       │ ⑤ 后续请求携带 Token
+       │────────────────────▶ ⑥ 验证 Token / Session
+                              │ ⑦ 执行业务逻辑
+```
+
+## 小结
+
+本章覆盖了 Express 应用认证与安全的完整知识体系：
+
+- **bcrypt**：密码哈希与校验，成本因子配置
+- **JWT**：无状态认证机制、签发验证、黑名单登出
+- **Session + Cookie**：有状态认证、Redis 共享、Cookie 安全属性
+- **CSRF 防护**：Token 方案与 SameSite Cookie
+- **输入验证**：Zod Schema 校验防御注入攻击
+- **速率限制**：防暴力破解与滥用
+- **环境隔离**：敏感信息通过环境变量管理
+
+安全不是一次性的配置，而是贯穿开发全周期的持续实践。在构建生产应用时，建议结合渗透测试和安全审计，确保防护体系的有效性。下一章将学习测试与部署，完成从开发到上线的最后一公里。

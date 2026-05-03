@@ -1,0 +1,413 @@
+---
+title: 原生扩展与 N-API
+description: 详解使用 node-gyp 编译 C/C++ 扩展、N-API 的 ABI 稳定性、Node-API 与 NAN 的对比，以及使用 node-api-rs 编写 Rust 扩展的入门路径，助你掌握 Node.js 原生扩展开发。
+pubDate: 2026-05-03
+category: nodejs
+tags: [nodejs, native-addon, n-api, node-gyp, rust, c++]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 13
+planId: native-addon-napi
+---
+
+# 原生扩展与 N-API
+
+JavaScript 是高级语言，但在某些场景下性能仍显不足：CPU 密集型计算、图像处理、密码学运算、与底层系统交互等。Node.js 的**原生扩展（Native Addon）**机制允许你用 C/C++ 或 Rust 编写高性能模块，然后在 JavaScript 中像普通模块一样调用。
+
+## 为什么需要原生扩展
+
+以下场景适合使用原生扩展：
+
+- **CPU 密集型计算**：大规模矩阵运算、科学计算
+- **图像/视频处理**：OpenCV、FFmpeg 绑定
+- **密码学**：特定算法的硬件加速实现
+- **系统调用**：访问操作系统底层 API
+- **复用现有 C/C++ 库**：避免重复实现
+
+```js
+// 使用原生扩展就像使用普通模块
+const addon = require('./build/Release/addon.node');
+
+// 调用 C++ 实现的斐波那契函数
+console.log(addon.fibonacci(40)); // 比纯 JS 快数十倍
+```
+
+## node-gyp 编译 C/C++ 扩展
+
+**node-gyp** 是 Node.js 的原生模块构建工具，基于 Google 的 gyp（Generate Your Projects）。
+
+### 环境准备
+
+```bash
+# macOS
+xcode-select --install
+
+# Linux (Ubuntu/Debian)
+sudo apt-get install build-essential python3
+
+# Windows
+npm install --global windows-build-tools
+
+# 安装 node-gyp
+npm install -g node-gyp
+```
+
+### 最小 C++ 扩展示例
+
+项目结构：
+
+```
+my-addon/
+├── binding.gyp
+├── index.js
+└── src/
+    └── addon.cc
+```
+
+`binding.gyp` 定义构建配置：
+
+```json
+{
+  "targets": [
+    {
+      "target_name": "addon",
+      "sources": [ "src/addon.cc" ],
+      "include_dirs": [
+        "<!(node -e \"require('node-addon-api').include\")"
+      ],
+      "dependencies": [
+        "<!(node -p \"require('node-addon-api').gyp\")"
+      ],
+      "cflags!": [ "-fno-exceptions" ],
+      "cflags_cc!": [ "-fno-exceptions" ]
+    }
+  ]
+}
+```
+
+`src/addon.cc` 实现扩展逻辑：
+
+```cpp
+#include <napi.h>
+
+// C++ 实现的斐波那契（递归）
+uint64_t Fibonacci(int n) {
+  if (n <= 1) return n;
+  return Fibonacci(n - 1) + Fibonacci(n - 2);
+}
+
+// 包装为 N-API 函数
+Napi::Value FibonacciWrapper(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  if (info.Length() < 1 || !info[0].IsNumber()) {
+    Napi::TypeError::New(env, "Number expected").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  int n = info[0].As<Napi::Number>().Int32Value();
+  uint64_t result = Fibonacci(n);
+
+  return Napi::Number::New(env, result);
+}
+
+// 模块初始化
+Napi::Object Init(Napi::Env env, Napi::Object exports) {
+  exports.Set(Napi::String::New(env, "fibonacci"),
+              Napi::Function::New(env, FibonacciWrapper));
+  return exports;
+}
+
+NODE_API_MODULE(addon, Init)
+```
+
+`index.js` 调用扩展：
+
+```js
+const addon = require('./build/Release/addon.node');
+
+console.time('C++ fibonacci');
+console.log(addon.fibonacci(40));
+console.timeEnd('C++ fibonacci');
+
+// 对比纯 JS 实现
+function jsFibonacci(n) {
+  if (n <= 1) return n;
+  return jsFibonacci(n - 1) + jsFibonacci(n - 2);
+}
+
+console.time('JS fibonacci');
+console.log(jsFibonacci(40));
+console.timeEnd('JS fibonacci');
+```
+
+构建：
+
+```bash
+npm install node-addon-api
+node-gyp configure
+node-gyp build
+
+# 或者使用 npm 脚本
+npm install
+node index.js
+```
+
+## N-API 的 ABI 稳定性
+
+在 N-API 出现之前，原生扩展直接依赖 V8 和 Node.js 的内部 API。这意味着每次 Node.js 大版本升级，扩展都需要重新编译。
+
+**N-API** 提供了一层与 JavaScript 运行时无关的抽象接口，保证了**ABI（Application Binary Interface）稳定性**：
+
+- 使用 N-API 编译的扩展，无需重新编译即可在不同 Node.js 版本间运行
+- N-API 是 Node.js 官方维护的 C API
+- **Node-API** 是 N-API 的 C++ 包装（即 `node-addon-api` 包）
+
+```
+┌─────────────────────────────────────────┐
+│           JavaScript 代码                │
+├─────────────────────────────────────────┤
+│         require('addon.node')            │
+├─────────────────────────────────────────┤
+│    Node-API (C++ wrapper)               │
+│    或直接使用 N-API (C API)              │
+├─────────────────────────────────────────┤
+│    N-API ABI 稳定层                      │
+├─────────────────────────────────────────┤
+│    Node.js 内部实现（V8、libuv）          │
+└─────────────────────────────────────────┘
+```
+
+## Node-API 与 NAN 的对比
+
+**NAN（Native Abstractions for Node.js）**是 N-API 之前的解决方案。
+
+| 特性 | NAN | Node-API |
+|------|-----|----------|
+| ABI 稳定性 | 否，需随 Node.js 版本重新编译 | 是，一次编译到处运行 |
+| 维护状态 | 维护模式，不再推荐新项目使用 | 官方推荐， actively maintained |
+| API 风格 | V8 风格 | 独立的 C API + C++ 包装 |
+| 学习曲线 | 需了解 V8 API | 更简洁的抽象 |
+| 适用场景 | 遗留项目维护 | 所有新项目 |
+
+**结论**：新项目应直接使用 Node-API（`node-addon-api`）。
+
+## 异步原生扩展
+
+原生扩展中的耗时操作不应阻塞事件循环。Node-API 提供了 **AsyncWorker** 来处理异步任务。
+
+```cpp
+#include <napi.h>
+#include <chrono>
+#include <thread>
+
+class SleepWorker : public Napi::AsyncWorker {
+ public:
+  SleepWorker(Napi::Function& callback, int milliseconds)
+      : Napi::AsyncWorker(callback), milliseconds_(milliseconds) {}
+
+  // 在后台线程执行
+  void Execute() override {
+    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds_));
+  }
+
+  // 执行完成后在主线程调用回调
+  void OnOK() override {
+    Napi::HandleScope scope(Env());
+    Callback().Call({Env().Null(), Napi::String::New(Env(), "Done sleeping")});
+  }
+
+ private:
+  int milliseconds_;
+};
+
+Napi::Value SleepAsync(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  int ms = info[0].As<Napi::Number>().Int32Value();
+  Napi::Function callback = info[1].As<Napi::Function>();
+
+  SleepWorker* worker = new SleepWorker(callback, ms);
+  worker->Queue(); // 将任务加入线程池队列
+
+  return env.Undefined();
+}
+
+Napi::Object Init(Napi::Env env, Napi::Object exports) {
+  exports.Set("sleepAsync", Napi::Function::New(env, SleepAsync));
+  return exports;
+}
+
+NODE_API_MODULE(async_addon, Init)
+```
+
+JavaScript 调用：
+
+```js
+const addon = require('./build/Release/async_addon.node');
+
+console.log('开始异步睡眠');
+addon.sleepAsync(2000, (err, result) => {
+  console.log(result); // "Done sleeping"
+});
+console.log('这行会立即打印，不会阻塞');
+```
+
+## 使用 node-api-rs 编写 Rust 扩展
+
+Rust 以其内存安全和零成本抽象著称，是编写原生扩展的绝佳选择。**node-api-rs**（原 neon）项目让 Rust 扩展开发变得简单。
+
+### 环境准备
+
+```bash
+# 安装 Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# 安装 napi-rs CLI
+npm install -g @napi-rs/cli
+```
+
+### 创建 Rust 扩展项目
+
+```bash
+napi new my-rust-addon
+cd my-rust-addon
+```
+
+`src/lib.rs`：
+
+```rust
+use napi_derive::napi;
+
+#[napi]
+pub fn fibonacci(n: u32) -> u64 {
+    match n {
+        0 => 0,
+        1 => 1,
+        _ => fibonacci(n - 1) + fibonacci(n - 2),
+    }
+}
+
+#[napi]
+pub fn greet(name: String) -> String {
+    format!("Hello, {}!", name)
+}
+
+#[napi]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[napi]
+impl Point {
+    #[napi(constructor)]
+    pub fn new(x: f64, y: f64) -> Self {
+        Point { x, y }
+    }
+
+    #[napi]
+    pub fn distance(&self, other: &Point) -> f64 {
+        ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
+    }
+}
+```
+
+构建：
+
+```bash
+napi build --platform
+```
+
+JavaScript 调用：
+
+```js
+const { fibonacci, greet, Point } = require('./my-rust-addon.node');
+
+console.log(greet('Node.js')); // "Hello, Node.js!"
+console.log(fibonacci(40));
+
+const p1 = new Point(0, 0);
+const p2 = new Point(3, 4);
+console.log(p1.distance(p2)); // 5.0
+```
+
+### Rust 扩展的优势
+
+- **内存安全**：编译期防止空指针、数据竞争等问题
+- **性能**：与 C/C++ 同级，无运行时开销
+- **并发安全**：Rust 的所有权系统天然适合多线程
+- **工具链**：Cargo 包管理、丰富的生态
+
+```rust
+// Rust 中安全的多线程示例
+use std::thread;
+use napi_derive::napi;
+
+#[napi]
+pub fn parallel_sum(numbers: Vec<f64>) -> f64 {
+    let chunks: Vec<Vec<f64>> = numbers.chunks(numbers.len() / 4)
+        .map(|c| c.to_vec())
+        .collect();
+
+    let handles: Vec<_> = chunks.into_iter()
+        .map(|chunk| {
+            thread::spawn(move || chunk.iter().sum::<f64>())
+        })
+        .collect();
+
+    handles.into_iter()
+        .map(|h| h.join().unwrap())
+        .sum()
+}
+```
+
+## 原生扩展的替代方案
+
+在决定编写原生扩展之前，考虑以下替代方案：
+
+### WebAssembly
+
+对于计算密集型任务，WebAssembly 是更轻量的选择，无需编译平台相关的二进制文件。
+
+```js
+const fs = require('fs');
+const wasmBuffer = fs.readFileSync('./module.wasm');
+const wasmModule = new WebAssembly.Module(wasmBuffer);
+const wasmInstance = new WebAssembly.Instance(wasmModule);
+
+console.log(wasmInstance.exports.add(1, 2));
+```
+
+### Worker Threads
+
+对于 CPU 密集型任务，Worker Threads 可以在不编写原生代码的情况下利用多核。
+
+```js
+const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
+
+if (isMainThread) {
+  const worker = new Worker(__filename, {
+    workerData: { n: 40 }
+  });
+  worker.on('message', (result) => console.log(result));
+} else {
+  function fib(n) { return n <= 1 ? n : fib(n - 1) + fib(n - 2); }
+  parentPort.postMessage(fib(workerData.n));
+}
+```
+
+## 总结
+
+原生扩展是 Node.js 生态的重要组成部分：
+
+- **node-gyp** 是构建 C/C++ 扩展的标准工具
+- **Node-API** 提供 ABI 稳定的接口，一次编译到处运行
+- **node-addon-api** 是 Node-API 的 C++ 友好包装
+- **NAN** 已过时，新项目应使用 Node-API
+- 耗时操作使用 **AsyncWorker** 避免阻塞事件循环
+- **napi-rs** 让 Rust 扩展开发变得简单安全
+- 在编写原生扩展前，先评估 **WebAssembly** 或 **Worker Threads** 是否足够
+
+原生扩展是一把双刃剑：它能带来极致性能，但也增加了构建复杂性和平台依赖。在确实需要时才引入，并做好跨平台测试。

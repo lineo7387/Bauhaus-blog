@@ -1,0 +1,397 @@
+---
+title: 异步编程模式演进
+description: 从回调函数到 async/await，再到 AsyncLocalStorage 和 AbortController，全面梳理 Node.js 异步编程模式的演进历程，帮助你写出更优雅、可控的异步代码。
+pubDate: 2026-05-03
+category: nodejs
+tags: [nodejs, async, promise, callback, async-await, abortcontroller]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 12
+planId: async-patterns-evolution
+---
+
+# 异步编程模式演进
+
+Node.js 的异步编程模型经历了多次重大演进。从最早的回调函数到现代的 `async/await`，每一次演进都让代码更易读、更易维护。理解这些模式的演变，有助于你在不同场景下选择最合适的方案。
+
+## 回调函数与错误优先约定
+
+Node.js 诞生之初，**回调函数**是唯一的异步处理方式。社区形成了**错误优先（error-first）**的约定：回调的第一个参数是错误对象，后续参数是成功结果。
+
+```js
+const fs = require('fs');
+
+// 错误优先回调
+fs.readFile('config.json', 'utf8', (err, data) => {
+  if (err) {
+    console.error('读取失败:', err.message);
+    return;
+  }
+  try {
+    const config = JSON.parse(data);
+    console.log('配置:', config);
+  } catch (parseErr) {
+    console.error('解析失败:', parseErr.message);
+  }
+});
+```
+
+### 回调地狱
+
+嵌套的异步操作会导致代码横向扩展，形成**回调地狱（Callback Hell）**：
+
+```js
+// 深层嵌套的回调
+fs.readFile('a.txt', 'utf8', (err, a) => {
+  if (err) { handle(err); return; }
+  fs.readFile('b.txt', 'utf8', (err, b) => {
+    if (err) { handle(err); return; }
+    fs.writeFile('merged.txt', a + b, (err) => {
+      if (err) { handle(err); return; }
+      fs.readFile('merged.txt', 'utf8', (err, result) => {
+        if (err) { handle(err); return; }
+        console.log(result);
+      });
+    });
+  });
+});
+```
+
+虽然可以通过命名函数缓解，但根本问题——错误处理分散、控制流混乱——依然存在。
+
+## Promise 化实践
+
+**Promise** 是异步编程的重大飞跃。它将回调的结果和错误统一到链式调用中，解决了回调地狱的问题。
+
+### 手动 Promise 包装
+
+Node.js 的 `util.promisify` 可以将错误优先的回调函数转换为返回 Promise 的函数：
+
+```js
+const util = require('util');
+const fs = require('fs');
+
+// 将回调式 API Promise 化
+const readFile = util.promisify(fs.readFile);
+const writeFile = util.promisify(fs.writeFile);
+
+// 优雅的链式调用
+readFile('a.txt', 'utf8')
+  .then((a) => readFile('b.txt', 'utf8').then((b) => a + b))
+  .then((merged) => writeFile('merged.txt', merged))
+  .then(() => readFile('merged.txt', 'utf8'))
+  .then((result) => console.log(result))
+  .catch((err) => console.error('任何步骤出错:', err));
+```
+
+### fs/promises 原生 Promise API
+
+Node.js 从 v14 开始稳定提供 `fs/promises` 模块，无需手动 promisify：
+
+```js
+const fs = require('fs/promises');
+
+async function mergeFiles() {
+  const a = await fs.readFile('a.txt', 'utf8');
+  const b = await fs.readFile('b.txt', 'utf8');
+  await fs.writeFile('merged.txt', a + b);
+  const result = await fs.readFile('merged.txt', 'utf8');
+  return result;
+}
+
+mergeFiles().catch(console.error);
+```
+
+## async/await 的底层实现
+
+`async/await` 是 Promise 的语法糖，但让异步代码看起来像同步代码，极大地提升了可读性。
+
+```js
+const fs = require('fs/promises');
+
+async function processConfig() {
+  try {
+    const data = await fs.readFile('config.json', 'utf8');
+    const config = JSON.parse(data);
+
+    // 并行执行独立的异步操作
+    const [dbResult, cacheResult] = await Promise.all([
+      connectDatabase(config.db),
+      initCache(config.cache)
+    ]);
+
+    console.log('数据库:', dbResult);
+    console.log('缓存:', cacheResult);
+    return config;
+  } catch (err) {
+    console.error('处理失败:', err);
+    throw err;
+  }
+}
+```
+
+### async/await 的陷阱
+
+虽然 `async/await` 很优雅，但也有一些常见陷阱：
+
+```js
+// 陷阱 1：串行执行本可并行的操作
+async function slow() {
+  const a = await fetch('/api/a'); // 等待 a
+  const b = await fetch('/api/b'); // 再等待 b
+  return [a, b];
+}
+
+// 优化：并行执行
+async function fast() {
+  const [a, b] = await Promise.all([
+    fetch('/api/a'),
+    fetch('/api/b')
+  ]);
+  return [a, b];
+}
+
+// 陷阱 2：在 forEach 中使用 await（不会按预期工作）
+async function wrong() {
+  const urls = ['/a', '/b', '/c'];
+  urls.forEach(async (url) => {
+    const res = await fetch(url); // forEach 不会等待
+    console.log(res);
+  });
+  console.log('这行会先执行');
+}
+
+// 正确：使用 for...of
+async function correct() {
+  const urls = ['/a', '/b', '/c'];
+  for (const url of urls) {
+    const res = await fetch(url); // 按顺序等待
+    console.log(res);
+  }
+}
+
+// 或者并行处理
+async function parallel() {
+  const urls = ['/a', '/b', '/c'];
+  await Promise.all(urls.map(async (url) => {
+    const res = await fetch(url);
+    console.log(res);
+  }));
+}
+```
+
+## AsyncLocalStorage 上下文传递
+
+在异步代码中传递上下文（如请求 ID、用户身份）一直是个难题。**AsyncLocalStorage** 提供了一种优雅的解决方案，它可以在异步调用链中隐式传递数据。
+
+```js
+const { AsyncLocalStorage } = require('async_hooks');
+
+const asyncLocalStorage = new AsyncLocalStorage();
+
+function log(message) {
+  const store = asyncLocalStorage.getStore();
+  const requestId = store?.requestId ?? 'unknown';
+  console.log(`[${requestId}] ${message}`);
+}
+
+function handleRequest(requestId) {
+  log('开始处理请求');
+  setTimeout(() => {
+    log('异步操作完成');
+    fetchData().then(() => {
+      log('数据获取完成');
+    });
+  }, 100);
+}
+
+async function fetchData() {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      log('数据库查询');
+      resolve();
+    }, 50);
+  });
+}
+
+// 为每个请求创建独立的存储上下文
+asyncLocalStorage.run({ requestId: 'req-001' }, () => {
+  handleRequest('req-001');
+});
+
+asyncLocalStorage.run({ requestId: 'req-002' }, () => {
+  handleRequest('req-002');
+});
+
+// 输出：
+// [req-001] 开始处理请求
+// [req-002] 开始处理请求
+// [req-001] 异步操作完成
+// [req-002] 异步操作完成
+// [req-001] 数据库查询
+// [req-002] 数据库查询
+// [req-001] 数据获取完成
+// [req-002] 数据获取完成
+```
+
+### 实际应用：HTTP 请求追踪
+
+```js
+const http = require('http');
+const { AsyncLocalStorage } = require('async_hooks');
+
+const requestStore = new AsyncLocalStorage();
+
+const server = http.createServer((req, res) => {
+  const requestId = req.headers['x-request-id'] || generateId();
+
+  requestStore.run({ requestId, startTime: Date.now() }, () => {
+    log('收到请求', req.url);
+
+    processRequest(req, res).finally(() => {
+      const duration = Date.now() - requestStore.getStore().startTime;
+      log('请求完成', `${duration}ms`);
+    });
+  });
+});
+
+async function processRequest(req, res) {
+  const data = await fetchFromDatabase();
+  log('数据库查询完成');
+  res.end(JSON.stringify(data));
+}
+
+function log(...args) {
+  const store = requestStore.getStore();
+  const id = store?.requestId ?? 'unknown';
+  console.log(`[${id}]`, ...args);
+}
+
+server.listen(3000);
+```
+
+## AbortController 取消异步操作
+
+**AbortController** 是 Web 标准 API，Node.js 从 v15.4 开始支持。它提供了一种统一的方式来取消异步操作。
+
+```js
+const http = require('http');
+
+// 创建 AbortController
+const controller = new AbortController();
+const { signal } = controller;
+
+// 5 秒后自动取消
+const timeout = setTimeout(() => {
+  console.log('请求超时，取消操作');
+  controller.abort();
+}, 5000);
+
+const req = http.get('http://example.com/slow-endpoint', { signal }, (res) => {
+  let data = '';
+  res.on('data', (chunk) => { data += chunk; });
+  res.on('end', () => {
+    clearTimeout(timeout);
+    console.log('响应:', data.slice(0, 100));
+  });
+});
+
+req.on('error', (err) => {
+  if (err.name === 'AbortError') {
+    console.log('请求已被取消');
+  } else {
+    console.error('请求错误:', err.message);
+  }
+});
+```
+
+### 取消多个操作
+
+一个 AbortSignal 可以同时控制多个异步操作：
+
+```js
+const controller = new AbortController();
+const { signal } = controller;
+
+async function fetchMultiple(signal) {
+  try {
+    const [users, posts] = await Promise.all([
+      fetch('https://api.example.com/users', { signal }),
+      fetch('https://api.example.com/posts', { signal })
+    ]);
+    return { users, posts };
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      console.log('所有请求已取消');
+    }
+    throw err;
+  }
+}
+
+// 用户点击取消按钮时
+// controller.abort();
+```
+
+### 自定义可取消的操作
+
+你也可以让自定义函数支持取消：
+
+```js
+function delay(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(new Error('Aborted'));
+      }, { once: true });
+    }
+  });
+}
+
+const controller = new AbortController();
+delay(10000, controller.signal).catch(console.error);
+
+setTimeout(() => controller.abort(), 2000);
+```
+
+## 异步迭代器
+
+对于需要逐步消费的数据源，**异步迭代器**提供了声明式的遍历方式。
+
+```js
+const fs = require('fs');
+const readline = require('readline');
+
+async function* readLines(filename) {
+  const stream = fs.createReadStream(filename, { encoding: 'utf8' });
+  const rl = readline.createInterface({ input: stream });
+
+  for await (const line of rl) {
+    yield line;
+  }
+}
+
+async function processLogFile() {
+  for await (const line of readLines('app.log')) {
+    if (line.includes('ERROR')) {
+      console.log(line);
+    }
+  }
+}
+```
+
+## 总结
+
+Node.js 的异步编程经历了清晰的演进路径：
+
+- **回调函数**：基础但容易陷入回调地狱，错误处理分散
+- **Promise**：链式调用、统一错误处理，`util.promisify` 桥接旧 API
+- **async/await**：语法糖让异步代码像同步代码一样清晰
+- **AsyncLocalStorage**：在异步调用链中隐式传递上下文
+- **AbortController**：统一取消信号，控制异步操作生命周期
+- **异步迭代器**：声明式消费流式数据
+
+现代 Node.js 开发中，推荐优先使用 `async/await` + `fs/promises` 等原生 Promise API，配合 `AbortController` 管理操作生命周期，在需要跨层传递上下文时使用 `AsyncLocalStorage`。

@@ -1,0 +1,343 @@
+---
+title: Express RESTful API 设计实践
+description: 系统学习 REST 架构原则，掌握在 Express 中设计规范的 CRUD 路由、API 版本管理策略及统一的响应格式规范。
+pubDate: 2026-05-03
+category: express
+tags: [express, restful, api-design, crud, versioning]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 15
+planId: restful-api-design
+---
+
+# Express RESTful API 设计实践
+
+REST（Representational State Transfer）是一种设计网络应用的架构风格。遵循 REST 原则设计的 API 具有清晰的语义、良好的可扩展性和广泛的客户端兼容性。
+
+## REST 核心原则
+
+### 资源导向
+
+REST 的核心思想是将一切抽象为**资源**（Resource），每个资源通过唯一的 URL 标识：
+
+| 资源 | URL |
+|------|-----|
+| 用户列表 | `/users` |
+| 单个用户 | `/users/42` |
+| 用户的订单 | `/users/42/orders` |
+| 单个订单 | `/orders/99` |
+
+### HTTP 方法语义
+
+使用 HTTP 方法表达对资源的操作：
+
+| 方法 | 语义 | 幂等性 |
+|------|------|--------|
+| GET | 获取资源 | 是 |
+| POST | 创建资源 | 否 |
+| PUT | 全量更新资源 | 是 |
+| PATCH | 部分更新资源 | 否 |
+| DELETE | 删除资源 | 是 |
+
+> **幂等性**：多次执行相同操作，结果一致。
+
+### 无状态通信
+
+服务器不保存客户端的会话状态。每次请求必须包含所有必要信息，通常通过请求头传递认证令牌：
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+## Express 中实现 RESTful 路由
+
+### 用户资源的 CRUD
+
+```js
+// routes/users.js
+const express = require('express');
+const router = express.Router();
+
+// 读取列表 —— GET /users
+router.get('/', (req, res) => {
+  const users = getUsersFromDB();
+  res.json({ data: users });
+});
+
+// 读取单个 —— GET /users/:id
+router.get('/:id', (req, res) => {
+  const user = getUserById(req.params.id);
+  if (!user) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  res.json({ data: user });
+});
+
+// 创建 —— POST /users
+router.post('/', (req, res) => {
+  const newUser = createUser(req.body);
+  res.status(201).json({ data: newUser });
+});
+
+// 全量更新 —— PUT /users/:id
+router.put('/:id', (req, res) => {
+  const updated = updateUser(req.params.id, req.body);
+  res.json({ data: updated });
+});
+
+// 部分更新 —— PATCH /users/:id
+router.patch('/:id', (req, res) => {
+  const updated = patchUser(req.params.id, req.body);
+  res.json({ data: updated });
+});
+
+// 删除 —— DELETE /users/:id
+router.delete('/:id', (req, res) => {
+  deleteUser(req.params.id);
+  res.status(204).send();
+});
+
+module.exports = router;
+```
+
+### 嵌套资源路由
+
+处理资源间的关联关系：
+
+```js
+// routes/users.js 中的子路由
+router.get('/:id/orders', (req, res) => {
+  const orders = getOrdersByUserId(req.params.id);
+  res.json({ data: orders });
+});
+
+router.post('/:id/orders', (req, res) => {
+  const newOrder = createOrder({
+    userId: req.params.id,
+    ...req.body
+  });
+  res.status(201).json({ data: newOrder });
+});
+```
+
+## 统一的响应格式
+
+### 标准响应结构
+
+定义统一的 JSON 响应格式，便于客户端解析：
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": 1,
+    "name": "Alice"
+  }
+}
+```
+
+```json
+{
+  "status": "fail",
+  "message": "用户不存在",
+  "code": "USER_NOT_FOUND"
+}
+```
+
+### 响应封装工具
+
+```js
+// utils/response.js
+const success = (res, data, statusCode = 200) => {
+  res.status(statusCode).json({
+    status: 'success',
+    data
+  });
+};
+
+const fail = (res, message, statusCode = 400, code = null) => {
+  const response = { status: 'fail', message };
+  if (code) response.code = code;
+  res.status(statusCode).json(response);
+};
+
+const error = (res, message = '服务器内部错误') => {
+  res.status(500).json({
+    status: 'error',
+    message
+  });
+};
+
+module.exports = { success, fail, error };
+```
+
+```js
+// 在路由中使用
+const { success, fail } = require('../utils/response');
+
+router.get('/:id', (req, res) => {
+  const user = getUserById(req.params.id);
+  if (!user) {
+    return fail(res, '用户不存在', 404, 'USER_NOT_FOUND');
+  }
+  success(res, user);
+});
+```
+
+## API 版本管理
+
+### URL 路径版本（推荐）
+
+```
+/api/v1/users
+/api/v2/users
+```
+
+```js
+// app.js
+app.use('/api/v1', require('./routes/v1'));
+app.use('/api/v2', require('./routes/v2'));
+```
+
+### 请求头版本
+
+```
+Accept: application/vnd.api+json;version=2
+```
+
+```js
+app.use('/api', (req, res, next) => {
+  const version = req.get('Accept')?.match(/version=(\d+)/)?.[1] || '1';
+  req.apiVersion = version;
+  next();
+});
+```
+
+### 查询参数版本
+
+```
+/api/users?version=2
+```
+
+URL 路径版本是最直观、缓存友好的方案，推荐作为默认策略。
+
+## 分页、过滤与排序
+
+### 分页实现
+
+```js
+router.get('/', (req, res) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 10;
+  const skip = (page - 1) * limit;
+
+  const users = getUsers({ skip, limit });
+  const total = countUsers();
+
+  res.json({
+    status: 'success',
+    data: users,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit)
+    }
+  });
+});
+```
+
+### 过滤与排序
+
+```js
+// GET /users?role=admin&sort=-createdAt
+router.get('/', (req, res) => {
+  const { role, sort } = req.query;
+  const filters = {};
+
+  if (role) filters.role = role;
+
+  const users = getUsers({
+    filters,
+    sort: sort?.replace('-', '') || 'id',
+    order: sort?.startsWith('-') ? 'desc' : 'asc'
+  });
+
+  res.json({ status: 'success', data: users });
+});
+```
+
+## 状态码使用规范
+
+| 状态码 | 场景 |
+|--------|------|
+| 200 | 请求成功，返回数据 |
+| 201 | 资源创建成功 |
+| 204 | 删除成功，无返回体 |
+| 400 | 请求参数错误 |
+| 401 | 未认证 |
+| 403 | 无权限 |
+| 404 | 资源不存在 |
+| 409 | 资源冲突（如重复创建） |
+| 422 | 请求格式正确但语义错误 |
+| 500 | 服务器内部错误 |
+
+## HATEOAS 与超媒体
+
+REST 的成熟度模型最高级别是**HATEOAS**（Hypermedia as the Engine of Application State），即在响应中嵌入相关资源的链接：
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": 1,
+    "name": "Alice",
+    "_links": {
+      "self": { "href": "/api/v1/users/1" },
+      "orders": { "href": "/api/v1/users/1/orders" },
+      "edit": { "href": "/api/v1/users/1", "method": "PUT" },
+      "delete": { "href": "/api/v1/users/1", "method": "DELETE" }
+    }
+  }
+}
+```
+
+实现 HATEOAS 可以让客户端通过 API 自发现可用操作，减少对文档的依赖。
+
+## 完整的 RESTful 项目结构
+
+```
+project/
+├── app.js
+├── routes/
+│   ├── index.js
+│   ├── users.js
+│   └── orders.js
+├── controllers/
+│   ├── userController.js
+│   └── orderController.js
+├── models/
+│   ├── User.js
+│   └── Order.js
+├── middleware/
+│   ├── validate.js
+│   └── auth.js
+├── utils/
+│   └── response.js
+└── package.json
+```
+
+## 小结
+
+本章从 REST 架构原则出发，系统学习了在 Express 中设计和实现规范 API 的完整方法：
+
+- **REST 原则**：资源导向、HTTP 方法语义化、无状态通信
+- **CRUD 路由**：使用 Router 实现标准的增删改查接口
+- **统一响应格式**：`status` + `data` / `message` 的标准结构
+- **版本管理**：URL 路径版本是最实用的方案
+- **分页过滤**：通过查询参数实现灵活的列表查询
+- **状态码**：正确使用 HTTP 状态码传达请求结果
+- **HATEOAS**：超媒体链接提升 API 的可发现性
+
+设计良好的 RESTful API 不仅便于前端消费，也为第三方集成和微服务通信奠定了坚实基础。下一章将学习数据库集成，为 API 添加持久化能力。

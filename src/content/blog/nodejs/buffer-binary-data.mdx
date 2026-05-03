@@ -1,0 +1,259 @@
+---
+title: Buffer 与二进制数据处理
+description: 全面讲解 Node.js Buffer 的内存分配、编码转换、与 TypedArray 的互操作，以及二进制协议解析实战，助你掌握 Node.js 中二进制数据的核心处理能力。
+pubDate: 2026-05-03
+category: nodejs
+tags: [nodejs, buffer, binary, typedarray, encoding]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: buffer-binary-data
+---
+
+# Buffer 与二进制数据处理
+
+JavaScript 语言本身对二进制数据的支持有限——字符串并非存储原始字节的理想容器。Node.js 引入的 **Buffer** 类提供了一种直接操作原始内存的方式，使其成为处理网络协议、文件 I/O、加密运算和流式数据的基石。
+
+## Buffer 的本质
+
+**Buffer** 是 `Uint8Array` 的子类，代表一段固定长度的原始内存。与 JavaScript 数组不同，Buffer 一旦创建，其大小不可改变，且每个元素都是一个 0 到 255 之间的整数。
+
+```js
+const buf = Buffer.alloc(10);
+console.log(buf);        // <Buffer 00 00 00 00 00 00 00 00 00 00>
+console.log(buf.length); // 10
+console.log(buf[0]);     // 0
+
+buf[0] = 255;
+console.log(buf[0]);     // 255
+buf[0] = 256;
+console.log(buf[0]);     // 0（溢出回绕）
+```
+
+## 创建 Buffer 的三种方式
+
+Node.js 提供了多种创建 Buffer 的方法，理解它们的差异对内存安全至关重要。
+
+### Buffer.alloc — 安全分配
+
+`Buffer.alloc(size)` 分配指定大小的内存，并用零填充。这是**推荐**的创建方式，可以避免敏感数据泄漏。
+
+```js
+// 分配 1024 字节的零填充内存
+const safe = Buffer.alloc(1024);
+console.log(safe); // 全部为 0x00
+```
+
+### Buffer.allocUnsafe — 高性能但危险
+
+`Buffer.allocUnsafe(size)` 分配内存但不初始化。如果这块内存之前存储过敏感数据，可能会被读取到。性能更高，但需谨慎使用。
+
+```js
+// 快速分配，但内容不确定
+const fast = Buffer.allocUnsafe(1024);
+console.log(fast); // 可能包含旧数据
+
+// 使用 fill() 手动清零
+fast.fill(0);
+```
+
+### Buffer.from — 从现有数据转换
+
+`Buffer.from()` 可以从字符串、数组或另一个 Buffer 创建实例。
+
+```js
+// 从字符串创建（默认 UTF-8）
+const fromString = Buffer.from('Hello 世界');
+console.log(fromString); // <Buffer 48 65 6c 6c 6f 20 e4 b8 96 e7 95 8c>
+
+// 从数组创建
+const fromArray = Buffer.from([0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+console.log(fromArray.toString()); // "Hello"
+
+// 从 Base64 字符串解码
+const fromBase64 = Buffer.from('SGVsbG8gV29ybGQ=', 'base64');
+console.log(fromBase64.toString()); // "Hello World"
+```
+
+## 编码与解码
+
+Buffer 支持多种字符编码，在网络通信和数据持久化中经常需要转换。
+
+```js
+const buf = Buffer.from('Hello 世界');
+
+// 常见编码转换
+console.log(buf.toString('hex'));      // 48656c6c6f20e4b896e7958c
+console.log(buf.toString('base64'));   // SGVsbG8g5LiW55WM
+console.log(buf.toString('utf8'));     // Hello 世界
+console.log(buf.toString('latin1'));   // 乱码，因为 latin1 不支持中文
+
+// 指定编码创建
+const gbBuf = Buffer.from('你好', 'utf16le');
+console.log(gbBuf); // <Buffer 60 4f 7d 59>
+
+// 使用 TextDecoder（Web 标准 API）
+const decoder = new TextDecoder('utf-8');
+const uint8 = new Uint8Array([0xe4, 0xb8, 0x96, 0xe7, 0x95, 0x8c]);
+console.log(decoder.decode(uint8)); // "世界"
+```
+
+## Buffer 与 TypedArray 互操作
+
+由于 Buffer 是 `Uint8Array` 的子类，它可以与所有 **TypedArray** 类型无缝协作。这在处理二进制文件格式（如 WAV、PNG）时非常有用。
+
+```js
+// Buffer 与 Uint16Array 共享底层内存
+const buf = Buffer.alloc(4);
+const uint16 = new Uint16Array(buf.buffer, buf.byteOffset, 2);
+
+uint16[0] = 0x1234;
+uint16[1] = 0x5678;
+
+console.log(buf); // <Buffer 34 12 78 56>（小端序）
+
+// 读取大端序的 32 位整数
+const bigBuf = Buffer.from([0x00, 0x00, 0x00, 0x2a]);
+console.log(bigBuf.readInt32BE(0)); // 42（大端序）
+console.log(bigBuf.readInt32LE(0)); // 704643072（小端序）
+
+// 写入浮点数
+const floatBuf = Buffer.alloc(4);
+floatBuf.writeFloatBE(3.14, 0);
+console.log(floatBuf); // <Buffer 40 48 f5 c3>
+console.log(floatBuf.readFloatBE(0)); // 3.140000104904175
+```
+
+## 二进制协议解析实战
+
+假设我们需要解析一个简单的二进制协议头部：
+
+```
++--------+--------+--------+--------+--------+--------+
+|  Magic |Version |  Type  |  Flags |     Payload Length    |
+|  1byte | 1byte  | 1byte  | 1byte  |        4 bytes        |
++--------+--------+--------+--------+--------+--------+
+```
+
+```js
+class ProtocolHeader {
+  constructor(buffer) {
+    if (buffer.length < 8) {
+      throw new Error('Header too short');
+    }
+    this.magic = buffer[0];
+    this.version = buffer[1];
+    this.type = buffer[2];
+    this.flags = buffer[3];
+    this.payloadLength = buffer.readUInt32BE(4);
+  }
+
+  static create({ magic, version, type, flags, payloadLength }) {
+    const buf = Buffer.alloc(8);
+    buf[0] = magic;
+    buf[1] = version;
+    buf[2] = type;
+    buf[3] = flags;
+    buf.writeUInt32BE(payloadLength, 4);
+    return buf;
+  }
+
+  toString() {
+    return `ProtocolHeader(magic=0x${this.magic.toString(16)}, ` +
+           `version=${this.version}, type=${this.type}, ` +
+           `flags=${this.flags}, payloadLength=${this.payloadLength})`;
+  }
+}
+
+// 创建头部
+const header = ProtocolHeader.create({
+  magic: 0x42,
+  version: 1,
+  type: 2,
+  flags: 0,
+  payloadLength: 1024
+});
+console.log(header); // <Buffer 42 01 02 00 00 00 04 00>
+
+// 解析头部
+const parsed = new ProtocolHeader(header);
+console.log(parsed.toString());
+// ProtocolHeader(magic=0x42, version=1, type=2, flags=0, payloadLength=1024)
+```
+
+## Buffer 的切片与拷贝
+
+Buffer 提供了高效的切片操作，且切片与原始 Buffer **共享内存**。
+
+```js
+const original = Buffer.from('Hello World');
+
+// slice 共享内存（零拷贝）
+const sliced = original.slice(0, 5);
+console.log(sliced.toString()); // "Hello"
+
+sliced[0] = 0x68; // 小写 h
+console.log(original.toString()); // "hello World"
+
+// 需要独立拷贝时使用 subarray + Buffer.from
+const copied = Buffer.from(original.subarray(0, 5));
+copied[0] = 0x48;
+console.log(original.toString());  // "hello World"（不受影响）
+console.log(copied.toString());    // "Hello"
+```
+
+## 流式数据处理
+
+Buffer 在流（Stream）中扮演核心角色。处理大文件时，数据以 Buffer 块的形式逐段传递。
+
+```js
+const fs = require('fs');
+
+// 逐块读取大文件，每块都是 Buffer
+const stream = fs.createReadStream('/path/to/large-file.bin', {
+  highWaterMark: 64 * 1024 // 64KB 缓冲区
+});
+
+let totalSize = 0;
+
+stream.on('data', (chunk) => {
+  // chunk 是 Buffer 实例
+  totalSize += chunk.length;
+  console.log(`收到 ${chunk.length} 字节，累计 ${totalSize} 字节`);
+});
+
+stream.on('end', () => {
+  console.log(`读取完成，共 ${totalSize} 字节`);
+});
+```
+
+## 性能注意事项
+
+1. **避免频繁创建小 Buffer**：Buffer 分配涉及内存申请，频繁创建会影响性能。考虑使用 **Buffer pool** 模式。
+
+2. **使用 `Buffer.allocUnsafe` + `fill`**：在确定安全的情况下，比 `Buffer.alloc` 更快。
+
+3. **字符串拼接用 Buffer**：大量字符串拼接时，Buffer 比 `+` 运算符高效得多。
+
+```js
+// 高效拼接大量字符串
+const chunks = [];
+for (let i = 0; i < 10000; i++) {
+  chunks.push(Buffer.from(`line ${i}\n`));
+}
+const result = Buffer.concat(chunks);
+console.log(result.length);
+```
+
+## 总结
+
+Buffer 是 Node.js 处理二进制数据的利器：
+
+- 使用 `Buffer.alloc` 安全分配内存，`Buffer.from` 转换现有数据
+- 支持 UTF-8、hex、base64 等多种编码
+- 与 TypedArray 共享底层架构，支持多视图操作
+- `slice` 零拷贝共享内存，`Buffer.from` 创建独立副本
+- 在流式 I/O 和网络协议解析中不可或缺
+
+掌握 Buffer 的使用，你就能在文件解析、网络通信、加密运算等场景中写出高效且安全的代码。

@@ -1,0 +1,433 @@
+---
+title: MySQL 视图与存储过程
+description: 系统学习 MySQL 视图的创建与更新、存储过程和函数的编写、参数传递与流程控制语句，掌握将复杂业务逻辑封装在数据库层的技术手段。
+pubDate: 2026-05-03
+category: mysql
+tags: [mysql, view, stored-procedure, function, database]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 16
+planId: stored-procedures-functions
+---
+
+# MySQL 视图与存储过程
+
+随着业务复杂度增加，SQL 查询可能变得冗长且难以维护。**视图**（View）和**存储过程**（Stored Procedure）可以将复杂的查询逻辑封装在数据库层，简化应用代码并提高安全性。本文将详细讲解视图、存储过程、函数的定义与使用。
+
+---
+
+## 视图（View）
+
+**视图**是基于 SQL 查询结果的虚拟表。它不存储实际数据，而是保存查询定义，每次查询视图时动态执行底层 SQL。
+
+### 创建视图
+
+```sql
+-- 创建一个查询活跃用户订单的视图
+CREATE VIEW active_user_orders AS
+SELECT
+  u.user_id,
+  u.username,
+  o.order_id,
+  o.amount,
+  o.order_date
+FROM users u
+INNER JOIN orders o ON u.user_id = o.user_id
+WHERE u.status = 'active';
+```
+
+创建后，可以像查询普通表一样使用视图：
+
+```sql
+-- 查询视图
+SELECT * FROM active_user_orders WHERE amount > 1000;
+
+-- 视图也可以参与 JOIN
+SELECT v.username, p.product_name
+FROM active_user_orders v
+JOIN products p ON v.order_id = p.product_id;
+```
+
+### 更新视图
+
+某些视图支持通过 `UPDATE`、`INSERT`、`DELETE` 修改底层数据，但需要满足严格条件：
+
+- 视图必须基于单表（不能包含 JOIN、UNION、DISTINCT、GROUP BY 等）
+- 不能包含聚合函数或子查询
+- 必须包含底层表的所有非空列
+
+```sql
+-- 创建一个可更新的简单视图
+CREATE VIEW user_emails AS
+SELECT user_id, username, email
+FROM users
+WHERE status = 'active';
+
+-- 通过视图更新数据
+UPDATE user_emails SET email = 'new@example.com' WHERE user_id = 1;
+-- 实际会更新底层 users 表的 email 字段
+```
+
+### 修改和删除视图
+
+```sql
+-- 修改视图定义（先删除再创建，或使用 CREATE OR REPLACE）
+CREATE OR REPLACE VIEW active_user_orders AS
+SELECT
+  u.user_id,
+  u.username,
+  o.order_id,
+  o.amount
+FROM users u
+INNER JOIN orders o ON u.user_id = o.user_id
+WHERE u.status = 'active' AND o.amount > 0;
+
+-- 删除视图
+DROP VIEW IF EXISTS active_user_orders;
+```
+
+### 视图的优势与局限
+
+**优势：**
+- 简化复杂查询，对外暴露统一接口
+- 实现数据访问控制（隐藏敏感列）
+- 逻辑层与数据层解耦
+
+**局限：**
+- 性能可能低于直接查询（嵌套视图尤其明显）
+- 更新限制较多
+- 过度使用会增加维护复杂度
+
+---
+
+## 存储过程（Stored Procedure）
+
+**存储过程**是一组预编译的 SQL 语句，保存在数据库中，可以通过名称调用执行。
+
+### 创建存储过程
+
+```sql
+-- 修改分隔符，避免与过程体内的分号冲突
+DELIMITER //
+
+CREATE PROCEDURE GetUserOrders(IN p_user_id INT)
+BEGIN
+  SELECT
+    o.order_id,
+    o.amount,
+    o.order_date,
+    p.product_name
+  FROM orders o
+  JOIN products p ON o.product_id = p.product_id
+  WHERE o.user_id = p_user_id
+  ORDER BY o.order_date DESC;
+END //
+
+DELIMITER ;
+```
+
+调用存储过程：
+
+```sql
+CALL GetUserOrders(1);
+```
+
+### 参数类型
+
+MySQL 存储过程支持三种参数：
+
+| 类型 | 说明 | 用途 |
+|------|------|------|
+| `IN` | 传入参数（默认） | 向过程传递值 |
+| `OUT` | 传出参数 | 从过程返回值 |
+| `INOUT` | 传入并传出 | 既接收值又返回值 |
+
+```sql
+DELIMITER //
+
+-- 使用 OUT 参数返回用户订单数量
+CREATE PROCEDURE GetUserOrderCount(
+  IN p_user_id INT,
+  OUT p_count INT
+)
+BEGIN
+  SELECT COUNT(*) INTO p_count
+  FROM orders
+  WHERE user_id = p_user_id;
+END //
+
+DELIMITER ;
+
+-- 调用并获取 OUT 参数
+CALL GetUserOrderCount(1, @order_count);
+SELECT @order_count AS total_orders;
+```
+
+### 流程控制语句
+
+存储过程支持完整的流程控制：
+
+#### IF 条件判断
+
+```sql
+DELIMITER //
+
+CREATE PROCEDURE CheckStock(
+  IN p_product_id INT,
+  IN p_quantity INT,
+  OUT p_result VARCHAR(50)
+)
+BEGIN
+  DECLARE v_stock INT;
+
+  SELECT stock INTO v_stock
+  FROM products
+  WHERE product_id = p_product_id;
+
+  IF v_stock IS NULL THEN
+    SET p_result = 'PRODUCT_NOT_FOUND';
+  ELSEIF v_stock >= p_quantity THEN
+    SET p_result = 'IN_STOCK';
+  ELSE
+    SET p_result = 'OUT_OF_STOCK';
+  END IF;
+END //
+
+DELIMITER ;
+```
+
+#### CASE 多分支
+
+```sql
+DELIMITER //
+
+CREATE PROCEDURE GetOrderStatusText(IN p_status INT)
+BEGIN
+  CASE p_status
+    WHEN 0 THEN SELECT 'Pending' AS status_text;
+    WHEN 1 THEN SELECT 'Paid' AS status_text;
+    WHEN 2 THEN SELECT 'Shipped' AS status_text;
+    WHEN 3 THEN SELECT 'Completed' AS status_text;
+    ELSE SELECT 'Unknown' AS status_text;
+  END CASE;
+END //
+
+DELIMITER ;
+```
+
+#### WHILE 循环
+
+```sql
+DELIMITER //
+
+CREATE PROCEDURE GenerateNumbers(IN p_max INT)
+BEGIN
+  DECLARE i INT DEFAULT 1;
+
+  CREATE TEMPORARY TABLE IF NOT EXISTS temp_numbers (num INT);
+  TRUNCATE TABLE temp_numbers;
+
+  WHILE i <= p_max DO
+    INSERT INTO temp_numbers VALUES (i);
+    SET i = i + 1;
+  END WHILE;
+
+  SELECT * FROM temp_numbers;
+  DROP TEMPORARY TABLE temp_numbers;
+END //
+
+DELIMITER ;
+```
+
+#### REPEAT 和 LOOP
+
+```sql
+-- REPEAT（先执行后判断）
+DELIMITER //
+CREATE PROCEDURE RepeatDemo()
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  REPEAT
+    SET i = i + 1;
+  UNTIL i >= 5 END REPEAT;
+  SELECT i;
+END //
+DELIMITER ;
+
+-- LOOP（需手动 LEAVE）
+DELIMITER //
+CREATE PROCEDURE LoopDemo()
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  my_loop: LOOP
+    SET i = i + 1;
+    IF i >= 5 THEN
+      LEAVE my_loop;
+    END IF;
+  END LOOP my_loop;
+  SELECT i;
+END //
+DELIMITER ;
+```
+
+### 游标（Cursor）
+
+**游标**用于逐行处理查询结果集。
+
+```sql
+DELIMITER //
+
+CREATE PROCEDURE ProcessAllUsers()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE v_user_id INT;
+  DECLARE v_username VARCHAR(50);
+
+  -- 声明游标
+  DECLARE user_cursor CURSOR FOR
+    SELECT user_id, username FROM users WHERE status = 'active';
+
+  -- 游标结束时设置 done = TRUE
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN user_cursor;
+
+  read_loop: LOOP
+    FETCH user_cursor INTO v_user_id, v_username;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    -- 逐行处理逻辑
+    INSERT INTO user_logs (user_id, action, created_at)
+    VALUES (v_user_id, 'processed', NOW());
+  END LOOP;
+
+  CLOSE user_cursor;
+END //
+
+DELIMITER ;
+```
+
+### 错误处理
+
+```sql
+DELIMITER //
+
+CREATE PROCEDURE SafeInsertUser(
+  IN p_username VARCHAR(50),
+  IN p_email VARCHAR(100)
+)
+BEGIN
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    ROLLBACK;
+    SELECT 'Insert failed, transaction rolled back' AS message;
+  END;
+
+  START TRANSACTION;
+  INSERT INTO users (username, email) VALUES (p_username, p_email);
+  COMMIT;
+  SELECT 'Insert successful' AS message;
+END //
+
+DELIMITER ;
+```
+
+---
+
+## 函数（Function）
+
+**函数**与存储过程类似，但必须有返回值，且可以在 SQL 语句中直接调用。
+
+### 创建函数
+
+```sql
+DELIMITER //
+
+CREATE FUNCTION CalculateDiscount(
+  p_price DECIMAL(10, 2),
+  p_discount_rate DECIMAL(4, 2)
+) RETURNS DECIMAL(10, 2)
+DETERMINISTIC
+BEGIN
+  RETURN p_price * (1 - p_discount_rate);
+END //
+
+DELIMITER ;
+```
+
+使用函数：
+
+```sql
+SELECT
+  product_name,
+  price,
+  CalculateDiscount(price, 0.15) AS discounted_price
+FROM products;
+```
+
+### 函数特性
+
+- 必须有 `RETURNS` 子句和 `RETURN` 语句
+- 可以在 `SELECT`、`WHERE`、`ORDER BY` 等语句中使用
+- 默认要求声明为 `DETERMINISTIC`（确定性）或 `READS SQL DATA`
+- 不能包含事务控制语句（`COMMIT`、`ROLLBACK`）
+
+```sql
+-- 创建需要读取数据的函数
+DELIMITER //
+
+CREATE FUNCTION GetUserOrderTotal(p_user_id INT)
+RETURNS DECIMAL(12, 2)
+READS SQL DATA
+BEGIN
+  DECLARE total DECIMAL(12, 2);
+  SELECT COALESCE(SUM(amount), 0) INTO total
+  FROM orders
+  WHERE user_id = p_user_id;
+  RETURN total;
+END //
+
+DELIMITER ;
+
+-- 在查询中使用
+SELECT username, GetUserOrderTotal(user_id) AS total_spent
+FROM users;
+```
+
+---
+
+## 管理存储过程和函数
+
+```sql
+-- 查看所有存储过程
+SHOW PROCEDURE STATUS WHERE Db = 'your_database';
+
+-- 查看所有函数
+SHOW FUNCTION STATUS WHERE Db = 'your_database';
+
+-- 查看存储过程定义
+SHOW CREATE PROCEDURE GetUserOrders;
+
+-- 查看函数定义
+SHOW CREATE FUNCTION CalculateDiscount;
+
+-- 删除存储过程
+DROP PROCEDURE IF EXISTS GetUserOrders;
+
+-- 删除函数
+DROP FUNCTION IF EXISTS CalculateDiscount;
+```
+
+---
+
+## 小结
+
+- **视图**是虚拟表，简化查询、控制访问，但更新受限
+- **存储过程**封装复杂业务逻辑，支持 `IN`/`OUT`/`INOUT` 参数和流程控制
+- **函数**必须有返回值，可在 SQL 表达式中直接调用
+- 合理使用视图和存储过程可以减少网络往返、提高安全性，但过度使用会增加数据库维护负担
+
+在微服务架构中，存储过程的使用逐渐减少，但视图和简单的函数仍然是数据库层封装逻辑的有效工具。

@@ -1,0 +1,425 @@
+---
+title: 内置 Test Runner 与调试
+description: 全面讲解 Node.js 内置 Test Runner 的使用、测试套件与钩子、Mock 与快照测试，以及 --inspect 调试与 VS Code 配置，助你构建可靠的测试与调试工作流。
+pubDate: 2026-05-03
+category: nodejs
+tags: [nodejs, testing, test-runner, debugging, inspect, mock]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 12
+planId: test-runner-debugging
+---
+
+# 内置 Test Runner 与调试
+
+测试是软件质量的基石。Node.js 从 v18 开始实验性地引入了**内置 Test Runner**，并在 v20 中趋于稳定。这意味着你无需安装 Jest、Mocha 等第三方库，就能编写和运行测试。配合 Node.js 强大的调试能力，你可以构建出简洁高效的测试与调试工作流。
+
+## 快速上手 Test Runner
+
+内置 Test Runner 通过 `node:test` 和 `node:assert` 模块提供。
+
+```js
+// math.test.js
+const { describe, it } = require('node:test');
+const assert = require('node:assert');
+
+function add(a, b) {
+  return a + b;
+}
+
+function divide(a, b) {
+  if (b === 0) throw new Error('Cannot divide by zero');
+  return a / b;
+}
+
+describe('数学运算', () => {
+  it('两数相加', () => {
+    assert.strictEqual(add(2, 3), 5);
+  });
+
+  it('除法运算', () => {
+    assert.strictEqual(divide(10, 2), 5);
+  });
+
+  it('除零应抛出错误', () => {
+    assert.throws(() => divide(10, 0), /Cannot divide by zero/);
+  });
+});
+```
+
+运行测试：
+
+```bash
+node --test math.test.js
+```
+
+Node.js 会自动识别 `.test.js`、`.spec.js` 和 `test/` 目录下的文件。
+
+```bash
+# 运行所有测试
+node --test
+
+# 并行运行测试
+node --test --test-concurrency=4
+```
+
+## 测试套件与钩子
+
+`describe` 和 `it` 支持嵌套，配合 `before`、`beforeEach`、`after`、`afterEach` 钩子管理测试生命周期。
+
+```js
+const { describe, it, before, beforeEach, after, afterEach } = require('node:test');
+const assert = require('node:assert');
+
+class Database {
+  constructor() { this.data = new Map(); }
+  connect() { this.connected = true; }
+  disconnect() { this.connected = false; }
+  set(key, value) { this.data.set(key, value); }
+  get(key) { return this.data.get(key); }
+  clear() { this.data.clear(); }
+}
+
+describe('Database', () => {
+  let db;
+
+  before(() => {
+    console.log('测试套件开始');
+  });
+
+  beforeEach(() => {
+    db = new Database();
+    db.connect();
+  });
+
+  afterEach(() => {
+    db.disconnect();
+  });
+
+  after(() => {
+    console.log('测试套件结束');
+  });
+
+  describe('数据操作', () => {
+    it('存储和读取数据', () => {
+      db.set('user:1', { name: 'Alice' });
+      assert.deepStrictEqual(db.get('user:1'), { name: 'Alice' });
+    });
+
+    it('清除所有数据', () => {
+      db.set('a', 1);
+      db.set('b', 2);
+      db.clear();
+      assert.strictEqual(db.get('a'), undefined);
+    });
+  });
+
+  describe('连接状态', () => {
+    it('连接后状态为已连接', () => {
+      assert.strictEqual(db.connected, true);
+    });
+  });
+});
+```
+
+## 异步测试
+
+内置 Test Runner 原生支持 Promise 和 async/await。
+
+```js
+const { describe, it } = require('node:test');
+const assert = require('node:assert');
+
+function fetchUser(id) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({ id, name: `User ${id}` });
+    }, 10);
+  });
+}
+
+describe('异步操作', () => {
+  it('获取用户（async/await）', async () => {
+    const user = await fetchUser(1);
+    assert.strictEqual(user.name, 'User 1');
+  });
+
+  it('获取用户（返回 Promise）', () => {
+    return fetchUser(2).then((user) => {
+      assert.strictEqual(user.name, 'User 2');
+    });
+  });
+
+  it('超时测试', async () => {
+    // 设置测试超时时间为 100ms
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 50);
+
+    await assert.rejects(
+      fetchWithTimeout('https://slow.api.com', { signal: controller.signal }),
+      /abort/
+    );
+  });
+});
+```
+
+## Mock 测试
+
+`node:test` 提供了内置的 Mock 功能，无需额外安装 sinon 等库。
+
+```js
+const { describe, it, mock } = require('node:test');
+const assert = require('node:assert');
+
+describe('Mock 测试', () => {
+  it('模拟函数返回值', () => {
+    const fn = mock.fn((x) => x * 2);
+
+    assert.strictEqual(fn(5), 10);
+    assert.strictEqual(fn.mock.callCount(), 1);
+
+    // 修改返回值
+    fn.mock.mockImplementation((x) => x * 3);
+    assert.strictEqual(fn(5), 15);
+  });
+
+  it('模拟模块方法', () => {
+    const original = console.log;
+    const mockLog = mock.fn();
+    console.log = mockLog;
+
+    try {
+      console.log('test message');
+      assert.strictEqual(mockLog.mock.callCount(), 1);
+      assert.deepStrictEqual(mockLog.mock.calls[0].arguments, ['test message']);
+    } finally {
+      console.log = original; // 恢复
+    }
+  });
+
+  it('使用 mock.method 模拟对象方法', () => {
+    const calculator = {
+      add(a, b) { return a + b; }
+    };
+
+    mock.method(calculator, 'add', (a, b) => 42);
+
+    assert.strictEqual(calculator.add(1, 2), 42);
+    assert.strictEqual(calculator.add.mock.callCount(), 1);
+
+    // 恢复原始方法
+    calculator.add.mock.restore();
+    assert.strictEqual(calculator.add(1, 2), 3);
+  });
+});
+```
+
+## 快照测试
+
+快照测试用于验证复杂数据结构的输出是否与预期一致。Node.js Test Runner 内置了快照支持。
+
+```js
+const { describe, it } = require('node:test');
+const assert = require('node:assert');
+
+function generateReport(data) {
+  return {
+    generatedAt: new Date().toISOString().slice(0, 10), // 仅保留日期部分以保持快照稳定
+    total: data.length,
+    items: data.map((item) => ({ id: item.id, status: item.status }))
+  };
+}
+
+describe('快照测试', () => {
+  it('生成报告结构', () => {
+    const data = [
+      { id: 1, status: 'active', name: 'Item 1' },
+      { id: 2, status: 'pending', name: 'Item 2' }
+    ];
+
+    const report = generateReport(data);
+    assert.snapshot(report);
+  });
+});
+```
+
+运行快照测试：
+
+```bash
+# 首次运行生成快照
+node --test --test-update-snapshots
+
+# 后续运行比对快照
+node --test
+```
+
+## 覆盖率报告
+
+Node.js 内置了代码覆盖率收集功能，无需额外工具。
+
+```bash
+# 生成覆盖率报告
+node --test --experimental-test-coverage
+```
+
+输出示例：
+
+```
+ℹ tests 5
+ℹ suites 2
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 45.2
+ℹ start of coverage report
+ℹ ----------------------------------------------------------------
+ℹ file                    | line % | branch % | funcs % | uncovered
+ℹ ----------------------------------------------------------------
+ℹ src/utils.js            | 92.30  | 85.71    | 100.00  | 45-48
+ℹ src/parser.js           | 78.50  | 66.67    | 80.00   | 12,34-56
+ℹ ----------------------------------------------------------------
+ℹ all files               | 85.40  | 76.19    | 90.00   |
+ℹ ----------------------------------------------------------------
+ℹ end of coverage report
+```
+
+## --inspect 调试
+
+Node.js 内置了 V8 调试协议，通过 `--inspect` 标志启动调试服务器。
+
+```bash
+# 启动调试服务器（默认端口 9229）
+node --inspect server.js
+
+# 在第一行代码处暂停（适合调试启动逻辑）
+node --inspect-brk server.js
+
+# 指定端口和绑定地址
+node --inspect=0.0.0.0:9230 server.js
+```
+
+启动后会输出类似信息：
+
+```
+Debugger listening on ws://127.0.0.1:9229/abc123-def456
+For help, see: https://nodejs.org/en/docs/inspector
+```
+
+### Chrome DevTools 调试
+
+1. 在 Chrome 地址栏输入 `chrome://inspect`
+2. 点击 "Open dedicated DevTools for Node"
+3. 在 Sources 面板中设置断点、单步执行、查看变量
+
+### 程序式断点
+
+在代码中插入 `debugger` 语句，当 DevTools 连接时会在该处暂停：
+
+```js
+function complexCalculation(data) {
+  const step1 = preprocess(data);
+  debugger; // 在此处暂停
+  const step2 = transform(step1);
+  return finalize(step2);
+}
+```
+
+## VS Code 调试配置
+
+在 `.vscode/launch.json` 中添加配置，可以在 VS Code 中直接调试 Node.js 程序。
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "启动程序",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/server.js",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    {
+      "name": "调试测试",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/node",
+      "args": ["--test", "${file}"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "附加到进程",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true
+    }
+  ]
+}
+```
+
+## 高级调试技巧
+
+### 使用 console 方法辅助调试
+
+```js
+// 打印对象并展开
+console.dir(obj, { depth: null, colors: true });
+
+// 测量代码执行时间
+console.time('operation');
+// ... 代码
+console.timeEnd('operation'); // 输出: operation: 45.2ms
+
+// 追踪函数调用
+function traceMe() {
+  console.trace('追踪调用栈');
+}
+traceMe();
+```
+
+### 使用 inspector 模块程序化调试
+
+```js
+const inspector = require('inspector');
+
+// 程序化开启调试会话
+inspector.open(9229, '0.0.0.0', true);
+
+// 获取当前会话 URL
+console.log('调试 URL:', inspector.url());
+
+// 关闭调试
+// inspector.close();
+```
+
+### 内存分析
+
+```bash
+# 生成堆快照
+node --inspect server.js
+
+# 在 Chrome DevTools 的 Memory 面板中：
+# 1. 点击 "Take heap snapshot"
+# 2. 分析对象引用关系
+# 3. 对比多个快照找出内存泄漏
+```
+
+## 总结
+
+Node.js 的内置测试和调试能力已经足够支撑大多数项目：
+
+- `node:test` 提供 `describe`/`it` 风格的测试框架
+- `node:assert` 提供丰富的断言方法
+- 支持 `before`/`after`/`beforeEach`/`afterEach` 生命周期钩子
+- 内置 Mock 功能，无需额外依赖
+- `--experimental-test-coverage` 生成覆盖率报告
+- `--inspect` 启动 V8 调试协议，支持 Chrome DevTools 和 VS Code
+- `debugger` 语句实现程序式断点
+
+对于新项目，内置 Test Runner 是一个轻量且零依赖的选择。如果项目需要更复杂的匹配器或并行测试编排，再考虑引入 Jest 或 Vitest。

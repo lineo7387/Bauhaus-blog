@@ -1,0 +1,433 @@
+---
+title: 文件系统实战与路径处理
+description: 深入讲解 Node.js fs 模块的同步、异步与 Promise API，文件描述符与流式读写，watch 文件监控机制，以及临时文件与目录管理，助你掌握文件系统操作的最佳实践。
+pubDate: 2026-05-03
+category: nodejs
+tags: [nodejs, filesystem, fs, path, stream, watch]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 10
+planId: filesystem-practice
+---
+
+# 文件系统实战与路径处理
+
+文件系统操作是服务端编程的基础能力。Node.js 的 **fs** 模块提供了丰富的 API 来与文件系统交互，而 **path** 模块则负责处理跨平台的路径差异。掌握这两个模块，你就能在 Node.js 中高效、安全地处理文件。
+
+## fs 的三种 API 风格
+
+Node.js 的 fs 模块为同一操作提供了三种风格的 API：**同步**、**回调式异步**和 **Promise 异步**。
+
+### 同步 API
+
+同步 API 以 `Sync` 结尾，会阻塞事件循环直到操作完成。适合启动时的配置文件读取，不适合运行时的高频调用。
+
+```js
+const fs = require('fs');
+
+// 同步读取
+const data = fs.readFileSync('config.json', 'utf8');
+const config = JSON.parse(data);
+console.log('配置加载完成:', config);
+
+// 同步检查文件存在性
+try {
+  fs.accessSync('important.txt', fs.constants.R_OK);
+  console.log('文件可读');
+} catch (err) {
+  console.error('文件不可访问');
+}
+```
+
+### 回调式异步 API
+
+传统的错误优先回调风格，不会阻塞事件循环。
+
+```js
+const fs = require('fs');
+
+// 异步读取
+fs.readFile('config.json', 'utf8', (err, data) => {
+  if (err) {
+    console.error('读取失败:', err.message);
+    return;
+  }
+  console.log('内容:', data);
+});
+
+// 异步写入
+fs.writeFile('output.txt', 'Hello World', (err) => {
+  if (err) throw err;
+  console.log('写入完成');
+});
+```
+
+### Promise API（推荐）
+
+`fs/promises` 模块提供了基于 Promise 的 API，与 `async/await` 配合最为优雅。
+
+```js
+const fs = require('fs/promises');
+
+async function manageFiles() {
+  try {
+    // 读取
+    const data = await fs.readFile('config.json', 'utf8');
+    const config = JSON.parse(data);
+
+    // 写入
+    await fs.writeFile('output.json', JSON.stringify(config, null, 2));
+
+    // 追加
+    await fs.appendFile('log.txt', `${new Date().toISOString()} 操作完成\n`);
+
+    console.log('所有操作完成');
+  } catch (err) {
+    console.error('操作失败:', err.message);
+  }
+}
+
+manageFiles();
+```
+
+## 文件描述符与底层操作
+
+对于需要精细控制的场景，可以使用**文件描述符（File Descriptor）**直接操作文件。
+
+```js
+const fs = require('fs/promises');
+
+async function withFileDescriptor() {
+  let fd;
+  try {
+    // 打开文件获取描述符
+    fd = await fs.open('data.bin', 'r+');
+
+    // 读取前 16 字节
+    const { bytesRead, buffer } = await fd.read(Buffer.alloc(16), 0, 16, 0);
+    console.log(`读取了 ${bytesRead} 字节:`, buffer);
+
+    // 在第 100 字节处写入
+    const writeBuf = Buffer.from('INSERTED_DATA');
+    await fd.write(writeBuf, 0, writeBuf.length, 100);
+
+    // 获取文件状态
+    const stat = await fd.stat();
+    console.log('文件大小:', stat.size);
+    console.log('修改时间:', stat.mtime);
+  } finally {
+    // 确保关闭文件描述符
+    if (fd) await fd.close();
+  }
+}
+
+withFileDescriptor();
+```
+
+## 流式读写大文件
+
+处理大文件时，流式读写比一次性载入内存高效得多。
+
+```js
+const fs = require('fs');
+const { pipeline } = require('stream/promises');
+const zlib = require('zlib');
+
+async function streamProcess() {
+  // 复制大文件
+  await pipeline(
+    fs.createReadStream('large-input.bin'),
+    fs.createWriteStream('large-output.bin')
+  );
+
+  // 压缩大文件
+  await pipeline(
+    fs.createReadStream('large-input.bin'),
+    zlib.createGzip(),
+    fs.createWriteStream('large-input.bin.gz')
+  );
+
+  console.log('流式处理完成');
+}
+
+streamProcess().catch(console.error);
+```
+
+### 逐行读取
+
+日志分析等场景常需要逐行处理文件：
+
+```js
+const fs = require('fs');
+const readline = require('readline');
+
+async function analyzeLog(filename) {
+  const fileStream = fs.createReadStream(filename);
+
+  const rl = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity // 识别所有换行符变体
+  });
+
+  let errorCount = 0;
+  let lineCount = 0;
+
+  for await (const line of rl) {
+    lineCount++;
+    if (line.includes('ERROR')) {
+      errorCount++;
+      console.log(`Line ${lineCount}: ${line.slice(0, 100)}`);
+    }
+  }
+
+  console.log(`\n总计: ${lineCount} 行, ${errorCount} 个错误`);
+}
+
+analyzeLog('app.log');
+```
+
+## 路径处理最佳实践
+
+**path** 模块是跨平台路径处理的基石。不同操作系统使用不同的路径分隔符（`/` vs `\`），硬编码路径会导致代码在其他平台失效。
+
+```js
+const path = require('path');
+
+// 拼接路径（自动使用正确分隔符）
+const fullPath = path.join(__dirname, 'data', 'users.json');
+console.log(fullPath); // /project/data/users.json（Linux）
+
+// 解析路径
+const parsed = path.parse('/home/user/project/file.txt');
+console.log(parsed);
+// {
+//   root: '/',
+//   dir: '/home/user/project',
+//   base: 'file.txt',
+//   ext: '.txt',
+//   name: 'file'
+// }
+
+// 规范化路径（解析 . 和 ..）
+const normalized = path.normalize('/foo/bar/../baz/./qux');
+console.log(normalized); // /foo/baz/qux
+
+// 获取相对路径
+const relative = path.relative('/data/orignal', '/data/backup/file.txt');
+console.log(relative); // ../backup/file.txt
+
+// 判断是否为绝对路径
+console.log(path.isAbsolute('/foo/bar'));     // true（Unix）
+console.log(path.isAbsolute('C:\\foo'));      // true（Windows）
+```
+
+### ESM 中的 __dirname 替代方案
+
+在 ES Modules 中，`__dirname` 不存在，需要使用 `import.meta.url`：
+
+```js
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const dataPath = join(__dirname, 'data', 'config.json');
+```
+
+## 目录操作与递归
+
+```js
+const fs = require('fs/promises');
+const path = require('path');
+
+async function directoryOperations() {
+  // 递归创建目录
+  await fs.mkdir('./logs/2026/05', { recursive: true });
+
+  // 读取目录内容
+  const entries = await fs.readdir('./src', { withFileTypes: true });
+  for (const entry of entries) {
+    const type = entry.isDirectory() ? '目录' : '文件';
+    console.log(`${type}: ${entry.name}`);
+  }
+
+  // 递归复制目录
+  async function copyDir(src, dest) {
+    await fs.mkdir(dest, { recursive: true });
+    const entries = await fs.readdir(src, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+
+      if (entry.isDirectory()) {
+        await copyDir(srcPath, destPath);
+      } else {
+        await fs.copyFile(srcPath, destPath);
+      }
+    }
+  }
+
+  await copyDir('./templates', './output/templates');
+
+  // 递归删除目录
+  await fs.rm('./temp', { recursive: true, force: true });
+}
+
+directoryOperations().catch(console.error);
+```
+
+## watch 文件监控机制
+
+Node.js 提供了 `fs.watch` 和 `fs.watchFile` 两种监控机制。
+
+### fs.watch — 高效但平台差异大
+
+`fs.watch` 使用操作系统原生的事件通知机制，效率高但行为因平台而异。
+
+```js
+const fs = require('fs');
+
+const watcher = fs.watch('./config.json', (eventType, filename) => {
+  console.log(`事件: ${eventType}, 文件: ${filename}`);
+});
+
+// 监听错误
+watcher.on('error', (err) => {
+  console.error('监控错误:', err);
+});
+
+// 停止监控
+setTimeout(() => {
+  watcher.close();
+  console.log('监控已停止');
+}, 60000);
+```
+
+### fs.watchFile — 轮询但跨平台一致
+
+`fs.watchFile` 使用轮询机制，跨平台行为一致但开销更大。
+
+```js
+const fs = require('fs');
+
+fs.watchFile('./config.json', { interval: 1000 }, (curr, prev) => {
+  console.log('文件发生变化');
+  console.log('当前大小:', curr.size, '之前大小:', prev.size);
+  console.log('当前修改时间:', curr.mtime);
+});
+
+// 停止监控
+// fs.unwatchFile('./config.json');
+```
+
+### 实用的配置热重载
+
+```js
+const fs = require('fs');
+const path = require('path');
+
+class ConfigLoader {
+  constructor(configPath) {
+    this.configPath = configPath;
+    this.config = {};
+    this.load();
+    this.watch();
+  }
+
+  load() {
+    try {
+      const data = fs.readFileSync(this.configPath, 'utf8');
+      this.config = JSON.parse(data);
+      console.log('配置已加载');
+    } catch (err) {
+      console.error('配置加载失败:', err.message);
+    }
+  }
+
+  watch() {
+    this.watcher = fs.watch(this.configPath, (eventType) => {
+      if (eventType === 'change') {
+        console.log('配置文件变更，重新加载...');
+        this.load();
+      }
+    });
+  }
+
+  get(key) {
+    return this.config[key];
+  }
+
+  stop() {
+    this.watcher?.close();
+  }
+}
+
+const config = new ConfigLoader('./app.config.json');
+console.log(config.get('port'));
+```
+
+## 临时文件与目录管理
+
+Node.js 提供了 `fs.mkdtemp` 和 `os.tmpdir()` 来安全地创建临时资源。
+
+```js
+const fs = require('fs/promises');
+const os = require('os');
+const path = require('path');
+
+async function tempFiles() {
+  // 创建临时目录
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'app-'));
+  console.log('临时目录:', tempDir);
+
+  // 在临时目录中创建文件
+  const tempFile = path.join(tempDir, 'data.tmp');
+  await fs.writeFile(tempFile, 'temporary data');
+
+  // 使用临时文件...
+  const data = await fs.readFile(tempFile, 'utf8');
+  console.log('临时数据:', data);
+
+  // 清理临时目录
+  await fs.rm(tempDir, { recursive: true });
+  console.log('临时目录已清理');
+}
+
+tempFiles().catch(console.error);
+```
+
+## 文件锁与并发安全
+
+多进程同时写入同一文件时需要同步机制。虽然 Node.js 没有内置文件锁 API，但可以通过 `fs.open` 的 flags 实现：
+
+```js
+const fs = require('fs/promises');
+
+async function atomicWrite(filename, data) {
+  const tempFile = `${filename}.tmp`;
+
+  // 先写入临时文件
+  await fs.writeFile(tempFile, data);
+
+  // 原子重命名（POSIX 保证原子性）
+  await fs.rename(tempFile, filename);
+}
+
+atomicWrite('data.json', JSON.stringify({ updated: Date.now() }));
+```
+
+## 总结
+
+Node.js 的文件系统 API 覆盖了从简单读写到复杂监控的全部需求：
+
+- 优先使用 `fs/promises` 配合 `async/await`
+- 大文件处理使用 Stream，避免内存溢出
+- 使用 `path` 模块确保跨平台兼容性
+- `fs.watch` 高效但有平台差异，`fs.watchFile` 轮询更一致
+- 临时文件使用 `fs.mkdtemp` + `os.tmpdir()`
+- 原子写入通过"临时文件 + rename"模式实现
+
+掌握这些实践，你的 Node.js 应用就能安全、高效地与文件系统打交道。

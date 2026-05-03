@@ -1,0 +1,331 @@
+---
+title: Express 路由模块化与 Router
+description: 掌握 express.Router 的用法，学习如何将大型应用的路由拆分为独立模块，实现前缀分组、自动加载与可维护的路由组织策略。
+pubDate: 2026-05-03
+category: express
+tags: [express, router, routing, modular, architecture]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 12
+planId: router-modular
+---
+
+# Express 路由模块化与 Router
+
+随着应用规模增长，将所有路由逻辑写在单一文件中会导致代码臃肿、难以维护。Express 提供的 `express.Router` 是构建可扩展路由架构的核心工具。
+
+## 为什么需要路由模块化
+
+### 单文件路由的问题
+
+```js
+// app.js —— 小型项目尚可，中大型项目不可维护
+app.get('/users', getAllUsers);
+app.get('/users/:id', getUserById);
+app.post('/users', createUser);
+app.put('/users/:id', updateUser);
+app.delete('/users/:id', deleteUser);
+
+app.get('/products', getAllProducts);
+app.get('/products/:id', getProductById);
+// ... 数十行路由定义
+```
+
+问题包括：
+
+- **职责混乱**：用户、商品、订单路由混杂在一起
+- **命名冲突**：不同模块可能定义相同的路由参数名
+- **协作困难**：多人修改同一文件易引发冲突
+- **测试复杂**：难以独立测试某一模块的路由
+
+### 模块化的目标
+
+将路由按业务领域拆分为独立模块，每个模块拥有自己的前缀、中间件和处理器，最终像拼图一样组合到主应用中。
+
+## express.Router 基础
+
+`express.Router` 是一个独立的中间件和路由实例，具备与 `app` 对象几乎相同的路由 API，但可以被挂载到特定路径前缀下。
+
+### 创建与使用 Router
+
+```js
+// routes/userRoutes.js
+const express = require('express');
+const router = express.Router();
+
+// 定义用户路由（无需写 /users 前缀）
+router.get('/', (req, res) => {
+  res.json([{ id: 1, name: 'Alice' }]);
+});
+
+router.get('/:id', (req, res) => {
+  res.json({ id: req.params.id, name: 'Alice' });
+});
+
+router.post('/', (req, res) => {
+  res.status(201).json({ id: 2, ...req.body });
+});
+
+module.exports = router;
+```
+
+```js
+// app.js
+const express = require('express');
+const userRoutes = require('./routes/userRoutes');
+
+const app = express();
+
+// 将用户路由挂载到 /api/users 前缀
+app.use('/api/users', userRoutes);
+```
+
+此时，`userRoutes.js` 中定义的 `/` 实际上对应 `/api/users/`，`/:id` 对应 `/api/users/:id`。
+
+### Router 级中间件
+
+Router 可以拥有自己独立的中间件，仅对该 Router 下的路由生效：
+
+```js
+// routes/adminRoutes.js
+const router = express.Router();
+
+// 仅对 admin 路由进行鉴权
+router.use((req, res, next) => {
+  if (!req.headers['x-admin-token']) {
+    return res.status(403).json({ error: '禁止访问' });
+  }
+  next();
+});
+
+router.get('/dashboard', (req, res) => {
+  res.json({ stats: { users: 1000, orders: 500 } });
+});
+
+router.get('/settings', (req, res) => {
+  res.json({ maintenance: false });
+});
+
+module.exports = router;
+```
+
+```js
+// app.js
+app.use('/admin', require('./routes/adminRoutes'));
+```
+
+## 构建模块化路由架构
+
+### 目录结构约定
+
+```
+src/
+├── app.js                 # 应用入口
+├── routes/
+│   ├── index.js           # 路由统一导出
+│   ├── users.js           # 用户路由
+│   ├── products.js        # 商品路由
+│   └── orders.js          # 订单路由
+├── controllers/           # 控制器层（路由处理器）
+│   ├── userController.js
+│   ├── productController.js
+│   └── orderController.js
+└── middleware/
+    └── auth.js            # 公共中间件
+```
+
+### 分离控制器层
+
+将路由定义与业务逻辑解耦，是 MVC 架构的基础实践：
+
+```js
+// controllers/userController.js
+exports.getAllUsers = (req, res) => {
+  res.json([{ id: 1, name: 'Alice' }]);
+};
+
+exports.getUserById = (req, res) => {
+  res.json({ id: req.params.id, name: 'Alice' });
+};
+
+exports.createUser = (req, res) => {
+  res.status(201).json({ id: Date.now(), ...req.body });
+};
+
+exports.updateUser = (req, res) => {
+  res.json({ id: req.params.id, ...req.body });
+};
+
+exports.deleteUser = (req, res) => {
+  res.status(204).send();
+};
+```
+
+```js
+// routes/users.js
+const express = require('express');
+const router = express.Router();
+const userController = require('../controllers/userController');
+
+router.get('/', userController.getAllUsers);
+router.get('/:id', userController.getUserById);
+router.post('/', userController.createUser);
+router.put('/:id', userController.updateUser);
+router.delete('/:id', userController.deleteUser);
+
+module.exports = router;
+```
+
+### 统一路由注册
+
+```js
+// routes/index.js
+const express = require('express');
+const router = express.Router();
+
+router.use('/users', require('./users'));
+router.use('/products', require('./products'));
+router.use('/orders', require('./orders'));
+
+module.exports = router;
+```
+
+```js
+// app.js
+const express = require('express');
+const app = express();
+
+app.use(express.json());
+
+// 统一挂载所有 API 路由到 /api 前缀
+app.use('/api', require('./routes'));
+
+// 最终路由结构：
+// GET    /api/users
+// GET    /api/users/:id
+// GET    /api/products
+// POST   /api/orders
+```
+
+## 路由前缀与嵌套 Router
+
+### 版本化 API 路由
+
+```js
+// routes/v1/index.js
+const router = require('express').Router();
+
+router.use('/users', require('./users'));
+router.use('/products', require('./products'));
+
+module.exports = router;
+```
+
+```js
+// routes/v2/index.js
+const router = require('express').Router();
+
+router.use('/users', require('./users')); // v2 可能有不同实现
+router.use('/products', require('./products'));
+
+module.exports = router;
+```
+
+```js
+// app.js
+app.use('/api/v1', require('./routes/v1'));
+app.use('/api/v2', require('./routes/v2'));
+```
+
+### 嵌套 Router 示例
+
+```js
+// routes/users.js
+const router = require('express').Router();
+
+// /api/users
+router.get('/', getAllUsers);
+router.post('/', createUser);
+
+// 嵌套子路由：/api/users/:id/orders
+const orderRouter = require('express').Router({ mergeParams: true });
+
+orderRouter.get('/', (req, res) => {
+  // req.params.id 来自父路由的参数
+  const userId = req.params.id;
+  res.json({ userId, orders: [] });
+});
+
+router.use('/:id/orders', orderRouter);
+
+module.exports = router;
+```
+
+> `mergeParams: true` 确保子 Router 可以访问父 Router 的路由参数。
+
+## 自动路由加载模式
+
+对于大型项目，手动在 `index.js` 中导入每个路由模块会显得冗长。可以使用文件系统扫描自动加载：
+
+```js
+// routes/index.js
+const express = require('express');
+const router = express.Router();
+const fs = require('fs');
+const path = require('path');
+
+// 自动加载 routes 目录下所有 .js 文件（排除 index.js）
+fs.readdirSync(__dirname)
+  .filter(file => file !== 'index.js' && file.endsWith('.js'))
+  .forEach(file => {
+    const routeName = path.basename(file, '.js');
+    const routeModule = require(path.join(__dirname, file));
+    router.use(`/${routeName}`, routeModule);
+  });
+
+module.exports = router;
+```
+
+自动加载后，文件 `routes/users.js` 会自动挂载到 `/api/users`，`routes/products.js` 挂载到 `/api/products`。这种方式减少了样板代码，但牺牲了一定的可读性——团队应根据规模权衡是否采用。
+
+## 路由参数校验中间件
+
+在 Router 层面统一处理参数校验：
+
+```js
+// middleware/validateUserId.js
+const validateUserId = (req, res, next) => {
+  const userId = parseInt(req.params.id, 10);
+  if (isNaN(userId) || userId <= 0) {
+    return res.status(400).json({ error: '无效的用户 ID' });
+  }
+  req.validatedUserId = userId;
+  next();
+};
+
+module.exports = validateUserId;
+```
+
+```js
+// routes/users.js
+const validateUserId = require('../middleware/validateUserId');
+
+// 对需要 userId 的路由统一应用校验
+router.get('/:id', validateUserId, userController.getUserById);
+router.put('/:id', validateUserId, userController.updateUser);
+router.delete('/:id', validateUserId, userController.deleteUser);
+```
+
+## 小结
+
+本章系统学习了 Express 路由模块化的核心技术与架构模式：
+
+- **`express.Router`**：创建独立的路由命名空间，支持路径前缀挂载
+- **Router 级中间件**：为特定模块定义局部中间件，不影响全局路由
+- **控制器分离**：将路由处理器独立为 controller 层，实现关注点分离
+- **版本化路由**：通过路径前缀（`/api/v1`、`/api/v2`）管理 API 演进
+- **嵌套 Router**：`mergeParams: true` 实现父子路由参数传递
+- **自动加载**：基于文件系统的路由注册，减少手动维护成本
+
+采用模块化路由架构后，团队成员可以独立开发和测试各自负责的业务模块，代码的可读性和可维护性将显著提升。下一章将探讨 Express 的错误处理机制，学习如何优雅地捕获和响应各类异常情况。

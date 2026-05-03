@@ -1,0 +1,317 @@
+---
+title: MySQL 事务与 ACID 特性
+description: 深入解析 MySQL 事务控制语句、四种隔离级别（READ UNCOMMITTED 到 SERIALIZABLE）、脏读/不可重复读/幻读问题，以及 InnoDB 的 MVCC 多版本并发控制机制。
+pubDate: 2026-05-03
+category: mysql
+tags: [mysql, transaction, acid, mvcc, isolation]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 20
+planId: transactions-acid
+---
+
+# MySQL 事务与 ACID 特性
+
+事务是数据库保证数据一致性的核心机制。无论是银行转账、电商下单，还是库存扣减，都离不开事务的支持。本文将系统讲解 MySQL 事务的 **ACID 特性**、**隔离级别**、并发问题，以及 InnoDB 的 **MVCC** 实现原理。
+
+---
+
+## 什么是事务
+
+**事务**（Transaction）是一组逻辑上的 SQL 操作单元，这些操作要么全部成功执行，要么全部不执行。事务将数据库从一个一致状态转换到另一个一致状态。
+
+### 事务控制语句
+
+MySQL 使用以下语句控制事务：
+
+```sql
+-- 开启事务
+START TRANSACTION;
+-- 或
+BEGIN;
+
+-- 提交事务（永久保存更改）
+COMMIT;
+
+-- 回滚事务（撤销所有更改）
+ROLLBACK;
+
+-- 设置保存点
+SAVEPOINT sp1;
+
+-- 回滚到保存点
+ROLLBACK TO sp1;
+```
+
+### 基本示例
+
+```sql
+-- 银行转账：从账户 A 转 1000 元到账户 B
+START TRANSACTION;
+
+UPDATE accounts SET balance = balance - 1000 WHERE account_id = 'A';
+UPDATE accounts SET balance = balance + 1000 WHERE account_id = 'B';
+
+-- 检查转账后余额是否合法
+SELECT balance FROM accounts WHERE account_id = 'A';
+-- 如果余额 >= 0，提交；否则回滚
+
+COMMIT;
+-- 如果出错：ROLLBACK;
+```
+
+---
+
+## ACID 特性
+
+事务的可靠性由 **ACID** 四个特性保证。
+
+### Atomicity（原子性）
+
+**原子性**确保事务中的所有操作要么全部完成，要么全部不完成。如果事务执行过程中发生错误，所有已执行的修改会被回滚到事务开始前的状态。
+
+InnoDB 通过 **undo log**（回滚日志）实现原子性。事务修改数据前，先将旧值写入 undo log，回滚时根据 undo log 恢复数据。
+
+### Consistency（一致性）
+
+**一致性**指事务执行前后，数据库必须处于合法状态。所有约束（外键、唯一约束、CHECK 约束）都必须满足。
+
+一致性是事务的最终目标，由原子性、隔离性和持久性共同保障。
+
+### Isolation（隔离性）
+
+**隔离性**确保并发执行的事务互不干扰。每个事务感觉就像在独占数据库一样。
+
+MySQL 通过 **锁机制**和 **MVCC** 实现隔离性。不同隔离级别提供不同程度的隔离保证。
+
+### Durability（持久性）
+
+**持久性**保证一旦事务提交，对数据的修改就是永久的，即使系统发生故障也不会丢失。
+
+InnoDB 通过 **redo log**（重做日志）实现持久性。事务提交时，先将修改写入 redo log（顺序写，速度快），再异步刷脏页到磁盘。即使数据库崩溃，重启后也能通过 redo log 恢复数据。
+
+---
+
+## 事务隔离级别
+
+SQL 标准定义了四种隔离级别，MySQL 全部支持。
+
+| 隔离级别 | 脏读 | 不可重复读 | 幻读 |
+|----------|------|------------|------|
+| READ UNCOMMITTED | 可能 | 可能 | 可能 |
+| READ COMMITTED | 不可能 | 可能 | 可能 |
+| REPEATABLE READ | 不可能 | 不可能 | 可能（InnoDB 已解决） |
+| SERIALIZABLE | 不可能 | 不可能 | 不可能 |
+
+### 查看和设置隔离级别
+
+```sql
+-- 查看当前会话隔离级别
+SELECT @@transaction_isolation;
+
+-- 设置当前会话隔离级别
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+-- 设置全局隔离级别（需 SUPER 权限）
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
+```
+
+MySQL 默认隔离级别是 **REPEATABLE READ**。
+
+### READ UNCOMMITTED（读未提交）
+
+最低隔离级别，一个事务可以读取另一个事务尚未提交的数据。
+
+```sql
+-- 事务 A
+START TRANSACTION;
+UPDATE accounts SET balance = 5000 WHERE id = 1; -- 未提交
+
+-- 事务 B（同时执行）
+START TRANSACTION;
+SELECT balance FROM accounts WHERE id = 1; -- 读到 5000（脏读）
+```
+
+**脏读**（Dirty Read）问题：如果事务 A 回滚，事务 B 读到的数据就是无效的。生产环境几乎不使用此级别。
+
+### READ COMMITTED（读已提交）
+
+一个事务只能读取其他事务已经提交的数据。解决了脏读，但存在**不可重复读**问题。
+
+```sql
+-- 事务 A
+START TRANSACTION;
+SELECT balance FROM accounts WHERE id = 1; -- 读到 1000
+
+-- 事务 B 提交更新
+UPDATE accounts SET balance = 2000 WHERE id = 1;
+COMMIT;
+
+-- 事务 A 再次查询
+SELECT balance FROM accounts WHERE id = 1; -- 读到 2000（不可重复读）
+```
+
+**不可重复读**（Non-repeatable Read）：同一事务内两次读取同一行，结果不同。
+
+Oracle、SQL Server 默认使用此级别。
+
+### REPEATABLE READ（可重复读）
+
+MySQL 默认隔离级别。同一事务内多次读取同一行，结果始终一致。
+
+InnoDB 通过 **MVCC** 实现可重复读：事务启动时生成一个**一致性视图**（Read View），后续查询都基于这个视图，不受其他事务提交影响。
+
+```sql
+-- 事务 A
+START TRANSACTION;
+SELECT balance FROM accounts WHERE id = 1; -- 读到 1000，记录快照
+
+-- 事务 B 提交更新
+UPDATE accounts SET balance = 2000 WHERE id = 1;
+COMMIT;
+
+-- 事务 A 再次查询
+SELECT balance FROM accounts WHERE id = 1; -- 仍读到 1000（可重复读）
+COMMIT;
+```
+
+InnoDB 的 REPEATABLE READ 还基本解决了**幻读**问题（通过间隙锁）。
+
+### SERIALIZABLE（串行化）
+
+最高隔离级别，所有事务串行执行，完全避免并发问题。但并发性能最差，很少使用。
+
+```sql
+-- 设置串行化
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+
+START TRANSACTION;
+SELECT * FROM accounts WHERE id = 1; -- 会对读取的行加锁
+```
+
+---
+
+## 并发问题详解
+
+### 脏读（Dirty Read）
+
+读取了其他事务未提交的数据，对方回滚后数据无效。
+
+### 不可重复读（Non-repeatable Read）
+
+同一事务内两次读取同一行，数据被其他事务修改并提交，导致结果不同。
+
+### 幻读（Phantom Read）
+
+同一事务内两次执行相同条件的查询，结果集的行数不同（其他事务插入或删除了符合条件的行）。
+
+```sql
+-- 事务 A
+START TRANSACTION;
+SELECT * FROM accounts WHERE balance > 1000; -- 返回 2 行
+
+-- 事务 B 插入新数据并提交
+INSERT INTO accounts (id, balance) VALUES (3, 5000);
+COMMIT;
+
+-- 事务 A 再次查询
+SELECT * FROM accounts WHERE balance > 1000; -- 返回 3 行（幻读）
+```
+
+InnoDB 在 REPEATABLE READ 下通过**间隙锁**（Gap Lock）阻止其他事务在范围内插入数据，从而避免幻读。
+
+---
+
+## MVCC 多版本并发控制
+
+**MVCC**（Multi-Version Concurrency Control）是 InnoDB 实现高并发读写的核心技术。
+
+### 核心思想
+
+每次更新数据时，不直接覆盖旧数据，而是生成一个新版本。不同事务根据自身的**事务 ID**看到不同的数据版本，从而实现读写不阻塞。
+
+### 隐藏字段
+
+InnoDB 每行记录都有两个隐藏字段：
+
+- **DB_TRX_ID**：最后修改该行的事务 ID
+- **DB_ROLL_PTR**：回滚指针，指向 undo log 中的旧版本
+
+### Read View（一致性视图）
+
+事务执行 SELECT 时，会生成一个 Read View，包含以下信息：
+
+- `creator_trx_id`：创建该视图的事务 ID
+- `m_ids`：生成视图时，所有活跃（未提交）事务的 ID 列表
+- `min_trx_id`：活跃事务中的最小 ID
+- `max_trx_id`：下一个即将分配的事务 ID
+
+### 可见性判断规则
+
+对于某行记录的 `DB_TRX_ID`：
+
+1. 如果 `DB_TRX_ID` 等于 `creator_trx_id`：该行是自己修改的，可见
+2. 如果 `DB_TRX_ID` < `min_trx_id`：修改该行的事务已提交，可见
+3. 如果 `DB_TRX_ID` >= `max_trx_id`：修改发生在视图创建之后，不可见
+4. 如果 `min_trx_id` <= `DB_TRX_ID` < `max_trx_id`：检查 `m_ids` 列表，如果在列表中则不可见（事务未提交），否则可见
+
+### MVCC 示例
+
+```sql
+-- 假设表中有 id=1, name='Alice', DB_TRX_ID=100
+
+-- 事务 200 开始
+START TRANSACTION;
+UPDATE users SET name = 'Bob' WHERE id = 1; -- DB_TRX_ID 变为 200
+
+-- 事务 300 开始（REPEATABLE READ）
+START TRANSACTION;
+SELECT name FROM users WHERE id = 1; -- 生成 Read View
+-- 事务 200 在 m_ids 中，所以看到旧版本 'Alice'
+
+-- 事务 200 提交
+COMMIT;
+
+-- 事务 300 再次查询
+SELECT name FROM users WHERE id = 1; -- 仍看到 'Alice'（可重复读）
+COMMIT;
+
+-- 新事务 400 查询
+SELECT name FROM users WHERE id = 1; -- 看到 'Bob'
+```
+
+---
+
+## 事务最佳实践
+
+1. **事务尽量短小**：长时间持有锁会影响并发性能
+2. **按固定顺序访问资源**：避免死锁
+3. **选择合适的隔离级别**：大多数场景下 REPEATABLE READ 已足够
+4. **捕获异常并回滚**：应用层应确保事务正确结束
+
+```sql
+-- 推荐的事务模板
+START TRANSACTION;
+
+-- 执行业务操作
+UPDATE inventory SET stock = stock - 1 WHERE product_id = 100;
+INSERT INTO orders (product_id, quantity) VALUES (100, 1);
+
+-- 检查业务规则
+SELECT stock FROM inventory WHERE product_id = 100;
+-- 如果 stock < 0，ROLLBACK;
+
+COMMIT;
+```
+
+---
+
+## 小结
+
+- **ACID** 是事务的四大基石：原子性、一致性、隔离性、持久性
+- 四种**隔离级别**提供不同的并发保证，MySQL 默认 **REPEATABLE READ**
+- **脏读、不可重复读、幻读**是并发事务的三种典型问题
+- **MVCC** 通过多版本数据和 Read View 实现高效的读写并发，是 InnoDB 的核心技术
+
+理解事务机制和隔离级别，是设计可靠数据系统的关键。

@@ -15,10 +15,10 @@
 | Electron | 35.x | completed | [_plans/electron.md](electron.md) | 11 / 11 |
 | Astro | 5.x | completed | [_plans/astro.md](astro.md) | 12 / 12 |
 | TypeScript | 5.x | completed | [_plans/typescript.md](typescript.md) | 14 / 14 |
-| Node.js | 24.x | in-progress | [_plans/nodejs.md](nodejs.md) | 5 / 15 |
-| Express | 5.x | in-progress | [_plans/express.md](express.md) | 5 / 13 |
+| Node.js | 24.x | completed | [_plans/nodejs.md](nodejs.md) | 15 / 15 |
+| Express | 5.x | completed | [_plans/express.md](express.md) | 13 / 13 |
 | FastAPI | 0.115.x | in-progress | [_plans/fastapi.md](fastapi.md) | 8 / 13 |
-| MySQL | 8.x | in-progress | [_plans/mysql.md](mysql.md) | 4 / 12 |
+| MySQL | 8.x | completed | [_plans/mysql.md](mysql.md) | 12 / 12 |
 | htmx | 2.x | completed | [_plans/htmx.md](htmx.md) | 13 / 13 |
 | JavaScript | ES2025 | completed | [_plans/javascript.md](javascript.md) | 19 / 19 |
 

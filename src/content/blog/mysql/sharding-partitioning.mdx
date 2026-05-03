@@ -1,0 +1,484 @@
+---
+title: MySQL 分库分表与数据分区
+description: 深入讲解水平分片与垂直分片策略、MySQL Partition 分区表的使用、ShardingSphere 中间件方案、分布式 ID 生成与分片键选择，帮助你应对海量数据场景下的数据库架构设计。
+pubDate: 2026-05-03
+category: mysql
+tags: [mysql, sharding, partitioning, distributed, database]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 22
+planId: sharding-partitioning
+---
+
+# MySQL 分库分表与数据分区
+
+当单库单表的数据量达到千万甚至亿级时，查询性能、写入吞吐和存储容量都会面临瓶颈。**分库分表**和**数据分区**是解决这些问题的核心手段。本文将系统讲解分片策略、MySQL 分区表、ShardingSphere 中间件方案，以及分布式 ID 设计。
+
+---
+
+## 为什么需要分片
+
+单表数据量过大时，会出现以下问题：
+
+- **查询性能下降**：B+Tree 高度增加，索引扫描变慢
+- **维护成本上升**：DDL 操作（加索引、加字段）耗时剧增
+- **写入瓶颈**：单库写入吞吐量有限
+- **存储限制**：单台服务器的磁盘容量有上限
+
+**分片**（Sharding）将数据分散到多个数据库或表中，从而突破单节点的性能上限。
+
+---
+
+## 分片策略
+
+### 垂直分片（Vertical Sharding）
+
+**垂直分片**按业务模块拆分，将不同表放到不同数据库中。
+
+```
+Before:                    After:
++-------------+            +-------------+    +-------------+
+|  user_db    |            |  user_db    |    |  order_db   |
++-------------+            +-------------+    +-------------+
+| users       |            | users       |    | orders      |
+| user_profiles|    -->    | user_profiles|   | order_items |
+| orders      |            |             |    | payments    |
+| order_items |            |             |    |             |
+| products    |            |             |    |             |
++-------------+            +-------------+    +-------------+
+```
+
+**适用场景**：
+- 业务模块之间耦合度低
+- 某些表数据量特别大，需要独立部署
+
+**优点**：
+- 业务清晰，易于维护
+- 可以针对不同业务配置不同的硬件资源
+
+**缺点**：
+- 跨库 JOIN 变得复杂
+- 分布式事务处理困难
+
+### 水平分片（Horizontal Sharding）
+
+**水平分片**将同一张表的数据按某种规则分散到多个表或库中。
+
+```
+Before:                    After (按 user_id % 2):
++-------------+            +-------------+    +-------------+
+|   orders    |            |  orders_0   |    |  orders_1   |
++-------------+            +-------------+    +-------------+
+| 1, Alice    |            | 2, Bob      |    | 1, Alice    |
+| 2, Bob      |    -->     | 4, Dave     |    | 3, Carol    |
+| 3, Carol    |            |             |    | 5, Eve      |
+| 4, Dave     |            |             |    |             |
+| 5, Eve      |            |             |    |             |
++-------------+            +-------------+    +-------------+
+```
+
+**适用场景**：
+- 单表数据量超过 500 万~1000 万行
+- 写入压力超过单库承载能力
+
+**优点**：
+- 解决单表数据量过大问题
+- 可以线性扩展存储和性能
+
+**缺点**：
+- 分片规则设计复杂
+- 跨分片查询性能差
+- 数据迁移困难
+
+---
+
+## 分片键选择
+
+**分片键**（Sharding Key）是决定数据分布的字段，选择得当与否直接影响分片效果。
+
+### 选择原则
+
+1. **高基数**：分片键的取值范围要大，避免数据倾斜
+2. **查询频繁**：大部分查询都包含分片键条件，可以路由到单个分片
+3. **写入均匀**：避免热点分片
+4. **不可变**：分片键值不应频繁变更
+
+### 常见分片键
+
+| 业务 | 推荐分片键 | 说明 |
+|------|-----------|------|
+| 用户系统 | `user_id` | 用户相关查询都带 user_id |
+| 订单系统 | `user_id` 或 `order_id` | 按用户查用 user_id，按订单号查需额外映射 |
+| 日志系统 | `create_time` | 按时间范围查询多 |
+
+### 避免使用的分片键
+
+- **自增 ID**：顺序写入导致最后一个分片成为热点
+- **性别、状态**：基数太低，数据严重倾斜
+- **地理位置**：某些地区数据量远大于其他地区
+
+---
+
+## 分片算法
+
+### 取模分片
+
+```sql
+-- 分片数 = 4
+-- 分片 = user_id % 4
+-- user_id=1 -> orders_1, user_id=2 -> orders_2, ...
+```
+
+**优点**：数据分布均匀，实现简单
+**缺点**：扩容时需要迁移大量数据（re-sharding）
+
+### 范围分片
+
+```sql
+-- orders_0: user_id 1-1000000
+-- orders_1: user_id 1000001-2000000
+-- orders_2: user_id 2000001-3000000
+```
+
+**优点**：扩容简单，只需新增分片
+**缺点**：可能出现热点（新用户集中在最后一个分片）
+
+### 一致性哈希
+
+一致性哈希将分片节点和数据都映射到一个哈希环上，扩容时只影响相邻节点的数据。
+
+**优点**：扩容时数据迁移量小
+**缺点**：实现复杂，可能出现数据分布不均（需引入虚拟节点）
+
+---
+
+## MySQL 分区表
+
+MySQL 原生支持**分区表**（Partitioning），将单表数据在物理上分散到多个分区，但逻辑上仍是一张表。
+
+### 分区类型
+
+#### RANGE 分区
+
+按连续范围划分分区，最常见。
+
+```sql
+CREATE TABLE orders (
+  order_id BIGINT PRIMARY KEY,
+  user_id INT,
+  amount DECIMAL(10, 2),
+  order_date DATE
+) PARTITION BY RANGE (YEAR(order_date)) (
+  PARTITION p2024 VALUES LESS THAN (2025),
+  PARTITION p2025 VALUES LESS THAN (2026),
+  PARTITION p2026 VALUES LESS THAN (2027),
+  PARTITION p_future VALUES LESS THAN MAXVALUE
+);
+```
+
+#### LIST 分区
+
+按离散值列表划分。
+
+```sql
+CREATE TABLE users (
+  user_id INT PRIMARY KEY,
+  username VARCHAR(50),
+  region VARCHAR(20)
+) PARTITION BY LIST COLUMNS(region) (
+  PARTITION p_north VALUES IN ('Beijing', 'Tianjin'),
+  PARTITION p_east VALUES IN ('Shanghai', 'Hangzhou'),
+  PARTITION p_south VALUES IN ('Shenzhen', 'Guangzhou'),
+  PARTITION p_west VALUES IN ('Chengdu', 'Chongqing')
+);
+```
+
+#### HASH 分区
+
+按哈希值均匀分布。
+
+```sql
+CREATE TABLE logs (
+  log_id BIGINT PRIMARY KEY,
+  user_id INT,
+  message TEXT,
+  created_at TIMESTAMP
+) PARTITION BY HASH(user_id) PARTITIONS 4;
+```
+
+#### KEY 分区
+
+类似 HASH，但由 MySQL 内部哈希函数处理。
+
+```sql
+CREATE TABLE sessions (
+  session_id VARCHAR(64) PRIMARY KEY,
+  user_id INT,
+  data JSON
+) PARTITION BY KEY(session_id) PARTITIONS 4;
+```
+
+### 分区管理
+
+```sql
+-- 查看分区信息
+SELECT * FROM INFORMATION_SCHEMA.PARTITIONS WHERE TABLE_NAME = 'orders';
+
+-- 添加新分区
+ALTER TABLE orders ADD PARTITION (
+  PARTITION p2027 VALUES LESS THAN (2028)
+);
+
+-- 删除分区（会删除该分区所有数据）
+ALTER TABLE orders DROP PARTITION p2024;
+
+-- 拆分分区
+ALTER TABLE orders REORGANIZE PARTITION p_future INTO (
+  PARTITION p2027 VALUES LESS THAN (2028),
+  PARTITION p_future VALUES LESS THAN MAXVALUE
+);
+
+-- 查询指定分区
+SELECT * FROM orders PARTITION (p2025) WHERE amount > 1000;
+```
+
+### 分区表的限制
+
+- 分区键必须是主键或唯一索引的一部分
+- 不支持外键
+- 不支持全文索引（MySQL 8.0 部分支持）
+- 最多 8192 个分区
+
+---
+
+## ShardingSphere 中间件方案
+
+**Apache ShardingSphere** 是流行的数据库分片中间件，提供 JDBC 驱动和 Proxy 两种接入方式。
+
+### ShardingSphere-JDBC
+
+以 jar 包形式集成在应用中，性能更好。
+
+```yaml
+# application.yml 配置示例
+spring:
+  shardingsphere:
+    datasource:
+      names: ds0, ds1
+      ds0:
+        type: com.zaxxer.hikari.HikariDataSource
+        driver-class-name: com.mysql.cj.jdbc.Driver
+        jdbc-url: jdbc:mysql://db0:3306/mydb
+        username: root
+        password: password
+      ds1:
+        type: com.zaxxer.hikari.HikariDataSource
+        driver-class-name: com.mysql.cj.jdbc.Driver
+        jdbc-url: jdbc:mysql://db1:3306/mydb
+        username: root
+        password: password
+    rules:
+      sharding:
+        tables:
+          orders:
+            actual-data-nodes: ds$->{0..1}.orders_$->{0..3}
+            table-strategy:
+              standard:
+                sharding-column: user_id
+                sharding-algorithm-name: order-table-mod
+            database-strategy:
+              standard:
+                sharding-column: user_id
+                sharding-algorithm-name: order-db-mod
+        sharding-algorithms:
+          order-table-mod:
+            type: INLINE
+            props:
+              algorithm-expression: orders_$->{user_id % 4}
+          order-db-mod:
+            type: INLINE
+            props:
+              algorithm-expression: ds$->{user_id % 2}
+```
+
+### ShardingSphere-Proxy
+
+独立部署的代理服务，对应用透明。
+
+```yaml
+# server.yaml 配置
+databaseName: sharding_db
+
+dataSources:
+  ds_0:
+    url: jdbc:mysql://db0:3306/mydb
+    username: root
+    password: password
+  ds_1:
+    url: jdbc:mysql://db1:3306/mydb
+    username: root
+    password: password
+
+rules:
+  - !SHARDING
+    tables:
+      orders:
+        actualDataNodes: ds_${0..1}.orders_${0..3}
+        tableStrategy:
+          standard:
+            shardingColumn: user_id
+            shardingAlgorithmName: order_table_inline
+        databaseStrategy:
+          standard:
+            shardingColumn: user_id
+            shardingAlgorithmName: order_database_inline
+    shardingAlgorithms:
+      order_table_inline:
+        type: INLINE
+        props:
+          algorithm-expression: orders_${user_id % 4}
+      order_database_inline:
+        type: INLINE
+        props:
+          algorithm-expression: ds_${user_id % 2}
+```
+
+应用只需连接 Proxy：
+
+```java
+// 应用无感知分片
+DataSource dataSource = new HikariDataSource();
+dataSource.setJdbcUrl("jdbc:mysql://proxy-host:3307/sharding_db");
+```
+
+---
+
+## 分布式 ID
+
+分片后，单库自增 ID 无法保证全局唯一，需要**分布式 ID**方案。
+
+### 雪花算法（Snowflake）
+
+Twitter 开源的分布式 ID 算法，生成 64 位长整型 ID：
+
+```
+| 1 bit | 41 bit 时间戳 | 10 bit 机器ID | 12 bit 序列号 |
+| 符号位 | 毫秒级时间    | 数据中心+机器   | 同一毫秒内序列 |
+```
+
+```java
+// Java 雪花算法简单实现
+public class SnowflakeIdGenerator {
+    private final long workerId;
+    private final long datacenterId;
+    private long sequence = 0L;
+    private long lastTimestamp = -1L;
+
+    public synchronized long nextId() {
+        long timestamp = System.currentTimeMillis();
+        if (timestamp == lastTimestamp) {
+            sequence = (sequence + 1) & 4095; // 12 bit
+            if (sequence == 0) {
+                timestamp = tilNextMillis(lastTimestamp);
+            }
+        } else {
+            sequence = 0L;
+        }
+        lastTimestamp = timestamp;
+        return ((timestamp - 1288834974657L) << 22)
+            | (datacenterId << 17)
+            | (workerId << 12)
+            | sequence;
+    }
+}
+```
+
+**优点**：趋势递增、性能高、不依赖外部服务
+**缺点**：依赖系统时钟，时钟回拨会导致 ID 重复
+
+### 数据库号段模式
+
+从数据库批量获取 ID 号段，在内存中分配。
+
+```sql
+-- 创建 ID 发号表
+CREATE TABLE id_generator (
+  biz_tag VARCHAR(50) PRIMARY KEY,
+  max_id BIGINT NOT NULL,
+  step INT NOT NULL,
+  description VARCHAR(255)
+);
+
+INSERT INTO id_generator (biz_tag, max_id, step, description)
+VALUES ('order', 0, 1000, '订单ID');
+```
+
+**优点**：ID 单调递增、可读性好
+**缺点**：依赖数据库可用性
+
+### 其他方案
+
+| 方案 | 优点 | 缺点 |
+|------|------|------|
+| UUID | 简单、全局唯一 | 无序、占用空间大、索引性能差 |
+| Redis 自增 | 性能高 | 依赖 Redis、非趋势递增 |
+| Leaf（美团） | 高可用、低延迟 | 架构复杂 |
+
+---
+
+## 分片后的挑战
+
+### 跨分片 JOIN
+
+分片后，不同分片的数据无法直接 JOIN。解决方案：
+
+1. **数据冗余**：将需要 JOIN 的字段冗余到同一张表
+2. **应用层组装**：分别查询后，在应用层合并结果
+3. **全局表**：小表在每个分片都保留一份完整数据
+
+```sql
+-- 全局表示例：每个分片都有完整的地区表
+CREATE TABLE regions (
+  region_id INT PRIMARY KEY,
+  region_name VARCHAR(50)
+) ENGINE=InnoDB;
+-- 该表在每个分片数据库中都存在相同数据
+```
+
+### 跨分片排序分页
+
+```sql
+-- 分片前：简单分页
+SELECT * FROM orders ORDER BY order_date DESC LIMIT 1000000, 10;
+
+-- 分片后：需要从每个分片取数据，在应用层合并排序
+-- 每个分片查询：SELECT * FROM orders ORDER BY order_date DESC LIMIT 1000010;
+-- 应用层合并 4 个分片的结果，取第 1000000~1000010 条
+```
+
+优化方案：
+- 限制深度分页
+- 使用游标分页（记录上一页最后一条的排序值）
+- 非必要不分页（如导出场景直接走 OLAP）
+
+### 分布式事务
+
+跨库操作需要保证事务一致性，常用方案：
+
+- **XA 事务**：强一致，但性能差
+- **Saga 模式**：最终一致，通过补偿事务实现
+- **Seata AT 模式**：自动化的分布式事务框架
+
+---
+
+## 小结
+
+- **垂直分片**按业务拆分，适合模块边界清晰的系统
+- **水平分片**按数据拆分，适合单表数据量过大的场景
+- **分片键**选择决定分片效果，应选高基数、查询频繁的字段
+- **MySQL 分区表**是轻量级方案，适合单库内数据管理
+- **ShardingSphere** 是成熟的分片中间件，支持 JDBC 和 Proxy 两种模式
+- **分布式 ID** 是分片后的基础需求，雪花算法是主流方案
+
+分库分表是数据库架构演进中的重要一步，但也引入了新的复杂度。应该在单库优化（索引、SQL、缓存）到达瓶颈后，再考虑分片方案。

@@ -1,0 +1,426 @@
+---
+title: Express 中间件进阶与常用内置中间件
+description: 深入理解 Express 中间件链的执行机制，掌握 body-parser、CORS、morgan、helmet、compression 等常用中间件的配置与使用场景。
+pubDate: 2026-05-03
+category: express
+tags: [express, middleware, cors, helmet, morgan, security]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 15
+planId: middleware-advanced
+---
+
+# Express 中间件进阶与常用内置中间件
+
+在掌握了中间件的基础概念之后，本章将深入探讨 Express 中间件的执行细节，并介绍生产环境中不可或缺的一组内置及第三方中间件。它们是构建健壮、安全、高性能 Web 应用的基石。
+
+## 中间件执行链的深层机制
+
+### 执行顺序与 next() 的作用
+
+Express 中间件按照注册顺序构成一个**执行栈**。每个中间件函数接收三个参数：`req`（请求对象）、`res`（响应对象）和 `next`（下一个中间件函数）。
+
+```js
+// 演示中间件的顺序执行
+const express = require('express');
+const app = express();
+
+app.use((req, res, next) => {
+  console.log('① 第一个中间件 - 进入');
+  next(); // 将控制权交给下一个中间件
+  console.log('① 第一个中间件 - 离开');
+});
+
+app.use((req, res, next) => {
+  console.log('② 第二个中间件 - 进入');
+  next();
+  console.log('② 第二个中间件 - 离开');
+});
+
+app.get('/', (req, res) => {
+  console.log('③ 路由处理 - 响应请求');
+  res.send('Hello');
+});
+```
+
+上述代码的输出顺序为：
+
+```
+① 第一个中间件 - 进入
+② 第二个中间件 - 进入
+③ 路由处理 - 响应请求
+② 第二个中间件 - 离开
+① 第一个中间件 - 离开
+```
+
+这揭示了一个关键特性：中间件的代码在 `next()` 调用前后分属**请求进入阶段**和**响应离开阶段**，形成了类似"洋葱模型"的执行模式。
+
+### 提前终止与错误传递
+
+当中间件调用了 `res.send()`、`res.json()` 或 `res.render()` 等响应方法后，通常不应再调用 `next()`，否则可能导致响应被重复发送，触发 `ERR_HTTP_HEADERS_SENT` 错误。
+
+```js
+app.use('/admin', (req, res, next) => {
+  if (!req.headers.authorization) {
+    // 直接响应 401，不再继续传递
+    return res.status(401).json({ error: '未授权' });
+  }
+  next();
+});
+```
+
+通过 `next(err)` 可以将错误直接抛给错误处理中间件，跳过后续所有正常中间件：
+
+```js
+app.use('/data', (req, res, next) => {
+  fs.readFile('data.json', (err, data) => {
+    if (err) {
+      return next(err); // 将错误传递给错误处理中间件
+    }
+    res.json(JSON.parse(data));
+  });
+});
+```
+
+### 条件挂载与路径匹配
+
+`app.use()` 支持路径前缀匹配，所有以该路径开头的请求都会进入对应的中间件：
+
+```js
+// 仅对 /api 路径生效
+app.use('/api', (req, res, next) => {
+  console.log('API 请求:', req.path);
+  next();
+});
+
+// /api/users  → 匹配
+// /api/orders → 匹配
+// /about      → 不匹配
+```
+
+Express 5.x 中，路径匹配更严格，必须确保路径字符串与请求路径的开头一致。
+
+## 请求体解析：body-parser
+
+在 Express 4.16+ 中，`express.json()` 和 `express.urlencoded()` 已内置，无需单独安装 `body-parser` 包。
+
+### 解析 JSON 请求体
+
+```js
+// 启用 JSON 解析，limit 限制请求体大小
+app.use(express.json({ limit: '10mb' }));
+
+// 接收 JSON 的 POST 请求
+app.post('/users', (req, res) => {
+  // req.body 已自动解析为 JavaScript 对象
+  const { name, email } = req.body;
+  res.status(201).json({ id: 1, name, email });
+});
+```
+
+### 解析表单数据
+
+```js
+// extended: true 使用 qs 库解析嵌套对象
+app.use(express.urlencoded({ extended: true }));
+
+// 接收 application/x-www-form-urlencoded
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  // 处理登录逻辑
+});
+```
+
+### 解析原始文本与二进制
+
+```js
+// 解析 text/plain
+app.use(express.text());
+
+// 解析 application/octet-stream
+app.use(express.raw());
+```
+
+## 跨域支持：CORS
+
+**CORS**（Cross-Origin Resource Sharing）中间件解决浏览器的同源策略限制。
+
+### 安装与基础配置
+
+```bash
+npm install cors
+```
+
+```js
+const cors = require('cors');
+
+// 允许所有来源（仅适合开发环境）
+app.use(cors());
+
+// 生产环境：限制特定来源
+app.use(cors({
+  origin: 'https://myfrontend.com',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true // 允许携带 Cookie
+}));
+```
+
+### 动态来源校验
+
+```js
+const whitelist = ['https://app1.com', 'https://app2.com'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // 允许无来源的请求（如 Postman、curl）
+    if (!origin || whitelist.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('不允许的跨域来源'));
+    }
+  }
+}));
+```
+
+### 预检请求处理
+
+对于非简单请求（如 PUT、DELETE、自定义头部），浏览器会先发送 **OPTIONS 预检请求**。`cors` 中间件会自动响应：
+
+```js
+// 手动处理 OPTIONS（通常 cors 中间件已自动处理）
+app.options('*', cors()); // 为所有路由启用预检响应
+```
+
+## 请求日志：morgan
+
+**morgan** 是 Express 社区最常用的 HTTP 请求日志中间件。
+
+### 安装与使用
+
+```bash
+npm install morgan
+```
+
+```js
+const morgan = require('morgan');
+
+// 开发模式：彩色输出，包含响应时间
+app.use(morgan('dev'));
+
+// 生产模式：标准 Apache combined 格式
+app.use(morgan('combined'));
+
+// 自定义格式
+app.use(morgan(':method :url :status :res[content-length] - :response-time ms'));
+```
+
+### 将日志写入文件
+
+```js
+const fs = require('fs');
+const path = require('path');
+
+// 创建写入流
+const accessLogStream = fs.createWriteStream(
+  path.join(__dirname, 'access.log'),
+  { flags: 'a' }
+);
+
+// 仅记录生产环境日志
+app.use(morgan('combined', { stream: accessLogStream }));
+```
+
+### 条件日志与跳过规则
+
+```js
+app.use(morgan('dev', {
+  skip: (req, res) => res.statusCode < 400 // 仅记录错误请求
+}));
+```
+
+## 安全加固：helmet
+
+**helmet** 通过设置多个 HTTP 安全响应头来增强应用安全性，是 OWASP 推荐的安全实践之一。
+
+### 安装与基础配置
+
+```bash
+npm install helmet
+```
+
+```js
+const helmet = require('helmet');
+
+// 应用所有默认安全头
+app.use(helmet());
+```
+
+启用 helmet 后，响应头会自动包含以下关键安全头：
+
+| 响应头 | 作用 |
+|--------|------|
+| `Content-Security-Policy` | 防止 XSS 攻击，限制资源加载来源 |
+| `X-Frame-Options` | 防止页面被嵌入 iframe（点击劫持防护） |
+| `X-Content-Type-Options` | 阻止浏览器 MIME 类型嗅探 |
+| `Strict-Transport-Security` | 强制 HTTPS 连接 |
+| `X-DNS-Prefetch-Control` | 禁用 DNS 预读取 |
+| `X-Download-Options` | 限制 IE 下载行为 |
+
+### 精细配置 CSP
+
+```js
+app.use(helmet.contentSecurityPolicy({
+  directives: {
+    defaultSrc: ["'self'"],
+    styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+    fontSrc: ["'self'", "https://fonts.gstatic.com"],
+    scriptSrc: ["'self'"],
+    imgSrc: ["'self'", "data:", "https:"],
+  },
+}));
+```
+
+### 跨域资源与 API 场景
+
+如果你的 Express 应用是纯粹的 API 服务器（不返回 HTML），可以简化 helmet 配置：
+
+```js
+app.use(helmet({
+  contentSecurityPolicy: false, // API 无需 CSP
+  crossOriginEmbedderPolicy: false
+}));
+```
+
+## 响应压缩：compression
+
+**compression** 中间件使用 Gzip 压缩响应体，减少网络传输时间。
+
+### 安装与使用
+
+```bash
+npm install compression
+```
+
+```js
+const compression = require('compression');
+
+// 启用 Gzip 压缩（对 text/html、application/json 等生效）
+app.use(compression());
+```
+
+### 自定义压缩规则
+
+```js
+app.use(compression({
+  level: 6,              // 压缩级别 1-9，默认 6
+  filter: (req, res) => {
+    // 对特定 MIME 类型跳过压缩
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
+```
+
+> 压缩对图片、视频等已压缩格式几乎无效，应依赖 CDN 处理静态资源。
+
+## 速率限制：express-rate-limit
+
+防止暴力破解和 DDoS 攻击，限制客户端请求频率。
+
+```bash
+npm install express-rate-limit
+```
+
+```js
+const rateLimit = require('express-rate-limit');
+
+// 通用限制：15 分钟内最多 100 次请求
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: '请求过于频繁，请稍后再试',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// 严格限制登录接口：5 分钟内最多 5 次
+const loginLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 5,
+  skipSuccessfulRequests: true, // 登录成功不计入限制
+});
+
+app.use(generalLimiter);
+app.use('/login', loginLimiter);
+```
+
+## 中间件组合最佳实践
+
+### 推荐挂载顺序
+
+中间件的挂载顺序直接影响应用行为，推荐按以下优先级排列：
+
+```js
+// 1. 安全与基础设施层
+app.use(helmet());
+app.use(compression());
+
+// 2. 日志记录
+app.use(morgan('dev'));
+
+// 3. 跨域处理
+app.use(cors());
+
+// 4. 请求体解析
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// 5. 速率限制
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+
+// 6. 自定义业务中间件
+app.use(requestIdMiddleware);
+app.use(authMiddleware);
+
+// 7. 路由
+app.use('/api', apiRoutes);
+
+// 8. 静态资源（通常放在路由之后，避免与 API 冲突）
+app.use(express.static('public'));
+
+// 9. 错误处理（必须放在最后）
+app.use(errorHandler);
+```
+
+### 开发环境与生产环境差异
+
+```js
+const isDev = process.env.NODE_ENV === 'development';
+
+if (isDev) {
+  app.use(morgan('dev'));
+  app.use(cors({ origin: true, credentials: true }));
+} else {
+  app.use(morgan('combined', { stream: accessLogStream }));
+  app.use(cors({ origin: process.env.FRONTEND_URL }));
+  app.use(helmet());
+  app.use(compression());
+}
+```
+
+## 小结
+
+本章深入理解了 Express 中间件的执行链机制，并系统学习了生产环境中必备的中间件工具：
+
+- **body-parser 内置方法**：`express.json()`、`express.urlencoded()` 处理请求体
+- **cors**：灵活配置跨域策略，支持动态来源白名单
+- **morgan**：多模式 HTTP 请求日志，支持文件持久化
+- **helmet**：一键增强 HTTP 安全响应头，防御常见 Web 攻击
+- **compression**：Gzip 压缩文本响应，降低带宽消耗
+- **express-rate-limit**：请求频率限制，防止滥用
+
+合理组合这些中间件，并根据环境差异化配置，是构建企业级 Express 应用的关键一步。下一章将学习如何通过 `express.Router` 实现路由的模块化管理。

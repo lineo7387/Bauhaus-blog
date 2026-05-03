@@ -1,0 +1,352 @@
+---
+title: Express 模板引擎集成
+description: 学习在 Express 中集成 EJS 和 Pug 模板引擎，掌握动态模板渲染、局部模板复用、视图路径配置及布局系统。
+pubDate: 2026-05-03
+category: express
+tags: [express, ejs, pug, template-engine, ssr, view]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 14
+planId: template-engines
+---
+
+# Express 模板引擎集成
+
+虽然 Express 常被用于构建 RESTful API，但它同样支持**服务端渲染**（SSR）。通过集成模板引擎，可以直接从服务端生成 HTML 页面，无需依赖前端框架。
+
+## Express 视图系统基础
+
+### 配置视图引擎
+
+Express 使用 `app.set()` 配置模板引擎和视图目录：
+
+```js
+const express = require('express');
+const app = express();
+
+// 设置视图文件存放目录
+app.set('views', './views');
+
+// 设置默认模板引擎（以 EJS 为例）
+app.set('view engine', 'ejs');
+```
+
+配置完成后，使用 `res.render(view, data)` 渲染模板：
+
+```js
+app.get('/', (req, res) => {
+  res.render('index', {
+    title: '首页',
+    message: '欢迎使用 Express'
+  });
+});
+```
+
+Express 会自动在 `views` 目录下查找 `index.ejs` 文件，并将数据注入模板。
+
+## EJS 模板引擎
+
+**EJS**（Embedded JavaScript）是最流行的 Express 模板引擎之一，语法接近原生 HTML，学习成本低。
+
+### 安装
+
+```bash
+npm install ejs
+```
+
+### 基础语法
+
+EJS 使用 `<% %>` 标签嵌入 JavaScript 逻辑：
+
+```html
+<!-- views/index.ejs -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title><%= title %></title>
+</head>
+<body>
+  <h1><%= message %></h1>
+
+  <% if (users.length > 0) { %>
+    <ul>
+      <% users.forEach(user => { %>
+        <li><%= user.name %> — <%= user.email %></li>
+      <% }) %>
+    </ul>
+  <% } else { %>
+    <p>暂无用户数据</p>
+  <% } %>
+</body>
+</html>
+```
+
+| 标签 | 用途 |
+|------|------|
+| `<% %>` | 执行 JavaScript，无输出 |
+| `<%= %>` | 输出变量值（自动转义 HTML） |
+| `<%- %>` | 输出原始 HTML（不转义） |
+| `<%# %>` | 注释 |
+| `<%_ %` / `_%>` | 去除前导/尾随空白 |
+
+### 布局与局部模板
+
+EJS 本身不内置布局系统，但可以通过 `ejs-mate` 实现：
+
+```bash
+npm install ejs-mate
+```
+
+```js
+const engine = require('ejs-mate');
+app.engine('ejs', engine);
+app.set('view engine', 'ejs');
+```
+
+```html
+<!-- views/layout.ejs —— 布局文件 -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title><%= title %></title>
+  <%- defineContent('styles') %>
+</head>
+<body>
+  <%- include('partials/navbar') %>
+
+  <main>
+    <%- body %>
+  </main>
+
+  <%- include('partials/footer') %>
+  <%- defineContent('scripts') %>
+</body>
+</html>
+```
+
+```html
+<!-- views/index.ejs —— 继承布局 -->
+<% layout('layout') %>
+
+<h1><%= message %></h1>
+```
+
+### 局部模板复用
+
+```html
+<!-- views/partials/navbar.ejs -->
+<nav>
+  <a href="/">首页</a>
+  <a href="/about">关于</a>
+  <% if (user) { %>
+    <span>欢迎, <%= user.name %></span>
+  <% } else { %>
+    <a href="/login">登录</a>
+  <% } %>
+</nav>
+```
+
+## Pug 模板引擎
+
+**Pug**（前身为 Jade）使用缩进语法替代标签闭合，代码更加简洁。
+
+### 安装
+
+```bash
+npm install pug
+```
+
+### 基础语法
+
+```pug
+//- views/index.pug
+doctype html
+html
+  head
+    title= title
+  body
+    h1= message
+
+    if users.length > 0
+      ul
+        each user in users
+          li #{user.name} — #{user.email}
+    else
+      p 暂无用户数据
+```
+
+Pug 的核心语法规则：
+
+- 使用**缩进**表示嵌套层级（通常为 2 个空格）
+- 标签名后接 `=` 表示赋值输出（自动转义）
+- 使用 `#{expression}` 在文本中插值
+- 使用 `-` 前缀执行纯 JavaScript
+
+### 布局继承
+
+Pug 原生支持布局系统：
+
+```pug
+//- views/layout.pug
+doctype html
+html
+  head
+    title= title
+    block styles
+  body
+    include partials/navbar
+
+    block content
+
+    include partials/footer
+    block scripts
+```
+
+```pug
+//- views/index.pug
+extends layout
+
+block content
+  h1= message
+  p 欢迎来到 Express 应用
+```
+
+### Mixins（可复用组件）
+
+```pug
+//- views/mixins/card.pug
+mixin card(title, content)
+  .card
+    .card-header= title
+    .card-body= content
+
+//- 使用
++card('文章标题', '文章摘要内容')
+```
+
+## 视图路径与多目录配置
+
+### 动态切换视图目录
+
+```js
+// 根据环境或配置切换视图目录
+const viewDir = process.env.NODE_ENV === 'production'
+  ? './views/production'
+  : './views/development';
+
+app.set('views', viewDir);
+```
+
+### 多视图目录（Express 5.x）
+
+```js
+app.set('views', [
+  path.join(__dirname, 'views'),
+  path.join(__dirname, 'modules/users/views'),
+  path.join(__dirname, 'modules/products/views')
+]);
+```
+
+## 数据传递与上下文
+
+### res.locals —— 响应级上下文
+
+`res.locals` 是一个对象，存储每次请求的局部变量，对所有模板可见：
+
+```js
+app.use((req, res, next) => {
+  // 所有模板都可以访问 user 变量
+  res.locals.user = req.session.user || null;
+  res.locals.currentYear = new Date().getFullYear();
+  next();
+});
+```
+
+### app.locals —— 应用级上下文
+
+`app.locals` 存储应用全局变量，不随请求变化：
+
+```js
+app.locals.appName = 'Express Blog';
+app.locals.version = '1.0.0';
+```
+
+### 渲染时覆盖
+
+```js
+app.get('/about', (req, res) => {
+  // res.render 的第二个参数会合并到 res.locals
+  res.render('about', {
+    title: '关于我们',       // 覆盖 res.locals.title
+    team: ['Alice', 'Bob']  // 新增变量
+  });
+});
+```
+
+## 模板引擎选型对比
+
+| 特性 | EJS | Pug |
+|------|-----|-----|
+| 语法风格 | 类 HTML | 缩进语法 |
+| 学习曲线 | 低 | 中等 |
+| 布局系统 | 需 ejs-mate | 原生支持 |
+| 性能 | 快 | 更快（预编译） |
+| IDE 支持 | 极好 | 良好 |
+| 团队接受度 | 高 | 中等 |
+
+对于习惯 HTML 的团队，EJS 是更自然的选择；追求极致简洁和性能的团队可以考虑 Pug。
+
+## 完整示例：带模板引擎的 Express 应用
+
+```js
+const express = require('express');
+const path = require('path');
+
+const app = express();
+
+// 模板配置
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
+
+// 静态资源
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 全局模板变量
+app.locals.siteName = 'Express Demo';
+
+app.use((req, res, next) => {
+  res.locals.currentPath = req.path;
+  next();
+});
+
+// 路由
+app.get('/', (req, res) => {
+  res.render('index', {
+    title: '首页',
+    message: 'Hello Express'
+  });
+});
+
+app.get('/users', (req, res) => {
+  const users = [
+    { name: 'Alice', email: 'alice@example.com' },
+    { name: 'Bob', email: 'bob@example.com' }
+  ];
+  res.render('users', { title: '用户列表', users });
+});
+
+app.listen(3000);
+```
+
+## 小结
+
+本章介绍了 Express 模板引擎的集成与使用：
+
+- **视图系统配置**：`app.set('views')` 和 `app.set('view engine')`
+- **EJS**：接近原生 HTML 的语法，`ejs-mate` 提供布局支持
+- **Pug**：缩进语法、原生布局继承、Mixins 复用
+- **数据传递**：`res.render(data)`、`res.locals`（请求级）、`app.locals`（全局）
+- **局部模板**：`include` 指令复用公共组件
+
+如果应用需要 SEO 友好且首屏加载快的页面，服务端渲染结合模板引擎是一个轻量高效的方案。下一章将进入 RESTful API 设计实践，学习如何构建规范的 API 接口。

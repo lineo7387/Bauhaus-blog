@@ -1,0 +1,278 @@
+---
+title: MySQL 索引原理与使用
+description: 深入理解 MySQL B+Tree 索引结构、主键索引与普通索引的区别、复合索引的最左前缀原则，以及常见索引失效场景，帮助你写出高效的数据库查询。
+pubDate: 2026-05-03
+category: mysql
+tags: [mysql, index, b+tree, performance, database]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 18
+planId: indexing-performance
+---
+
+# MySQL 索引原理与使用
+
+索引是数据库查询性能优化的核心手段。理解索引的底层结构和适用场景，能够帮助你从"写 SQL"进阶到"写好 SQL"。本文将深入讲解 **B+Tree 索引**、各类索引的区别、**复合索引**设计原则，以及常见的**索引失效**场景。
+
+---
+
+## 为什么需要索引
+
+没有索引时，MySQL 执行查询需要**全表扫描**（Full Table Scan），逐行比对条件。当数据量达到百万、千万级别时，这种扫描的代价极高。
+
+**索引**就像书籍的目录，通过特定的数据结构将查询条件映射到数据位置，从而大幅减少磁盘 I/O。
+
+---
+
+## B+Tree 索引结构
+
+MySQL 的 **InnoDB 存储引擎**使用 **B+Tree**（B-Tree 的变种）作为默认索引结构。
+
+### B+Tree 的特点
+
+- **所有数据都存储在叶子节点**：非叶子节点只存储键值和指针，不存储实际数据
+- **叶子节点通过指针相连**：支持高效的范围查询和顺序遍历
+- **树高度低**：每个节点可以存储大量键值，通常 3~4 层即可支撑千万级数据
+- **查询稳定**：任何查找都需要从根到叶子，时间复杂度为 O(log N)
+
+```
+        [10 | 30 | 50]
+       /     |      \
+  [1|5|9] [20|25|28] [40|45|48] [55|60|70]
+   数据页    数据页      数据页      数据页
+```
+
+### 聚簇索引（Clustered Index）
+
+**聚簇索引**将数据行和索引存储在一起。InnoDB 表必然有一个聚簇索引：
+
+- 如果定义了主键，主键就是聚簇索引
+- 如果没有主键，会选择第一个非空唯一索引作为聚簇索引
+- 如果都没有，InnoDB 会隐式生成一个 6 字节的 `row_id`
+
+聚簇索引的叶子节点直接存储**完整的行数据**，因此通过主键查询非常高效。
+
+```sql
+-- 主键查询：直接定位到数据页
+SELECT * FROM users WHERE user_id = 100;
+```
+
+### 二级索引（Secondary Index）
+
+**二级索引**（又称辅助索引、普通索引）的叶子节点存储的是**主键值**，而非完整行数据。
+
+当通过二级索引查询时，MySQL 先找到主键值，再通过主键值回聚簇索引查找完整数据。这个过程称为**回表**。
+
+```sql
+-- 假设 email 有普通索引
+SELECT * FROM users WHERE email = 'alice@example.com';
+-- 步骤1：在 email 索引找到主键 user_id
+-- 步骤2：用 user_id 到聚簇索引回表获取完整数据
+```
+
+---
+
+## 主键索引 vs 普通索引
+
+| 特性 | 主键索引（聚簇） | 普通索引（二级） |
+|------|------------------|------------------|
+| 叶子节点数据 | 完整行数据 | 主键值 |
+| 是否唯一 | 必须唯一 | 可重复（唯一索引除外） |
+| 表的数量 | 每张表只有一个 | 可以有多个 |
+| 查询方式 | 直接命中 | 可能需要回表 |
+
+### 设计主键的建议
+
+- 优先使用**自增整数**（`AUTO_INCREMENT`）作为主键
+- 避免使用 UUID 等随机字符串作为主键，会导致 B+Tree 频繁分裂和页碎片化
+- 主键长度应尽量短，因为所有二级索引都包含主键值
+
+```sql
+-- 推荐：自增主键
+CREATE TABLE orders (
+  order_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  -- 其他字段
+);
+
+-- 避免：UUID 主键（页分裂严重）
+CREATE TABLE orders (
+  order_id CHAR(36) PRIMARY KEY, -- 不推荐
+  -- 其他字段
+);
+```
+
+---
+
+## 复合索引与最左前缀原则
+
+**复合索引**（Composite Index）是在多个列上建立的索引。
+
+```sql
+-- 在 (last_name, first_name, age) 上创建复合索引
+CREATE INDEX idx_name_age ON employees(last_name, first_name, age);
+```
+
+### 最左前缀原则
+
+MySQL 使用复合索引时，遵循**最左前缀原则**（Leftmost Prefix Rule）：查询条件必须从索引的最左边列开始，并且不能跳过中间的列。
+
+```sql
+-- 可以使用索引（匹配最左前缀）
+SELECT * FROM employees WHERE last_name = 'Zhang';
+SELECT * FROM employees WHERE last_name = 'Zhang' AND first_name = 'Wei';
+SELECT * FROM employees WHERE last_name = 'Zhang' AND first_name = 'Wei' AND age = 30;
+
+-- 可以使用部分索引（只用到 last_name）
+SELECT * FROM employees WHERE last_name = 'Zhang' AND age = 30;
+
+-- 无法使用索引（缺少最左列）
+SELECT * FROM employees WHERE first_name = 'Wei';
+SELECT * FROM employees WHERE age = 30;
+```
+
+### 索引列顺序设计
+
+设计复合索引时，将**选择性高**（区分度大）的列放在前面：
+
+```sql
+-- 假设 gender 只有 'M'/'F'，选择性低；email 几乎唯一，选择性高
+-- 推荐顺序：高选择性在前
+CREATE INDEX idx_email_gender ON users(email, gender);
+
+-- 不推荐：低选择性在前
+CREATE INDEX idx_gender_email ON users(gender, email); -- gender 过滤效果差
+```
+
+---
+
+## 覆盖索引
+
+如果查询的所有列都在索引中，MySQL 无需回表，直接从索引中获取数据。这种索引称为**覆盖索引**（Covering Index）。
+
+```sql
+-- 假设有索引 idx_username_email(username, email)
+SELECT username, email FROM users WHERE username = 'alice';
+-- username 和 email 都在索引中，无需回表
+```
+
+覆盖索引能显著提升查询性能，是优化查询的重要手段。
+
+---
+
+## 常见索引失效场景
+
+即使创建了索引，某些写法也会导致 MySQL **不走索引**。
+
+### 1. 对索引列使用函数或运算
+
+```sql
+-- 索引失效：对 create_time 使用函数
+SELECT * FROM orders WHERE YEAR(create_time) = 2026;
+
+-- 正确写法：范围查询
+SELECT * FROM orders WHERE create_time >= '2026-01-01' AND create_time < '2027-01-01';
+```
+
+### 2. 隐式类型转换
+
+```sql
+-- 假设 phone 是 VARCHAR，传入数字会导致隐式转换，索引失效
+SELECT * FROM users WHERE phone = 13800138000;
+
+-- 正确写法：传入字符串
+SELECT * FROM users WHERE phone = '13800138000';
+```
+
+### 3. LIKE 以通配符开头
+
+```sql
+-- 索引失效：% 在开头
+SELECT * FROM users WHERE username LIKE '%alice%';
+
+-- 可以使用索引：% 在结尾
+SELECT * FROM users WHERE username LIKE 'alice%';
+```
+
+### 4. OR 条件使用不当
+
+```sql
+-- 如果 OR 两边的列不是同一个索引，可能不走索引
+SELECT * FROM users WHERE username = 'alice' OR email = 'bob@example.com';
+
+-- 解决方案：分别为两列创建索引，或改用 UNION
+SELECT * FROM users WHERE username = 'alice'
+UNION
+SELECT * FROM users WHERE email = 'bob@example.com';
+```
+
+### 5. 不等于和 NOT IN
+
+```sql
+-- != 和 <> 通常不走索引（数据量大时）
+SELECT * FROM users WHERE status != 0;
+
+-- 可以考虑用范围查询或拆分查询
+```
+
+### 6. 索引列参与计算
+
+```sql
+-- 索引失效
+SELECT * FROM products WHERE price + 100 = 200;
+
+-- 正确写法
+SELECT * FROM products WHERE price = 100;
+```
+
+---
+
+## 索引创建与管理
+
+### 创建索引
+
+```sql
+-- 创建普通索引
+CREATE INDEX idx_username ON users(username);
+
+-- 创建唯一索引
+CREATE UNIQUE INDEX idx_email ON users(email);
+
+-- 创建复合索引
+CREATE INDEX idx_status_created ON orders(status, created_at);
+
+-- 建表时指定索引
+CREATE TABLE products (
+  product_id INT PRIMARY KEY,
+  sku VARCHAR(50),
+  INDEX idx_sku (sku)
+);
+```
+
+### 查看索引
+
+```sql
+-- 查看表的索引信息
+SHOW INDEX FROM users;
+
+-- 或使用 INFORMATION_SCHEMA
+SELECT * FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 'users';
+```
+
+### 删除索引
+
+```sql
+DROP INDEX idx_username ON users;
+```
+
+---
+
+## 小结
+
+- **B+Tree** 是 InnoDB 的默认索引结构，查询稳定、支持范围扫描
+- **聚簇索引**叶子节点存完整数据，**二级索引**存主键值，可能需要回表
+- **复合索引**遵循最左前缀原则，设计时将高选择性列放前面
+- **覆盖索引**避免回表，是性能优化的利器
+- 避免对索引列使用函数、隐式转换、前导通配符等导致索引失效的写法
+
+合理使用索引，是 MySQL 性能优化的第一步，也是最重要的一步。

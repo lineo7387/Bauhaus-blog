@@ -1,0 +1,281 @@
+---
+title: 事件循环与异步 I/O 原理
+description: 深入剖析 Node.js 事件循环的六个阶段、microtask 与 macrotask 的执行顺序，以及 setImmediate 与 setTimeout 的竞态行为，帮助你真正理解非阻塞 I/O 的底层机制。
+pubDate: 2026-05-03
+category: nodejs
+tags: [nodejs, event-loop, libuv, async-io, v8]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 12
+planId: event-loop-async-io
+---
+
+# 事件循环与异步 I/O 原理
+
+Node.js 最引以为傲的特性之一是**单线程非阻塞 I/O**。这一特性并非魔法，而是建立在 **libuv** 库与 **V8 引擎** 协同工作的**事件循环（Event Loop）**之上。理解事件循环的运作机制，是掌握 Node.js 性能调优与异步编程的基石。
+
+## 为什么需要事件循环
+
+在传统的多线程服务器（如 Java Tomcat）中，每个连接都会占用一个线程。当并发量上升时，线程上下文切换的开销会急剧增长。Node.js 选择了另一条路：单线程处理所有连接，将 I/O 操作委托给操作系统，线程只在任务完成时恢复执行。
+
+这种模型的核心前提是：**I/O 操作远比 CPU 计算慢**。与其让线程空等 I/O 完成，不如让它去处理其他请求。
+
+```js
+// 同步读取文件会阻塞线程
+const fs = require('fs');
+const data = fs.readFileSync('/etc/passwd'); // 线程在这里等待
+console.log(data);
+
+// 异步读取不会阻塞
+fs.readFile('/etc/passwd', (err, data) => {
+  // I/O 完成后回调执行
+  console.log(data);
+});
+console.log('这行会先打印');
+```
+
+## libuv 的六个阶段
+
+Node.js 的事件循环由 libuv 实现，分为六个主要阶段。每个阶段都有一个**先进先出（FIFO）**的回调队列，当事件循环进入某个阶段时，会执行该阶段队列中的所有回调，直到队列为空或达到最大执行次数限制。
+
+```
+   ┌───────────────────────────┐
+┌─>│           timers            │  setTimeout/setInterval 回调
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │     pending callbacks     │  系统操作的回调（如 TCP 错误）
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │       idle, prepare       │  内部使用
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │           poll            │  检索新的 I/O 事件；执行 I/O 回调
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │           check           │  setImmediate 回调
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │        close callbacks    │  socket.on('close', ...) 等
+│  └───────────────────────────┘
+│
+└────────────────────────────────┘
+         检查是否有剩余回调 / 定时器
+```
+
+### timers 阶段
+
+**timers 阶段**执行 `setTimeout` 和 `setInterval` 的回调。需要注意的是，定时器回调的执行时间**不保证精确**，它们只是在指定时间后**有资格**被执行。如果事件循环正忙于其他阶段，定时器回调会被推迟。
+
+```js
+const start = Date.now();
+
+setTimeout(() => {
+  console.log(`timer 实际延迟: ${Date.now() - start}ms`);
+}, 100);
+
+// 模拟耗时操作
+while (Date.now() - start < 200) {}
+// 输出可能显示 200ms 而非 100ms
+```
+
+### poll 阶段
+
+**poll 阶段**是事件循环的核心，有两个主要任务：
+
+1. 计算应该阻塞和轮询 I/O 的时间
+2. 执行 poll 队列中的 I/O 回调
+
+如果 poll 队列不为空，事件循环会遍历队列并同步执行回调。如果 poll 队列为空：
+- 如果有 `setImmediate` 回调待执行，事件循环会结束 poll 阶段，进入 check 阶段
+- 如果没有 `setImmediate`，事件循环会等待新的 I/O 事件到达
+
+### check 阶段
+
+**check 阶段**专门用于执行 `setImmediate` 的回调。`setImmediate` 的设计意图是在当前事件循环的 poll 阶段完成后立即执行回调。
+
+### close callbacks 阶段
+
+**close callbacks 阶段**执行关闭事件的回调，例如 `socket.on('close', ...)`。
+
+## microtask 与 macrotask
+
+除了 libuv 的六个阶段，V8 引擎还维护着两个微任务队列：**nextTick 队列**和**Promise 队列**。微任务的优先级**高于**所有 macrotask（即 libuv 各阶段的回调）。
+
+执行顺序规则：
+
+1. 当前操作栈清空后，先执行所有 `process.nextTick` 回调
+2. 然后执行所有 `Promise.then/catch/finally` 回调
+3. 之后事件循环才会进入下一个阶段
+
+```js
+console.log('1: 同步');
+
+setTimeout(() => console.log('2: timer'), 0);
+
+Promise.resolve().then(() => console.log('3: promise'));
+
+process.nextTick(() => console.log('4: nextTick'));
+
+console.log('5: 同步结束');
+
+// 输出顺序：
+// 1: 同步
+// 5: 同步结束
+// 4: nextTick
+// 3: promise
+// 2: timer
+```
+
+**重要原则**：`process.nextTick` 会在**当前操作完成、事件循环继续之前**执行。这意味着如果递归调用 `nextTick`，会导致事件循环**饿死（starvation）**。
+
+```js
+// 危险示例：nextTick 递归导致 I/O 饥饿
+function dangerous() {
+  process.nextTick(dangerous);
+}
+// dangerous(); // 开启后定时器和 I/O 永远不会执行
+```
+
+## setImmediate 与 setTimeout 的竞态
+
+`setImmediate` 和 `setTimeout(..., 0)` 的行为差异是面试中的经典问题。它们的执行顺序**取决于调用上下文**：
+
+```js
+// 在 I/O 回调内部
+const fs = require('fs');
+
+fs.readFile(__filename, () => {
+  setTimeout(() => console.log('timeout'), 0);
+  setImmediate(() => console.log('immediate'));
+  // 输出顺序：immediate -> timeout（在 I/O 中 immediate 先执行）
+});
+
+// 在主模块中
+setTimeout(() => console.log('timeout'), 0);
+setImmediate(() => console.log('immediate'));
+// 输出顺序不确定，取决于进程启动时间
+```
+
+原因分析：
+- 主模块中，事件循环尚未开始，timers 阶段的检查先发生
+- I/O 回调中，poll 阶段结束后直接进入 check 阶段，因此 `setImmediate` 先执行
+
+## 可视化事件循环执行流程
+
+以下代码综合展示了各种异步 API 的执行顺序：
+
+```js
+const fs = require('fs');
+
+console.log('start');
+
+setTimeout(() => {
+  console.log('timer1');
+  process.nextTick(() => console.log('timer1 nextTick'));
+}, 0);
+
+setTimeout(() => {
+  console.log('timer2');
+}, 0);
+
+fs.readFile(__filename, () => {
+  console.log('I/O callback');
+  setImmediate(() => console.log('immediate in I/O'));
+  process.nextTick(() => console.log('nextTick in I/O'));
+});
+
+Promise.resolve().then(() => {
+  console.log('promise1');
+  process.nextTick(() => console.log('promise1 nextTick'));
+});
+
+process.nextTick(() => {
+  console.log('nextTick1');
+});
+
+setImmediate(() => {
+  console.log('immediate1');
+});
+
+console.log('end');
+
+// 典型输出：
+// start
+// end
+// nextTick1
+// promise1
+// promise1 nextTick
+// timer1
+// timer1 nextTick
+// timer2
+// immediate1
+// I/O callback
+// nextTick in I/O
+// immediate in I/O
+```
+
+## 异步 I/O 的底层实现
+
+libuv 的异步 I/O 在不同平台采用不同策略：
+
+- **Linux**：使用 **epoll**
+- **macOS / BSD**：使用 **kqueue**
+- **Windows**：使用 **IOCP**
+
+对于文件 I/O，由于操作系统不提供异步文件系统 API，libuv 使用**线程池**模拟异步。默认线程池大小为 4，可通过 `UV_THREADPOOL_SIZE` 环境变量调整（最大 1024）。
+
+```bash
+# 将线程池扩大到 128
+UV_THREADPOOL_SIZE=128 node app.js
+```
+
+```js
+const os = require('os');
+
+// 文件 I/O 使用线程池
+const crypto = require('crypto');
+
+const start = Date.now();
+
+// pbkdf2 也使用 libuv 线程池
+for (let i = 0; i < 5; i++) {
+  crypto.pbkdf2('secret', 'salt', 100000, 64, 'sha512', () => {
+    console.log(`${i}: ${Date.now() - start}ms`);
+  });
+}
+// 默认线程池为 4，前 4 个几乎同时完成，第 5 个稍晚
+```
+
+## 事件循环监控
+
+Node.js 提供了 `perf_hooks` 模块来监控事件循环的延迟：
+
+```js
+const { monitorEventLoopDelay } = require('perf_hooks');
+
+const h = monitorEventLoopDelay({ resolution: 20 });
+h.enable();
+
+setInterval(() => {
+  console.log(`事件循环延迟: ${h.min}ns ~ ${h.max}ns, 平均: ${h.mean}ns`);
+  h.reset();
+}, 5000);
+```
+
+高事件循环延迟通常意味着：
+- 存在同步 CPU 密集型任务阻塞了循环
+- 微任务队列中有过多待执行的回调
+- 内存回收（GC）占用了过多时间
+
+## 总结
+
+事件循环是 Node.js 的灵魂。掌握以下要点，你就能在异步编程中游刃有余：
+
+- libuv 的六个阶段按固定顺序轮转
+- `process.nextTick` 优先级最高，但需警惕递归饥饿
+- Promise 微任务在 nextTick 之后、macrotask 之前执行
+- `setImmediate` 在 I/O 回调中优先于 `setTimeout(..., 0)`
+- 文件 I/O 和 CPU 密集型 crypto 操作依赖 libuv 线程池
+
+理解这些机制后，你就能准确预测代码的执行顺序，并在性能瓶颈出现时找到根因。

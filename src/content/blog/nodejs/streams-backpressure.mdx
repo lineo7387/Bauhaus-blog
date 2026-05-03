@@ -1,0 +1,388 @@
+---
+title: Stream 流与背压控制
+description: 深入讲解 Node.js Stream 的四种类型、pipe 与 pipeline 的使用、背压机制的原理与处理策略，以及 objectMode 的应用场景，助你构建高效的数据流处理系统。
+pubDate: 2026-05-03
+category: nodejs
+tags: [nodejs, stream, backpressure, pipe, pipeline]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 12
+planId: streams-backpressure
+---
+
+# Stream 流与背压控制
+
+在 Node.js 中，**Stream（流）** 是处理数据的抽象接口。无论是读取文件、处理网络请求，还是压缩数据，Stream 都能让你以**增量方式**处理数据，而不必将整个数据集载入内存。对于大型文件或高并发场景，Stream 是性能优化的关键。
+
+## 为什么需要 Stream
+
+假设你要将一个 4GB 的视频文件复制到另一个位置。如果不使用 Stream，你需要一次性将整个文件读入内存：
+
+```js
+const fs = require('fs');
+
+// 危险：可能耗尽内存
+const data = fs.readFileSync('huge-video.mp4'); // 4GB 载入内存
+fs.writeFileSync('copy.mp4', data);
+```
+
+使用 Stream，数据被切分成小块（chunk）逐段处理，内存占用始终保持在可控范围：
+
+```js
+const fs = require('fs');
+
+// 安全：内存占用仅取决于缓冲区大小
+const source = fs.createReadStream('huge-video.mp4');
+const dest = fs.createWriteStream('copy.mp4');
+
+source.pipe(dest);
+```
+
+## 四种 Stream 类型
+
+Node.js 提供了四种基本的 Stream 类型，分别对应不同的数据处理模式。
+
+### Readable — 可读流
+
+**Readable 流**是数据的来源，例如文件读取流、HTTP 请求体。
+
+```js
+const fs = require('fs');
+
+const readable = fs.createReadStream('data.txt', {
+  encoding: 'utf8',
+  highWaterMark: 16 * 1024 // 16KB 缓冲区
+});
+
+// 流动模式：数据自动推送
+readable.on('data', (chunk) => {
+  console.log(`收到 ${chunk.length} 字符`);
+});
+
+readable.on('end', () => {
+  console.log('读取完成');
+});
+
+readable.on('error', (err) => {
+  console.error('读取错误:', err.message);
+});
+```
+
+### Writable — 可写流
+
+**Writable 流**是数据的目的地，例如文件写入流、HTTP 响应。
+
+```js
+const fs = require('fs');
+
+const writable = fs.createWriteStream('output.txt');
+
+writable.write('第一行\n');
+writable.write('第二行\n');
+writable.end('最后一行\n'); // 结束写入
+
+writable.on('finish', () => {
+  console.log('所有数据已写入');
+});
+```
+
+### Duplex — 双向流
+
+**Duplex 流**既可读又可写，例如 TCP socket。
+
+```js
+const net = require('net');
+
+const server = net.createServer((socket) => {
+  // socket 是 Duplex 流
+  socket.write('Hello client!\n');
+  socket.on('data', (data) => {
+    console.log('收到:', data.toString());
+  });
+});
+
+server.listen(3000);
+```
+
+### Transform — 转换流
+
+**Transform 流**是特殊的 Duplex 流，在读写过程中对数据进行转换，例如压缩、加密。
+
+```js
+const { Transform } = require('stream');
+
+// 自定义转换流：将所有输入转为大写
+const upperCaseTransform = new Transform({
+  transform(chunk, encoding, callback) {
+    this.push(chunk.toString().toUpperCase());
+    callback();
+  }
+});
+
+process.stdin.pipe(upperCaseTransform).pipe(process.stdout);
+```
+
+## pipe 与 pipeline
+
+### pipe 基础用法
+
+`readable.pipe(writable)` 是最简单的流连接方式，将可读流的数据自动导向可写流。
+
+```js
+const fs = require('fs');
+const zlib = require('zlib');
+
+// 链式 pipe：读取 -> 压缩 -> 写入
+fs.createReadStream('input.txt')
+  .pipe(zlib.createGzip())
+  .pipe(fs.createWriteStream('input.txt.gz'));
+```
+
+### pipeline 的错误处理
+
+`pipe` 的缺陷在于不会自动转发错误。如果中间某个流出错，其他流可能不会被正确关闭，导致资源泄漏。**`stream.pipeline`** 解决了这个问题。
+
+```js
+const { pipeline } = require('stream');
+const fs = require('fs');
+const zlib = require('zlib');
+
+pipeline(
+  fs.createReadStream('input.txt'),
+  zlib.createGzip(),
+  fs.createWriteStream('input.txt.gz'),
+  (err) => {
+    if (err) {
+      console.error('Pipeline 失败:', err.message);
+    } else {
+      console.log('Pipeline 成功完成');
+    }
+  }
+);
+```
+
+Node.js 还提供了基于 Promise 的 `pipeline`：
+
+```js
+const { pipeline } = require('stream/promises');
+
+async function compress() {
+  try {
+    await pipeline(
+      fs.createReadStream('input.txt'),
+      zlib.createGzip(),
+      fs.createWriteStream('input.txt.gz')
+    );
+    console.log('压缩完成');
+  } catch (err) {
+    console.error('压缩失败:', err.message);
+  }
+}
+```
+
+## 背压（Backpressure）机制
+
+背压是 Stream 中最重要的概念之一。当**数据生产速度超过消费速度**时，如果不加以控制，内存会无限增长直至崩溃。
+
+### 背压如何工作
+
+Writable 流内部有一个缓冲区。当 `write()` 返回 `false` 时，表示缓冲区已满，Readable 流应该暂停发送数据：
+
+```js
+const fs = require('fs');
+
+const readable = fs.createReadStream('large-file.txt');
+const writable = fs.createWriteStream('output.txt');
+
+readable.on('data', (chunk) => {
+  const canContinue = writable.write(chunk);
+  if (!canContinue) {
+    console.log('背压触发：暂停读取');
+    readable.pause();
+  }
+});
+
+writable.on('drain', () => {
+  console.log('缓冲区排空：恢复读取');
+  readable.resume();
+});
+
+readable.on('end', () => {
+  writable.end();
+});
+```
+
+### pipe 自动处理背压
+
+好消息是，`pipe()` 内部已经实现了上述背压逻辑。手动实现通常只是为了理解原理：
+
+```js
+// pipe 自动处理背压，无需手动 pause/resume
+fs.createReadStream('large-file.txt')
+  .pipe(fs.createWriteStream('output.txt'));
+```
+
+### 自定义 Writable 流的背压
+
+实现自定义 Writable 流时，需要正确处理 `write` 方法的回调：
+
+```js
+const { Writable } = require('stream');
+
+class SlowWritable extends Writable {
+  constructor(options) {
+    super(options);
+    this.delay = options.delay || 100;
+  }
+
+  _write(chunk, encoding, callback) {
+    // 模拟慢速消费
+    setTimeout(() => {
+      console.log('写入:', chunk.toString().trim());
+      callback(); // 调用 callback 表示处理完成
+    }, this.delay);
+  }
+}
+
+const slow = new SlowWritable({ delay: 500 });
+const fast = fs.createReadStream('lines.txt');
+
+fast.pipe(slow); // 背压自动生效，不会内存溢出
+```
+
+## objectMode 的应用场景
+
+默认情况下，Stream 处理的是 Buffer 或字符串。开启 **objectMode** 后，流可以传递 JavaScript 对象。
+
+```js
+const { Transform } = require('stream');
+
+// CSV 行解析为对象
+const parseCSV = new Transform({
+  objectMode: true,
+  transform(chunk, encoding, callback) {
+    const [name, age] = chunk.toString().trim().split(',');
+    this.push({ name, age: parseInt(age, 10) });
+    callback();
+  }
+});
+
+// 对象过滤
+const filterAdults = new Transform({
+  objectMode: true,
+  transform(chunk, encoding, callback) {
+    if (chunk.age >= 18) {
+      this.push(chunk);
+    }
+    callback();
+  }
+});
+
+// 使用
+const { pipeline } = require('stream');
+
+pipeline(
+  fs.createReadStream('users.csv'),
+  require('readline').createInterface({ input: fs.createReadStream('users.csv') }),
+  // 实际生产环境建议使用 csv-parser 等库
+  (err) => {
+    if (err) console.error(err);
+  }
+);
+```
+
+更实用的 objectMode 示例——日志处理流水线：
+
+```js
+const { Readable, Transform } = require('stream');
+
+// 生成日志对象
+const logSource = new Readable({
+  objectMode: true,
+  read() {
+    const level = ['info', 'warn', 'error'][Math.floor(Math.random() * 3)];
+    this.push({ level, message: `Log at ${Date.now()}`, timestamp: new Date() });
+    if (Math.random() > 0.95) this.push(null); // 结束
+  }
+});
+
+// 过滤错误日志
+const errorFilter = new Transform({
+  objectMode: true,
+  transform(log, encoding, callback) {
+    if (log.level === 'error') {
+      this.push(log);
+    }
+    callback();
+  }
+});
+
+// 格式化输出
+const formatter = new Transform({
+  objectMode: true,
+  transform(log, encoding, callback) {
+    const line = `[${log.timestamp.toISOString()}] ${log.level.toUpperCase()}: ${log.message}\n`;
+    this.push(line);
+    callback();
+  }
+});
+
+pipeline(logSource, errorFilter, formatter, process.stdout, (err) => {
+  if (err) console.error('Pipeline 错误:', err);
+});
+```
+
+## Stream 的异步迭代
+
+Node.js 支持使用 `for await...of` 遍历 Readable 流，代码更加简洁：
+
+```js
+const fs = require('fs');
+
+async function processLines(filename) {
+  const readable = fs.createReadStream(filename, { encoding: 'utf8' });
+
+  for await (const chunk of readable) {
+    console.log('块:', chunk.slice(0, 50));
+  }
+}
+
+processLines('large-file.txt').catch(console.error);
+```
+
+结合 `readline` 模块，可以逐行处理文件：
+
+```js
+const fs = require('fs');
+const readline = require('readline');
+
+async function processLinesByLine(filename) {
+  const fileStream = fs.createReadStream(filename);
+
+  const rl = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity
+  });
+
+  let lineNumber = 0;
+  for await (const line of rl) {
+    lineNumber++;
+    if (line.includes('ERROR')) {
+      console.log(`Line ${lineNumber}: ${line}`);
+    }
+  }
+}
+```
+
+## 总结
+
+Stream 是 Node.js 处理大规模数据的核心抽象：
+
+- **Readable / Writable / Duplex / Transform** 四种类型覆盖所有 I/O 场景
+- `pipe()` 简单但缺乏错误处理，生产环境优先使用 `pipeline()`
+- **背压机制**防止内存溢出，`pipe` 和 `pipeline` 已自动处理
+- **objectMode** 允许流传递 JavaScript 对象，适合结构化数据处理
+- `for await...of` 提供了声明式的流消费方式
+
+善用 Stream，你的 Node.js 应用就能以极低的内存占用处理海量数据。

@@ -1,0 +1,320 @@
+---
+title: MySQL 查询优化与执行计划
+description: 掌握 EXPLAIN 分析执行计划的方法，理解索引覆盖、回表、文件排序等概念，学习 SQL 优化技巧和深度分页问题的解决方案，显著提升查询性能。
+pubDate: 2026-05-03
+category: mysql
+tags: [mysql, optimization, explain, query, performance]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 20
+planId: query-optimization
+---
+
+# MySQL 查询优化与执行计划
+
+写出能运行的 SQL 不难，但写出高性能的 SQL 需要深入理解 MySQL 的执行机制。本文将系统讲解 **EXPLAIN** 工具的使用、执行计划的关键指标、常见性能问题的识别，以及实用的 **SQL 优化技巧**。
+
+---
+
+## EXPLAIN 基础
+
+**EXPLAIN** 是 MySQL 提供的查询分析工具，可以查看优化器为 SQL 语句生成的执行计划。
+
+### 基本用法
+
+```sql
+EXPLAIN SELECT * FROM users WHERE username = 'alice';
+```
+
+输出包含以下核心列：
+
+| 列名 | 含义 |
+|------|------|
+| `id` | 查询标识符，相同 id 表示同一组操作 |
+| `select_type` | 查询类型（SIMPLE、PRIMARY、SUBQUERY 等） |
+| `table` | 正在访问的表 |
+| `partitions` | 匹配的分区 |
+| `type` | 访问类型（性能从好到差） |
+| `possible_keys` | 可能使用的索引 |
+| `key` | 实际使用的索引 |
+| `key_len` | 使用的索引长度 |
+| `ref` | 与索引比较的列或常量 |
+| `rows` | 预估扫描的行数 |
+| `filtered` | 按条件过滤后剩余行的百分比 |
+| `Extra` | 额外信息 |
+
+### EXPLAIN ANALYZE（MySQL 8.0.18+）
+
+```sql
+EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = 1;
+```
+
+`EXPLAIN ANALYZE` 会**实际执行**查询并返回真实的执行时间和行数，比传统 EXPLAIN 更准确。
+
+---
+
+## 理解 type 列
+
+type 列表示 MySQL 如何访问表中的数据，是判断查询性能的关键指标。
+
+| type | 说明 | 性能 |
+|------|------|------|
+| `system` | 表只有一行 | 最优 |
+| `const` | 通过主键或唯一索引一次命中 | 极优 |
+| `eq_ref` | JOIN 中通过主键或唯一索引匹配一行 | 极优 |
+| `ref` | 通过普通索引匹配多行 | 优 |
+| `range` | 索引范围扫描（BETWEEN、IN、>、<） | 良 |
+| `index` | 全索引扫描 | 中 |
+| `ALL` | 全表扫描 | 差 |
+
+```sql
+-- const：主键等值查询
+EXPLAIN SELECT * FROM users WHERE user_id = 1;
+-- type: const
+
+-- ref：普通索引等值查询
+EXPLAIN SELECT * FROM users WHERE username = 'alice';
+-- type: ref
+
+-- range：索引范围查询
+EXPLAIN SELECT * FROM orders WHERE order_date BETWEEN '2026-01-01' AND '2026-03-31';
+-- type: range
+
+-- ALL：全表扫描
+EXPLAIN SELECT * FROM users WHERE email LIKE '%example%';
+-- type: ALL
+```
+
+**优化目标**：尽量让 type 达到 `range` 及以上，避免 `ALL`。
+
+---
+
+## Extra 列的关键信息
+
+Extra 列提供了优化器执行查询时的额外信息，某些值意味着性能问题。
+
+### Using index（覆盖索引）
+
+```sql
+EXPLAIN SELECT username, email FROM users WHERE username = 'alice';
+-- Extra: Using index（无需回表，性能优秀）
+```
+
+### Using where
+
+表示在存储引擎层返回数据后，Server 层还需要用 WHERE 条件过滤。
+
+```sql
+EXPLAIN SELECT * FROM users WHERE username = 'alice' AND email LIKE '%test%';
+-- Extra: Using index condition; Using where
+```
+
+### Using filesort
+
+表示 MySQL 需要额外的排序操作，通常发生在内存或磁盘上。
+
+```sql
+EXPLAIN SELECT * FROM orders WHERE user_id = 1 ORDER BY amount;
+-- 如果 (user_id, amount) 没有联合索引，可能出现 Using filesort
+```
+
+**优化方法**：创建包含 `WHERE` 和 `ORDER BY` 列的联合索引。
+
+```sql
+CREATE INDEX idx_user_amount ON orders(user_id, amount);
+```
+
+### Using temporary
+
+表示 MySQL 需要创建临时表来处理查询，常见于 `GROUP BY` 和 `DISTINCT`。
+
+```sql
+EXPLAIN SELECT status, COUNT(*) FROM orders GROUP BY status;
+-- 如果 status 没有索引，可能出现 Using temporary
+```
+
+### Using index condition（索引条件下推）
+
+MySQL 5.6+ 的特性，将部分 WHERE 条件下推到存储引擎层过滤，减少回表次数。
+
+---
+
+## 索引覆盖与回表
+
+### 回表（Lookup）
+
+通过二级索引查询时，索引叶子节点只存储主键值。如果需要查询的列不在索引中，MySQL 需要根据主键值到聚簇索引中查找完整行数据，这个过程称为**回表**。
+
+```sql
+-- 假设 username 有索引，但查询了所有列
+SELECT * FROM users WHERE username = 'alice';
+-- 步骤1：在 username 索引找到主键 user_id
+-- 步骤2：用 user_id 回聚簇索引获取完整数据（回表）
+```
+
+### 覆盖索引
+
+如果查询的所有列都在索引中，MySQL 无需回表，直接从索引中读取数据。
+
+```sql
+-- 假设有联合索引 idx_username_email(username, email)
+SELECT username, email FROM users WHERE username = 'alice';
+-- Extra: Using index（覆盖索引，无回表）
+```
+
+**优化技巧**：对于高频查询，考虑创建包含所有查询列的联合索引，实现覆盖索引。
+
+---
+
+## SQL 优化技巧
+
+### 1. SELECT 只取需要的列
+
+```sql
+-- 不推荐：SELECT * 容易导致回表
+SELECT * FROM users WHERE username = 'alice';
+
+-- 推荐：只取需要的列，更容易命中覆盖索引
+SELECT user_id, username, email FROM users WHERE username = 'alice';
+```
+
+### 2. 避免在索引列上使用函数
+
+```sql
+-- 索引失效
+SELECT * FROM orders WHERE YEAR(order_date) = 2026;
+
+-- 正确写法
+SELECT * FROM orders WHERE order_date >= '2026-01-01' AND order_date < '2027-01-01';
+```
+
+### 3. 优化 OR 条件
+
+```sql
+-- 如果两列都有独立索引，UNION 通常比 OR 更高效
+SELECT * FROM users WHERE username = 'alice' OR email = 'alice@example.com';
+
+-- 优化后
+SELECT * FROM users WHERE username = 'alice'
+UNION
+SELECT * FROM users WHERE email = 'alice@example.com';
+```
+
+### 4. 优化 IN 查询
+
+```sql
+-- IN 列表过长时性能下降，考虑用 JOIN 或临时表替代
+SELECT * FROM orders WHERE user_id IN (1, 2, 3, 4, 5, ...);
+
+-- 优化：将 ID 列表放入临时表
+CREATE TEMPORARY TABLE tmp_user_ids (user_id INT PRIMARY KEY);
+INSERT INTO tmp_user_ids VALUES (1), (2), (3), ...;
+
+SELECT o.* FROM orders o
+JOIN tmp_user_ids t ON o.user_id = t.user_id;
+```
+
+### 5. 优化 JOIN
+
+```sql
+-- 确保 JOIN 条件列有索引
+-- 小表驱动大表（MySQL 优化器通常会自动选择）
+
+-- 推荐：被驱动表的 JOIN 列建立索引
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+
+SELECT * FROM users u
+JOIN orders o ON u.user_id = o.user_id
+WHERE u.status = 'active';
+```
+
+---
+
+## 深度分页问题
+
+使用 `LIMIT offset, count` 进行深度分页时，性能会随着 offset 增大而急剧下降。
+
+### 问题分析
+
+```sql
+-- 越往后越慢：MySQL 仍需扫描前 1000000 行才能返回 10 条
+SELECT * FROM orders ORDER BY order_id LIMIT 1000000, 10;
+```
+
+### 解决方案
+
+#### 方案一：基于主键的范围查询
+
+```sql
+-- 记录上一页最后一条的主键值
+SELECT * FROM orders
+WHERE order_id > 1000000
+ORDER BY order_id
+LIMIT 10;
+-- 性能与页码无关，恒定高效
+```
+
+#### 方案二：延迟关联（Deferred Join）
+
+```sql
+-- 先查主键，再关联取完整数据
+SELECT o.*
+FROM orders o
+JOIN (
+  SELECT order_id
+  FROM orders
+  ORDER BY order_id
+  LIMIT 1000000, 10
+) tmp ON o.order_id = tmp.order_id;
+```
+
+#### 方案三：覆盖索引 + 延迟关联
+
+```sql
+-- 假设有索引 idx_order_date_id(order_date, order_id)
+SELECT o.*
+FROM orders o
+JOIN (
+  SELECT order_id
+  FROM orders
+  ORDER BY order_date DESC
+  LIMIT 1000000, 10
+) tmp ON o.order_id = tmp.order_id;
+```
+
+#### 方案四：限制分页深度
+
+产品层面限制最大页码，如只允许查看前 100 页，超出时要求用户细化搜索条件。
+
+---
+
+## 慢查询日志
+
+开启慢查询日志，定位需要优化的 SQL。
+
+```sql
+-- 查看慢查询配置
+SHOW VARIABLES LIKE 'slow_query%';
+SHOW VARIABLES LIKE 'long_query_time';
+
+-- 开启慢查询日志（需 SUPER 权限）
+SET GLOBAL slow_query_log = 'ON';
+SET GLOBAL long_query_time = 1; -- 超过 1 秒的查询记录
+SET GLOBAL log_output = 'TABLE'; -- 输出到 mysql.slow_log 表
+
+-- 分析慢查询
+SELECT * FROM mysql.slow_log ORDER BY start_time DESC LIMIT 10;
+```
+
+---
+
+## 小结
+
+- **EXPLAIN** 是分析查询性能的首要工具，关注 `type` 和 `Extra` 列
+- 避免 `ALL`（全表扫描）和 `Using filesort`、`Using temporary`
+- **覆盖索引**避免回表，是提升查询性能的有效手段
+- **深度分页**使用主键范围查询或延迟关联解决
+- 结合**慢查询日志**持续发现和优化性能瓶颈
+
+查询优化是一个持续迭代的过程：分析执行计划、识别问题、验证优化效果，循环往复。

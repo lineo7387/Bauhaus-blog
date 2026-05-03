@@ -1,0 +1,341 @@
+---
+title: MySQL 数据库备份与恢复
+description: 系统讲解 MySQL 的物理备份与逻辑备份方案，包括 mysqldump、mysqlpump、xtrabackup 的使用方法，以及全量/增量备份策略和基于时间点的恢复（PITR）操作。
+pubDate: 2026-05-03
+category: mysql
+tags: [mysql, backup, recovery, mysqldump, xtrabackup]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 18
+planId: backup-recovery
+---
+
+# MySQL 数据库备份与恢复
+
+数据是企业的核心资产，备份是保障数据安全的最后一道防线。本文将系统讲解 MySQL 的备份类型、常用工具（**mysqldump**、**mysqlpump**、**xtrabackup**），以及恢复策略和基于时间点的恢复（PITR）。
+
+---
+
+## 备份类型
+
+### 物理备份 vs 逻辑备份
+
+| 维度 | 物理备份 | 逻辑备份 |
+|------|----------|----------|
+| 内容 | 数据文件、日志文件 | SQL 语句或文本数据 |
+| 速度 | 快（文件拷贝） | 慢（需解析和生成 SQL） |
+| 体积 | 与数据文件相当 | 通常更小（可压缩） |
+| 恢复速度 | 快 | 慢 |
+| 跨版本 | 受限（需相同版本和架构） | 灵活（SQL 可跨版本） |
+| 粒度 | 通常整库或整表 | 可精确到行 |
+| 代表工具 | xtrabackup | mysqldump、mysqlpump |
+
+### 全量备份 vs 增量备份
+
+- **全量备份**：备份所有数据。恢复简单，但耗时长、占用空间大。
+- **增量备份**：只备份自上次备份以来发生变化的数据。速度快、空间小，但恢复链条长，任一环节损坏都会导致恢复失败。
+
+生产环境通常采用**全量 + 增量**的组合策略，如每周全量、每日增量。
+
+---
+
+## mysqldump
+
+**mysqldump** 是 MySQL 自带的逻辑备份工具，将数据库导出为 SQL 语句。
+
+### 基本用法
+
+```bash
+# 备份单个数据库
+mysqldump -u root -p mydb > mydb_backup.sql
+
+# 备份多个数据库
+mysqldump -u root -p --databases db1 db2 > multi_db_backup.sql
+
+# 备份所有数据库
+mysqldump -u root -p --all-databases > all_databases_backup.sql
+
+# 只备份表结构（不含数据）
+mysqldump -u root -p --no-data mydb > mydb_schema.sql
+
+# 只备份数据（不含结构）
+mysqldump -u root -p --no-create-info mydb > mydb_data.sql
+
+# 备份指定表
+mysqldump -u root -p mydb users orders > mydb_tables.sql
+```
+
+### 常用参数
+
+| 参数 | 说明 |
+|------|------|
+| `--single-transaction` | 在事务中备份 InnoDB 表，保证一致性且不锁表 |
+| `--quick` | 逐行读取，避免大数据量时内存溢出 |
+| `--lock-tables` | 备份前锁定表（MyISAM 需要） |
+| `--master-data=2` | 记录 binlog 位置，便于搭建从库 |
+| `--routines` | 包含存储过程和函数 |
+| `--triggers` | 包含触发器 |
+| `--events` | 包含事件调度器 |
+
+### 一致性备份示例
+
+```bash
+# InnoDB 推荐：使用 --single-transaction 实现热备份
+mysqldump -u root -p \
+  --single-transaction \
+  --routines \
+  --triggers \
+  --events \
+  --master-data=2 \
+  mydb > mydb_$(date +%Y%m%d).sql
+```
+
+`--single-transaction` 会在导出开始时启动一个事务，利用 InnoDB 的 MVCC 机制读取一致性快照，整个过程不会锁表。
+
+### 压缩备份
+
+```bash
+# 直接压缩输出
+mysqldump -u root -p --single-transaction mydb | gzip > mydb_backup.sql.gz
+
+# 解压恢复
+zcat mydb_backup.sql.gz | mysql -u root -p mydb
+```
+
+---
+
+## mysqlpump
+
+**mysqlpump** 是 MySQL 5.7.8+ 引入的并行逻辑备份工具，相比 mysqldump 速度更快。
+
+### 基本用法
+
+```bash
+# 并行备份（默认 4 个线程）
+mysqlpump -u root -p --default-parallelism=4 mydb > mydb_pump.sql
+
+# 按表并行（每个表一个线程）
+mysqlpump -u root -p --parallel-schemas=4:mydb > mydb_pump.sql
+
+# 压缩备份
+mysqlpump -u root -p --compress-output=LZ4 mydb > mydb_pump.sql.lz4
+```
+
+### mysqlpump vs mysqldump
+
+| 特性 | mysqldump | mysqlpump |
+|------|-----------|-----------|
+| 并行备份 | 不支持 | 支持 |
+| 速度 | 较慢 | 较快 |
+| 一致性 | `--single-transaction` | `--single-transaction` |
+| 兼容性 | 所有版本 | MySQL 5.7.8+ |
+
+---
+
+## Percona XtraBackup
+
+**Percona XtraBackup** 是开源的热备份工具，基于物理备份，支持 InnoDB 和 XtraDB 存储引擎。
+
+### 安装
+
+```bash
+# Ubuntu/Debian
+wget https://repo.percona.com/apt/percona-release_latest.$(lsb_release -sc)_all.deb
+dpkg -i percona-release_latest.$(lsb_release -sc)_all.deb
+percona-release enable-only tools release
+apt update
+apt install percona-xtrabackup-80
+
+# 验证安装
+xtrabackup --version
+```
+
+### 全量备份
+
+```bash
+# 执行全量备份
+xtrabackup --backup \
+  --target-dir=/backup/full/$(date +%Y%m%d) \
+  --user=root --password='your_password'
+
+# 备份完成后准备（应用日志）
+xtrabackup --prepare --target-dir=/backup/full/20260503
+```
+
+### 增量备份
+
+```bash
+# 基于全量备份的增量备份
+xtrabackup --backup \
+  --target-dir=/backup/incr/20260504 \
+  --incremental-basedir=/backup/full/20260503 \
+  --user=root --password='your_password'
+
+# 第二个增量备份
+xtrabackup --backup \
+  --target-dir=/backup/incr/20260505 \
+  --incremental-basedir=/backup/incr/20260504 \
+  --user=root --password='your_password'
+```
+
+### 恢复流程
+
+```bash
+# 1. 准备全量备份
+xtrabackup --prepare --apply-log-only --target-dir=/backup/full/20260503
+
+# 2. 应用第一个增量
+xtrabackup --prepare --apply-log-only \
+  --target-dir=/backup/full/20260503 \
+  --incremental-dir=/backup/incr/20260504
+
+# 3. 应用第二个增量（最后一个不加 --apply-log-only）
+xtrabackup --prepare \
+  --target-dir=/backup/full/20260503 \
+  --incremental-dir=/backup/incr/20260505
+
+# 4. 恢复数据（停止 MySQL 后执行）
+systemctl stop mysql
+rm -rf /var/lib/mysql/*
+xtrabackup --copy-back --target-dir=/backup/full/20260503
+chown -R mysql:mysql /var/lib/mysql
+systemctl start mysql
+```
+
+---
+
+## 恢复数据
+
+### 从 mysqldump 恢复
+
+```bash
+# 恢复整个数据库
+mysql -u root -p mydb < mydb_backup.sql
+
+# 恢复前创建数据库（如果备份中不含 CREATE DATABASE）
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS mydb;"
+mysql -u root -p mydb < mydb_backup.sql
+
+# 恢复单个表
+mysql -u root -p mydb < mydb_tables.sql
+```
+
+### 从物理备份恢复
+
+物理备份恢复需要停止 MySQL 服务，替换数据文件后重启。
+
+```bash
+# 停止 MySQL
+systemctl stop mysql
+
+# 备份当前数据（以防万一）
+mv /var/lib/mysql /var/lib/mysql_bak
+
+# 恢复数据文件
+xtrabackup --copy-back --target-dir=/backup/full/20260503
+
+# 修改权限
+chown -R mysql:mysql /var/lib/mysql
+
+# 启动 MySQL
+systemctl start mysql
+```
+
+---
+
+## 基于时间点的恢复（PITR）
+
+**PITR**（Point-In-Time Recovery）结合全量备份和 binlog，可以将数据库恢复到任意时间点。
+
+### 前提条件
+
+- 开启了 binlog：`log_bin = ON`
+- 保留了全量备份以来的所有 binlog 文件
+
+### 恢复步骤
+
+```bash
+# 1. 找到需要恢复到的时间点对应的 binlog 位置
+# 查看 binlog 内容，找到误操作前的位置
+mysqlbinlog --start-datetime='2026-05-03 10:00:00' \
+  --stop-datetime='2026-05-03 14:00:00' \
+  /var/lib/mysql/binlog.000123 > binlog_events.sql
+
+# 2. 恢复全量备份
+mysql -u root -p < full_backup.sql
+
+# 3. 应用 binlog 到指定位置
+mysqlbinlog --stop-datetime='2026-05-03 13:30:00' \
+  /var/lib/mysql/binlog.000123 | mysql -u root -p
+
+# 或者按位置恢复
+mysqlbinlog --stop-position=1234567 \
+  /var/lib/mysql/binlog.000123 | mysql -u root -p
+```
+
+### 查找误操作位置
+
+```bash
+# 在 binlog 中搜索 DELETE 或 DROP 操作
+mysqlbinlog /var/lib/mysql/binlog.000123 | grep -i "DROP TABLE"
+
+# 或者查看特定时间段的 binlog 事件
+mysqlbinlog --start-datetime='2026-05-03 12:00:00' \
+  --stop-datetime='2026-05-03 13:00:00' \
+  --verbose /var/lib/mysql/binlog.000123
+```
+
+---
+
+## 备份策略建议
+
+### 小型数据库
+
+```
+每日凌晨：mysqldump --single-transaction 全量备份
+保留最近 7 天备份
+```
+
+### 中型数据库
+
+```
+每周日：xtrabackup 全量备份
+周一至周六：xtrabackup 增量备份
+保留 2 周备份 + binlog
+```
+
+### 大型数据库
+
+```
+每日：xtrabackup 全量备份到从库
+实时：binlog 同步到远程存储
+定期：验证备份可恢复性（演练）
+```
+
+---
+
+## 备份验证
+
+备份不验证等于没备份。定期执行恢复演练是确保备份有效的唯一方法。
+
+```bash
+# 快速验证逻辑备份
+mysql -u root -p -e "source mydb_backup.sql;" test_restore_db
+
+# 验证物理备份
+xtrabackup --prepare --target-dir=/backup/full/20260503
+# 如果没有报错，说明备份文件完整
+```
+
+---
+
+## 小结
+
+- **逻辑备份**（mysqldump、mysqlpump）灵活、跨版本，适合中小型数据库
+- **物理备份**（xtrabackup）速度快、对生产影响小，适合大型数据库
+- **全量 + 增量**组合策略平衡备份时间和存储空间
+- **PITR** 结合全量备份和 binlog，实现任意时间点的精确恢复
+- **定期演练恢复**是备份策略中不可或缺的一环
+
+备份不是目的，可恢复才是。建立完善的备份策略并定期验证，才能在灾难发生时从容应对。

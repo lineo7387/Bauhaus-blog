@@ -1,0 +1,361 @@
+---
+title: 子进程与进程间通信
+description: 详解 Node.js 中 spawn、exec、execFile、fork 的区别与使用场景，stdio 重定向、IPC 消息通道的实现，以及 cluster 模块的预演，助你掌握多进程编程的核心技能。
+pubDate: 2026-05-03
+category: nodejs
+tags: [nodejs, child-process, ipc, spawn, fork, cluster]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 12
+planId: child-process-ipc
+---
+
+# 子进程与进程间通信
+
+Node.js 是单线程的，但单线程并不意味着只能利用一个 CPU 核心。通过 **child_process** 模块，Node.js 可以创建和管理子进程，将 CPU 密集型任务 offload 到其他进程，或者调用系统命令完成特定操作。
+
+## 四种创建子进程的方式
+
+Node.js 提供了四个创建子进程的函数，各有适用场景。
+
+### spawn — 流式数据交换
+
+**spawn** 用于启动新进程，通过流（Stream）进行数据交换。适合需要处理大量输出数据的场景。
+
+```js
+const { spawn } = require('child_process');
+
+// 启动 ls 命令，流式获取输出
+const ls = spawn('ls', ['-la', '/usr/local'], {
+  cwd: '/tmp',      // 工作目录
+  env: { ...process.env, CUSTOM_VAR: 'value' } // 环境变量
+});
+
+// stdout 和 stderr 都是 Readable 流
+ls.stdout.on('data', (data) => {
+  console.log(`stdout: ${data}`);
+});
+
+ls.stderr.on('data', (data) => {
+  console.error(`stderr: ${data}`);
+});
+
+ls.on('close', (code) => {
+  console.log(`子进程退出码: ${code}`);
+});
+```
+
+### exec — 缓冲输出
+
+**exec** 会在回调中返回完整的 stdout 和 stderr 字符串。适合输出量不大、需要一次性获取结果的场景。
+
+```js
+const { exec } = require('child_process');
+
+// 执行 shell 命令，缓冲输出
+exec('ls -la | grep node', (error, stdout, stderr) => {
+  if (error) {
+    console.error(`执行错误: ${error.message}`);
+    return;
+  }
+  if (stderr) {
+    console.error(`stderr: ${stderr}`);
+    return;
+  }
+  console.log(`stdout:\n${stdout}`);
+});
+```
+
+**注意**：`exec` 默认缓冲区大小为 1MB，超出会截断。可通过 `maxBuffer` 选项调整。
+
+```js
+exec('cat huge-file.txt', { maxBuffer: 10 * 1024 * 1024 }, callback);
+```
+
+### execFile — 直接执行文件
+
+**execFile** 类似于 `exec`，但直接执行文件而不启动 shell。性能略好，且更安全（避免 shell 注入）。
+
+```js
+const { execFile } = require('child_process');
+
+execFile('node', ['--version'], (error, stdout) => {
+  if (error) throw error;
+  console.log(`Node.js 版本: ${stdout.trim()}`);
+});
+```
+
+### fork — 创建 Node.js 子进程
+
+**fork** 是专门用于创建 Node.js 子进程的函数。它会建立 **IPC（Inter-Process Communication）** 通道，允许父子进程通过消息传递进行通信。
+
+```js
+const { fork } = require('child_process');
+const path = require('path');
+
+// 创建子进程
+const child = fork(path.join(__dirname, 'worker.js'));
+
+// 向子进程发送消息
+child.send({ task: 'calculate', data: [1, 2, 3, 4, 5] });
+
+// 接收子进程消息
+child.on('message', (result) => {
+  console.log('子进程结果:', result);
+  child.kill(); // 任务完成，结束子进程
+});
+
+child.on('exit', (code) => {
+  console.log(`子进程退出，码: ${code}`);
+});
+```
+
+子进程代码 `worker.js`：
+
+```js
+// worker.js
+process.on('message', (msg) => {
+  if (msg.task === 'calculate') {
+    const sum = msg.data.reduce((a, b) => a + b, 0);
+    // 向父进程发送结果
+    process.send({ result: sum });
+  }
+});
+```
+
+## stdio 重定向
+
+通过 `stdio` 选项，可以精细控制子进程的标准输入输出。
+
+```js
+const { spawn } = require('child_process');
+const fs = require('fs');
+
+// 将子进程输出重定向到文件
+const out = fs.openSync('./out.log', 'a');
+const err = fs.openSync('./err.log', 'a');
+
+const child = spawn('node', ['script.js'], {
+  stdio: ['ignore', out, err] // stdin, stdout, stderr
+});
+
+// 或者继承父进程的 stdio
+const child2 = spawn('node', ['script.js'], {
+  stdio: 'inherit'
+});
+```
+
+stdio 选项值说明：
+
+| 值 | 含义 |
+|----|------|
+| `'pipe'` | 创建管道，父进程可通过流访问 |
+| `'ipc'` | 创建 IPC 通道（仅用于 fork） |
+| `'ignore'` | 忽略该流 |
+| `'inherit'` | 继承父进程的对应流 |
+| Stream / 文件描述符 | 重定向到指定流或文件 |
+
+```js
+// 使用 pipe 进行双向通信
+const { spawn } = require('child_process');
+
+const child = spawn('cat', [], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+child.stdout.on('data', (data) => {
+  console.log('收到:', data.toString());
+});
+
+child.stdin.write('Hello from parent\n');
+child.stdin.end();
+```
+
+## IPC 消息通道详解
+
+IPC 通道是 `fork` 的核心特性，基于底层操作系统的管道或 socket 实现。
+
+### 消息类型与序列化
+
+IPC 通道传递的消息会被**结构化克隆算法**序列化。这意味着函数和循环引用无法直接传递。
+
+```js
+// parent.js
+const { fork } = require('child_process');
+
+const child = fork('./advanced-worker.js');
+
+// 可以传递对象、数组、基本类型
+child.send({
+  type: 'config',
+  data: {
+    concurrency: 4,
+    timeout: 30000,
+    features: ['a', 'b', 'c']
+  }
+});
+
+// 甚至可以传递 net.Server 或 dgram.Socket 对象
+const server = require('net').createServer();
+server.listen(8000, () => {
+  child.send('server', server); // 将服务器句柄传递给子进程
+});
+```
+
+```js
+// advanced-worker.js
+process.on('message', (msg, handle) => {
+  if (msg === 'server' && handle) {
+    // 子进程也可以处理连接
+    handle.on('connection', (socket) => {
+      socket.end('Handled by worker\n');
+    });
+  }
+});
+```
+
+### 断开 IPC 通道
+
+当不再需要通信时，可以断开 IPC 通道：
+
+```js
+const child = fork('./worker.js');
+
+// 发送最后一条消息
+child.send({ type: 'shutdown' });
+
+// 断开 IPC 通道
+child.disconnect();
+
+// 断开后再发送消息会报错
+try {
+  child.send({ type: 'after-disconnect' });
+} catch (err) {
+  console.error('无法发送:', err.message);
+}
+```
+
+## 子进程池模式
+
+对于需要频繁创建子进程的场景，维护一个**进程池**比反复 fork 更高效。
+
+```js
+const { fork } = require('child_process');
+const os = require('os');
+
+class WorkerPool {
+  constructor(workerScript, poolSize = os.cpus().length) {
+    this.workerScript = workerScript;
+    this.poolSize = poolSize;
+    this.workers = [];
+    this.queue = [];
+    this.init();
+  }
+
+  init() {
+    for (let i = 0; i < this.poolSize; i++) {
+      this.addWorker();
+    }
+  }
+
+  addWorker() {
+    const worker = fork(this.workerScript);
+    worker.isBusy = false;
+    worker.on('message', (result) => {
+      if (worker.currentResolve) {
+        worker.currentResolve(result);
+        worker.currentResolve = null;
+        worker.currentReject = null;
+      }
+      worker.isBusy = false;
+      this.processQueue();
+    });
+    this.workers.push(worker);
+  }
+
+  execute(task) {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ task, resolve, reject });
+      this.processQueue();
+    });
+  }
+
+  processQueue() {
+    if (this.queue.length === 0) return;
+    const available = this.workers.find((w) => !w.isBusy);
+    if (!available) return;
+
+    const { task, resolve, reject } = this.queue.shift();
+    available.isBusy = true;
+    available.currentResolve = resolve;
+    available.currentReject = reject;
+    available.send(task);
+  }
+
+  terminate() {
+    this.workers.forEach((w) => w.kill());
+    this.workers = [];
+  }
+}
+
+// 使用
+const pool = new WorkerPool('./calc-worker.js', 4);
+
+Promise.all([
+  pool.execute({ n: 35 }),
+  pool.execute({ n: 40 }),
+  pool.execute({ n: 45 })
+]).then((results) => {
+  console.log(results);
+  pool.terminate();
+});
+```
+
+## cluster 模块的预演
+
+**cluster** 模块是 child_process 的高级封装，用于创建共享服务器端口的进程集群。
+
+```js
+const cluster = require('cluster');
+const http = require('http');
+const os = require('os');
+
+if (cluster.isPrimary) {
+  console.log(`主进程 ${process.pid} 正在运行`);
+
+  // 根据 CPU 核心数创建工作进程
+  const numWorkers = os.cpus().length;
+  for (let i = 0; i < numWorkers; i++) {
+    cluster.fork();
+  }
+
+  cluster.on('exit', (worker) => {
+    console.log(`工作进程 ${worker.process.pid} 退出`);
+    // 自动重启
+    cluster.fork();
+  });
+} else {
+  // 工作进程共享同一个端口
+  http.createServer((req, res) => {
+    res.writeHead(200);
+    res.end(`Hello from ${process.pid}\n`);
+  }).listen(8000);
+
+  console.log(`工作进程 ${process.pid} 启动`);
+}
+```
+
+cluster 模块内部使用 `child_process.fork()` 创建工作进程，并通过 IPC 通道管理它们。工作进程之间不直接通信，所有协调由主进程完成。
+
+## 总结
+
+child_process 模块让 Node.js 突破了单线程的限制：
+
+- **spawn** 适合流式大数据交换，**exec** 适合小输出的一次性命令
+- **execFile** 直接执行文件，无 shell 开销更安全
+- **fork** 创建 Node.js 子进程并建立 IPC 通道
+- **stdio** 选项灵活控制输入输出重定向
+- **IPC** 通道支持消息传递和句柄共享（如服务器 socket）
+- **进程池**模式避免频繁 fork 的开销
+- **cluster** 模块是 child_process 在 HTTP 服务器场景的高级封装
+
+合理使用子进程，你的 Node.js 应用就能充分利用多核 CPU，同时保持主线程的响应性。

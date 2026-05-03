@@ -3,10 +3,10 @@ title: Node.js 完整学习路线
 description: 从 Node.js 运行时核心到高级性能优化的系统化学习路径，涵盖模块系统、事件循环、流、集群与原生扩展
 skill: nodejs
 version: "24.x"
-status: in-progress
+status: completed
 total: 15
 createdAt: 2026-04-15
-updatedAt: 2026-04-16
+updatedAt: 2026-05-03
 planOrder:
   - nodejs-runtime-architecture
   - module-system-cjs-esm
@@ -29,6 +29,7 @@ planOrder:
 
 - 2026-04-15：创建路线图
 - 2026-04-16：审核通过 5 篇文章，标记基础部分 5 个知识点为已完成
+- 2026-05-03：生成剩余 10 篇文章，全部知识点标记为已完成
 
 ## 基础知识
 
@@ -59,56 +60,56 @@ planOrder:
 
 ## 进阶技能
 
-- [ ] 事件循环与异步 I/O 原理
+- [✅] 事件循环与异步 I/O 原理
       desc: libuv 的六个阶段（timers/poll/check/close 等）、microtask 与 macrotask 执行顺序、setImmediate 与 setTimeout 的竞态、nextTick 与 Promise.then 的优先级
       difficulty: medium
       estimatedWords: 2000
 
-- [ ] Buffer 与二进制数据处理
+- [✅] Buffer 与二进制数据处理
       desc: Buffer 的内存分配与编码转换、Buffer.alloc 与 Buffer.from、TypedArray 互操作、二进制协议解析示例
       difficulty: medium
       estimatedWords: 1500
 
-- [ ] Stream 流与背压控制
+- [✅] Stream 流与背压控制
       desc: Readable/Writable/Transform/Duplex 四类流、pipe 与 pipeline、背压（backpressure）机制、objectMode 的应用场景
       difficulty: medium
       estimatedWords: 1800
 
-- [ ] 子进程与进程间通信
+- [✅] 子进程与进程间通信
       desc: spawn、exec、execFile、fork 的区别与使用场景、stdio 重定向、IPC 消息通道、cluster 模块的预演
       difficulty: medium
       estimatedWords: 1800
 
 ## 生态与实践
 
-- [ ] 异步编程模式演进
+- [✅] 异步编程模式演进
       desc: 回调函数与错误优先约定、Promise 化实践、async/await 的底层实现、AsyncLocalStorage 上下文传递、AbortController 取消异步操作
       difficulty: medium
       estimatedWords: 1800
 
-- [ ] 文件系统实战与路径处理
+- [✅] 文件系统实战与路径处理
       desc: fs 的同步/异步/Promise API、文件描述符与流式读写、watch 文件监控机制、临时文件与目录管理
       difficulty: medium
       estimatedWords: 1500
 
-- [ ] 内置 Test Runner 与调试
+- [✅] 内置 Test Runner 与调试
       desc: node:test 与 node:assert 的使用、测试套件与钩子、Mock 与快照测试、--inspect 与 VS Code 调试配置、Node.js 24 中 Test Runner 的覆盖率报告
       difficulty: medium
       estimatedWords: 1800
 
 ## 高级主题
 
-- [ ] 集群与负载均衡
+- [✅] 集群与负载均衡
       desc: cluster 模块的 Master-Worker 架构、共享端口监听、Round-Robin 调度策略、PM2 进程管理对比、零停机重启思路
       difficulty: hard
       estimatedWords: 2200
 
-- [ ] 性能剖析与内存优化
+- [✅] 性能剖析与内存优化
       desc: V8 堆内存结构、垃圾回收机制、内存泄漏常见原因、--prof 与 Chrome DevTools 火焰图、eventLoopUtilization 监控
       difficulty: hard
       estimatedWords: 2200
 
-- [ ] 原生扩展与 N-API
+- [✅] 原生扩展与 N-API
       desc: 使用 node-gyp 编译 C/C++ 扩展、N-API 的 ABI 稳定性、Node-API 与 NAN 的对比、使用 node-api-rs 编写 Rust 扩展的入门路径
       difficulty: hard
       estimatedWords: 2000
