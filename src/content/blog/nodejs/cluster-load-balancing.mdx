@@ -322,7 +322,7 @@ pm2 start ecosystem.config.js --env production
 
 ```js
 const session = require('express-session');
-const RedisStore = require('connect-redis')(session);
+const { RedisStore } = require('connect-redis');
 
 app.use(session({
   store: new RedisStore({ client: redisClient }),

@@ -22,7 +22,7 @@ Node.js 并非一门新的编程语言，而是一个让 JavaScript 脱离浏览
 - **V8 引擎**：Google 开发的高性能 JavaScript 引擎，负责将 JS 代码编译为机器码并执行
 - **libuv**：C 语言编写的跨平台异步 I/O 库，提供事件循环和线程池能力
 
-```javascript
+```js
 // 最简单的 Node.js 程序
 console.log('Hello, Node.js!');
 ```
@@ -121,8 +121,9 @@ node --permission --allow-fs-read=/app/data index.js
 
 内置的 `node:test` 模块从实验状态转正为**稳定 API**，无需安装 Jest、Mocha 等外部测试框架即可编写单元测试：
 
-```javascript
-const { test, assert } = require('node:test');
+```js
+const { test } = require('node:test');
+const assert = require('node:assert');
 
 test('简单的加法测试', () => {
   assert.strictEqual(1 + 1, 2);

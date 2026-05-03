@@ -189,14 +189,14 @@ Buffer 提供了高效的切片操作，且切片与原始 Buffer **共享内存
 ```js
 const original = Buffer.from('Hello World');
 
-// slice 共享内存（零拷贝）
-const sliced = original.slice(0, 5);
+// subarray 共享内存（零拷贝）
+const sliced = original.subarray(0, 5);
 console.log(sliced.toString()); // "Hello"
 
 sliced[0] = 0x68; // 小写 h
 console.log(original.toString()); // "hello World"
 
-// 需要独立拷贝时使用 subarray + Buffer.from
+// 需要独立拷贝时使用 Buffer.from
 const copied = Buffer.from(original.subarray(0, 5));
 copied[0] = 0x48;
 console.log(original.toString());  // "hello World"（不受影响）

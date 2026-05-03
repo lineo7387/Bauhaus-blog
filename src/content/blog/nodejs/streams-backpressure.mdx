@@ -279,17 +279,18 @@ const filterAdults = new Transform({
   }
 });
 
-// 使用
-const { pipeline } = require('stream');
+// 使用 readline 逐行处理 CSV（readline Interface 不能直接用于 pipeline）
+const readline = require('readline');
 
-pipeline(
-  fs.createReadStream('users.csv'),
-  require('readline').createInterface({ input: fs.createReadStream('users.csv') }),
-  // 实际生产环境建议使用 csv-parser 等库
-  (err) => {
-    if (err) console.error(err);
+async function processCSV(filename) {
+  const fileStream = fs.createReadStream(filename);
+  const rl = readline.createInterface({ input: fileStream });
+
+  for await (const line of rl) {
+    const [name, age] = line.trim().split(',');
+    console.log({ name, age: parseInt(age, 10) });
   }
-);
+}
 ```
 
 更实用的 objectMode 示例——日志处理流水线：
