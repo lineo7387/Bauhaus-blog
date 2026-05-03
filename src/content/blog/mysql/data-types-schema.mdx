@@ -85,7 +85,7 @@ CREATE TABLE articles (likes INT UNSIGNED, views BIGINT UNSIGNED);
 -- 适用：国家代码（CN/USA）、性别（M/F）、状态码等**长度固定的字段**
 CREATE TABLE countries (code CHAR(2), name VARCHAR(100));
 
--- VARCHAR(N)：可变长度，只存储实际字符。最大 65535 字节（实际受行宽限制约 21653 字符）
+-- VARCHAR(N)：可变长度，只存储实际字符。单行最大 65535 字节（utf8mb4 字符集下约 16383 字符）
 -- 适用：用户名、邮箱、地址等**长度不确定的字段**
 CREATE TABLE users (username VARCHAR(50), bio VARCHAR(500));
 ```
@@ -95,7 +95,7 @@ CREATE TABLE users (username VARCHAR(50), bio VARCHAR(500));
 | 存储长度 | 固定 N | 实际字符数 + 1~2 字节长度前缀 |
 | 性能 | 写入/读取略快（无需计算长度） | 略低（需解析长度前缀） |
 | 空间 | 空白浪费（不足 N 时填充空格） | 紧凑 |
-| 最大长度 | 255 | ~21653（字符集为 utf8mb4 时约 8000） |
+| 最大长度 | 255 字符 | 受单行 65535 字节限制：utf8mb4 约 16383 字符，utf8mb3 约 21844 字符 |
 
 ### 字符集：utf8mb4（必须掌握）
 

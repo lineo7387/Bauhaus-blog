@@ -73,7 +73,7 @@ mysqldump -u root -p mydb users orders > mydb_tables.sql
 | `--single-transaction` | 在事务中备份 InnoDB 表，保证一致性且不锁表 |
 | `--quick` | 逐行读取，避免大数据量时内存溢出 |
 | `--lock-tables` | 备份前锁定表（MyISAM 需要） |
-| `--master-data=2` | 记录 binlog 位置，便于搭建从库 |
+| `--source-data=2`（原 `--master-data=2`）| 记录 binlog 位置，便于搭建从库 |
 | `--routines` | 包含存储过程和函数 |
 | `--triggers` | 包含触发器 |
 | `--events` | 包含事件调度器 |
@@ -87,7 +87,7 @@ mysqldump -u root -p \
   --routines \
   --triggers \
   --events \
-  --master-data=2 \
+  --source-data=2 \
   mydb > mydb_$(date +%Y%m%d).sql
 ```
 
@@ -106,6 +106,8 @@ zcat mydb_backup.sql.gz | mysql -u root -p mydb
 ---
 
 ## mysqlpump
+
+> **注意**：`mysqlpump` 在 MySQL 8.0.34 中已被标记为弃用（deprecated），建议继续使用 `mysqldump` 或 `mysqldump` 的增强版本。
 
 **mysqlpump** 是 MySQL 5.7.8+ 引入的并行逻辑备份工具，相比 mysqldump 速度更快。
 

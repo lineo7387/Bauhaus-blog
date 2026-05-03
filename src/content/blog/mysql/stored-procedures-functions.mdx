@@ -30,6 +30,7 @@ SELECT
   u.user_id,
   u.username,
   o.order_id,
+  o.product_id,
   o.amount,
   o.order_date
 FROM users u
@@ -46,7 +47,7 @@ SELECT * FROM active_user_orders WHERE amount > 1000;
 -- 视图也可以参与 JOIN
 SELECT v.username, p.product_name
 FROM active_user_orders v
-JOIN products p ON v.order_id = p.product_id;
+JOIN products p ON v.product_id = p.product_id;
 ```
 
 ### 更新视图

@@ -90,15 +90,15 @@ SELECT * FROM users WHERE email = 'alice@example.com';
 
 ```sql
 -- 推荐：自增主键
-CREATE TABLE orders (
+CREATE TABLE orders_recommended (
   order_id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  -- 其他字段
+  user_id INT NOT NULL
 );
 
 -- 避免：UUID 主键（页分裂严重）
-CREATE TABLE orders (
+CREATE TABLE orders_uuid (
   order_id CHAR(36) PRIMARY KEY, -- 不推荐
-  -- 其他字段
+  user_id INT NOT NULL
 );
 ```
 

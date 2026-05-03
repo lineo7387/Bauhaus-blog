@@ -30,14 +30,13 @@ CREATE TABLE users (
   city VARCHAR(50)
 );
 
--- 订单表
+-- 订单表（演示用，故意不加外键约束以便插入孤立数据展示 JOIN 差异）
 CREATE TABLE orders (
   order_id INT PRIMARY KEY AUTO_INCREMENT,
   user_id INT,
   product_id INT,
   amount DECIMAL(10, 2),
-  order_date DATE,
-  FOREIGN KEY (user_id) REFERENCES users(user_id)
+  order_date DATE
 );
 
 -- 商品表

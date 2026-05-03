@@ -71,7 +71,8 @@ SET GLOBAL binlog_format = 'ROW';
 server-id = 1
 log_bin = /var/lib/mysql/mysql-bin
 binlog_format = ROW
-expire_logs_days = 7
+# MySQL 8.0+ 使用 binlog_expire_logs_seconds 代替 expire_logs_days（7天 = 604800秒）
+binlog_expire_logs_seconds = 604800
 max_binlog_size = 500M
 
 # 需要复制的数据库（可选）
@@ -105,6 +106,8 @@ read_only = 1
 ```
 
 配置复制连接：
+
+> **MySQL 8.0.23+ 术语变更**：`CHANGE MASTER TO` 更名为 `CHANGE REPLICATION SOURCE TO`，`START SLAVE` 更名为 `START REPLICA`，`SHOW SLAVE STATUS` 更名为 `SHOW REPLICA STATUS`。旧语法仍兼容但已弃用。
 
 ```sql
 CHANGE MASTER TO

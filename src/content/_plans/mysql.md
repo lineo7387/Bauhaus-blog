@@ -11,15 +11,15 @@ planOrder:
   - mysql-installation
   - sql-basics
   - data-types-schema
-  - crud-operations
   - filtering-aggregation
   - joins-subqueries
   - indexing-performance
   - transactions-acid
-  - query-optimization
   - stored-procedures-functions
+  - query-optimization
   - backup-recovery
   - replication-ha
+  - sharding-partitioning
 ---
 
 ## 更新记录
