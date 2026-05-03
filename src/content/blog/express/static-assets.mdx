@@ -110,7 +110,7 @@ app.use('/fonts', express.static(path.join(__dirname, 'public/fonts')));
 // 按优先级顺序注册，先找到的生效
 app.use(express.static(path.join(__dirname, 'public')));            // 主目录
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // 上传目录
-app.use('/vendor', express.static(path.join(__dirname, 'node_modules'))); // 第三方库 CDN 替
+app.use('/vendor', express.static(path.join(__dirname, 'node_modules'))); // 第三方库本地引用
 ```
 
 ## SPA 路由回退（History Fallback）

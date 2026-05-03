@@ -29,25 +29,11 @@ Express 的核心特点：
 
 ## Express 5.x 的关键变化
 
-Express 5 是继 Express 4 之后的重要版本更新（当前为 5.0 正式版），带来了一些破坏性变更：
-
-### 路由参数语法统一
-
-Express 5 废弃了传统的 `:param` 语法，全面转向命名参数风格：
-
-```javascript
-// Express 4 写法（仍可运行，但有警告）
-app.get('/users/:id', (req, res) => res.send(req.params.id));
-
-// Express 5 推荐写法（仅支持命名参数）
-app.get('/users/:id', (req, res) => res.send(req.params.id));
-```
-
-> **注意**：Express 5 目前仍支持 `:param` 语法，但推荐使用命名参数以适配未来版本。
+Express 5 是继 Express 4 之后的重要版本更新（当前为 5.0 正式版），带来了一些改进和破坏性变更：
 
 ### 异步路由处理器
 
-Express 5 原生支持异步路由处理器，无需手动包装 Promise：
+Express 5 最重要的改进是**原生支持异步路由处理器**。在 Express 4 中，`async` 函数内抛出的错误需要手动 `try/catch` 或 `.catch(next)` 捕获；而在 Express 5 中，Promise 的 rejection 会自动被转发到错误处理中间件：
 
 ```javascript
 // Express 4：需要 try/catch 或 .catch()

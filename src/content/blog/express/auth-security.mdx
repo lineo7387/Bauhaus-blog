@@ -147,7 +147,7 @@ npm install express-session connect-redis
 
 ```js
 const session = require('express-session');
-const RedisStore = require('connect-redis')(session);
+const { RedisStore } = require('connect-redis');
 const redis = require('../config/redis');
 
 app.use(session({
