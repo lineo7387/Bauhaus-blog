@@ -32,10 +32,10 @@ EXPLAIN SELECT * FROM users WHERE username = 'alice';
 | 列名 | 含义 |
 |------|------|
 | `id` | 查询标识符，相同 id 表示同一组操作 |
-| `select_type` | 查询类型（SIMPLE、PRIMARY、SUBQUERY 等） |
+| `select_type` | 查询类型 (SIMPLE、PRIMARY、SUBQUERY 等) |
 | `table` | 正在访问的表 |
 | `partitions` | 匹配的分区 |
-| `type` | 访问类型（性能从好到差） |
+| `type` | 访问类型 (性能从好到差) |
 | `possible_keys` | 可能使用的索引 |
 | `key` | 实际使用的索引 |
 | `key_len` | 使用的索引长度 |
@@ -44,7 +44,7 @@ EXPLAIN SELECT * FROM users WHERE username = 'alice';
 | `filtered` | 按条件过滤后剩余行的百分比 |
 | `Extra` | 额外信息 |
 
-### EXPLAIN ANALYZE（MySQL 8.0.18+）
+### EXPLAIN ANALYZE (MySQL 8.0.18+)
 
 ```sql
 EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = 1;
@@ -64,7 +64,7 @@ type 列表示 MySQL 如何访问表中的数据，是判断查询性能的关�
 | `const` | 通过主键或唯一索引一次命中 | 极优 |
 | `eq_ref` | JOIN 中通过主键或唯一索引匹配一行 | 极优 |
 | `ref` | 通过普通索引匹配多行 | 优 |
-| `range` | 索引范围扫描（BETWEEN、IN、>、<） | 良 |
+| `range` | 索引范围扫描 (`BETWEEN`、`IN`、`>`、`<`) | 良 |
 | `index` | 全索引扫描 | 中 |
 | `ALL` | 全表扫描 | 差 |
 
@@ -94,11 +94,11 @@ EXPLAIN SELECT * FROM users WHERE email LIKE '%example%';
 
 Extra 列提供了优化器执行查询时的额外信息，某些值意味着性能问题。
 
-### Using index（覆盖索引）
+### Using index (覆盖索引)
 
 ```sql
 EXPLAIN SELECT username, email FROM users WHERE username = 'alice';
--- Extra: Using index（无需回表，性能优秀）
+-- Extra: Using index (无需回表，性能优秀)
 ```
 
 ### Using where
@@ -134,7 +134,7 @@ EXPLAIN SELECT status, COUNT(*) FROM orders GROUP BY status;
 -- 如果 status 没有索引，可能出现 Using temporary
 ```
 
-### Using index condition（索引条件下推）
+### Using index condition (索引条件下推)
 
 MySQL 5.6+ 的特性，将部分 WHERE 条件下推到存储引擎层过滤，减少回表次数。
 
@@ -142,7 +142,7 @@ MySQL 5.6+ 的特性，将部分 WHERE 条件下推到存储引擎层过滤，�
 
 ## 索引覆盖与回表
 
-### 回表（Lookup）
+### 回表 (Lookup)
 
 通过二级索引查询时，索引叶子节点只存储主键值。如果需要查询的列不在索引中，MySQL 需要根据主键值到聚簇索引中查找完整行数据，这个过程称为**回表**。
 
@@ -150,7 +150,7 @@ MySQL 5.6+ 的特性，将部分 WHERE 条件下推到存储引擎层过滤，�
 -- 假设 username 有索引，但查询了所有列
 SELECT * FROM users WHERE username = 'alice';
 -- 步骤1：在 username 索引找到主键 user_id
--- 步骤2：用 user_id 回聚簇索引获取完整数据（回表）
+-- 步骤2：用 user_id 回聚簇索引获取完整数据 (回表)
 ```
 
 ### 覆盖索引
@@ -160,7 +160,7 @@ SELECT * FROM users WHERE username = 'alice';
 ```sql
 -- 假设有联合索引 idx_username_email(username, email)
 SELECT username, email FROM users WHERE username = 'alice';
--- Extra: Using index（覆盖索引，无回表）
+-- Extra: Using index (覆盖索引，无回表)
 ```
 
 **优化技巧**：对于高频查询，考虑创建包含所有查询列的联合索引，实现覆盖索引。
@@ -219,7 +219,7 @@ JOIN tmp_user_ids t ON o.user_id = t.user_id;
 
 ```sql
 -- 确保 JOIN 条件列有索引
--- 小表驱动大表（MySQL 优化器通常会自动选择）
+-- 小表驱动大表 (MySQL 优化器通常会自动选择)
 
 -- 推荐：被驱动表的 JOIN 列建立索引
 CREATE INDEX idx_orders_user_id ON orders(user_id);
@@ -255,7 +255,7 @@ LIMIT 10;
 -- 性能与页码无关，恒定高效
 ```
 
-#### 方案二：延迟关联（Deferred Join）
+#### 方案二：延迟关联 (Deferred Join)
 
 ```sql
 -- 先查主键，再关联取完整数据
@@ -298,7 +298,7 @@ JOIN (
 SHOW VARIABLES LIKE 'slow_query%';
 SHOW VARIABLES LIKE 'long_query_time';
 
--- 开启慢查询日志（需 SUPER 权限）
+-- 开启慢查询日志 (需 SUPER 权限)
 SET GLOBAL slow_query_log = 'ON';
 SET GLOBAL long_query_time = 1; -- 超过 1 秒的查询记录
 SET GLOBAL log_output = 'TABLE'; -- 输出到 mysql.slow_log 表
@@ -312,7 +312,7 @@ SELECT * FROM mysql.slow_log ORDER BY start_time DESC LIMIT 10;
 ## 小结
 
 - **EXPLAIN** 是分析查询性能的首要工具，关注 `type` 和 `Extra` 列
-- 避免 `ALL`（全表扫描）和 `Using filesort`、`Using temporary`
+- 避免 `ALL` (全表扫描)和 `Using filesort`、`Using temporary`
 - **覆盖索引**避免回表，是提升查询性能的有效手段
 - **深度分页**使用主键范围查询或延迟关联解决
 - 结合**慢查询日志**持续发现和优化性能瓶颈

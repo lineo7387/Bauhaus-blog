@@ -1,7 +1,8 @@
 ---
-import { NODES, EDGES, GROUPS } from './topology';
+import { NODES } from './topology';
 import { BASE } from '../../utils/base';
 import { CATEGORY_COLORS } from '../../config/category-colors';
+import SkillForceGraph from './SkillForceGraph';
 import type { CollectionEntry } from 'astro:content';
 
 interface Props {
@@ -19,7 +20,12 @@ function getContrastColor(hex: string): string {
   return luminance > 0.6 ? '#121212' : '#ffffff';
 }
 
-const nodeData = NODES.map((node) => {
+const maxArticles = Math.max(
+  ...NODES.map((n) => posts.filter((p) => p.data.category === n.skillId).length),
+  1
+);
+
+const nodes = NODES.map((node) => {
   const count = posts.filter((p) => p.data.category === node.skillId).length;
   const plan = plans.find(
     (p) => p.data.skill?.toLowerCase() === node.skillId.toLowerCase()
@@ -36,82 +42,36 @@ const nodeData = NODES.map((node) => {
     : 0;
   const progress = totalInPlan > 0 ? Math.round((completedInPlan / totalInPlan) * 100) : 100;
   const colors = CATEGORY_COLORS[node.skillId] ?? CATEGORY_COLORS['design'];
+
   return {
-    ...node,
+    id: node.id,
+    name: node.displayName,
+    val: 5 + (count / maxArticles) * 12,
+    color: colors.hex,
+    textColor: getContrastColor(colors.hex),
+    skillId: node.skillId,
     articleCount: count,
     progress,
-    hexColor: colors.hex,
-    textColor: getContrastColor(colors.hex),
-    label: `${node.displayName}\n${count} 篇`,
+    group: node.group,
+    shape: node.shape,
+    fx: node.x,
+    fy: node.y,
   };
 });
 
-const minY = Math.min(...GROUPS.map((g) => g.yRange[0]));
-const maxY = Math.max(...GROUPS.map((g) => g.yRange[1]));
-const totalY = maxY - minY || 1;
+// 精简边：只保留最关键的依赖链
+const links = [
+  { source: 'react-native', target: 'react' },
+  { source: 'electron',     target: 'nodejs' },
+  { source: 'express',      target: 'nodejs' },
+  { source: 'fastapi',      target: 'python' },
+  { source: 'springboot',   target: 'java' },
+  { source: 'typescript',   target: 'javascript', dashed: true },
+];
+
+const graphData = { nodes, links };
 ---
 
-<div class="skill-graph-container relative w-full" style="min-height: 720px;">
-  <!-- Group banners — serve as skeleton + permanent overlay -->
-  {
-    GROUPS.map((group) => {
-      const topPct = ((group.yRange[0] - minY) / totalY) * 100;
-      return (
-        <div
-          class="absolute left-0 right-0 pointer-events-none z-10"
-          style={`top: ${topPct}%;`}
-        >
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-            <span class="font-black uppercase tracking-tight text-foreground/15 text-lg md:text-xl">
-              {group.title}
-            </span>
-          </div>
-        </div>
-      );
-    })
-  }
-
-  <!-- Cytoscape canvas container -->
-  <div
-    id="skill-graph-cy"
-    class="absolute inset-0 z-0"
-    data-nodes={JSON.stringify(nodeData)}
-    data-edges={JSON.stringify(EDGES)}
-    data-base={BASE}
-  >
-  </div>
-
-  <!-- Tooltip -->
-  <div
-    id="skill-graph-tooltip"
-    class="absolute hidden z-20 pointer-events-none"
-    style="transform: translateX(-50%);"
-  >
-    <div class="bg-foreground text-on-foreground px-2.5 py-1 text-xs font-black whitespace-nowrap border-2 border-foreground shadow-hard-sm">
-      <span id="skill-graph-tooltip-text"></span>
-    </div>
-  </div>
+<div class="skill-graph-container relative w-full" style="height: 700px;">
+  <SkillForceGraph client:only="react" graphData={graphData} base={BASE} />
 </div>
-
-<script>
-  (() => {
-    const container = document.getElementById('skill-graph-cy');
-    if (!container) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            observer.disconnect();
-            import('./SkillGraph.client.ts').then((m) =>
-              m.initSkillGraph(container)
-            );
-          }
-        });
-      },
-      { rootMargin: '200px' }
-    );
-
-    observer.observe(container);
-  })();
-</script>

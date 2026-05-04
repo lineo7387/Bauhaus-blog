@@ -31,20 +31,20 @@ export interface SkillGroup {
 }
 
 export const GROUPS: SkillGroup[] = [
-  { id: 'apps',     title: 'Apps & Frameworks', yRange: [40, 180]  },
+  { id: 'apps',     title: 'Apps & Frameworks', yRange: [0, 170]   },
   { id: 'backend',  title: 'Backend Services',  yRange: [220, 340] },
-  { id: 'languages', title: 'Languages',        yRange: [380, 520] },
-  { id: 'data',     title: 'Data',              yRange: [560, 660] },
+  { id: 'languages', title: 'Languages',        yRange: [400, 520] },
+  { id: 'data',     title: 'Data',              yRange: [580, 660] },
 ];
 
 export const NODES: SkillNode[] = [
   // ── Apps (round-rectangle) ──
-  { id: 'vue',          displayName: 'Vue',          group: 'apps', shape: 'round-rectangle', x: 100, y: 80,  skillId: 'vue' },
-  { id: 'react',        displayName: 'React',        group: 'apps', shape: 'round-rectangle', x: 300, y: 80,  skillId: 'react' },
-  { id: 'astro',        displayName: 'Astro',        group: 'apps', shape: 'round-rectangle', x: 500, y: 80,  skillId: 'astro' },
-  { id: 'htmx',         displayName: 'htmx',         group: 'apps', shape: 'round-rectangle', x: 700, y: 80,  skillId: 'htmx' },
-  { id: 'electron',     displayName: 'Electron',     group: 'apps', shape: 'round-rectangle', x: 200, y: 160, skillId: 'electron' },
-  { id: 'react-native', displayName: 'React Native', group: 'apps', shape: 'round-rectangle', x: 600, y: 160, skillId: 'react-native' },
+  { id: 'vue',          displayName: 'Vue',          group: 'apps', shape: 'round-rectangle', x: 100, y: 55,  skillId: 'vue' },
+  { id: 'react',        displayName: 'React',        group: 'apps', shape: 'round-rectangle', x: 300, y: 55,  skillId: 'react' },
+  { id: 'astro',        displayName: 'Astro',        group: 'apps', shape: 'round-rectangle', x: 500, y: 55,  skillId: 'astro' },
+  { id: 'htmx',         displayName: 'htmx',         group: 'apps', shape: 'round-rectangle', x: 700, y: 55,  skillId: 'htmx' },
+  { id: 'electron',     displayName: 'Electron',     group: 'apps', shape: 'round-rectangle', x: 200, y: 155, skillId: 'electron' },
+  { id: 'react-native', displayName: 'React Native', group: 'apps', shape: 'round-rectangle', x: 600, y: 155, skillId: 'react-native' },
 
   // ── Backend (rectangle) ──
   { id: 'express',   displayName: 'Express',    group: 'backend', shape: 'rectangle', x: 250, y: 280, skillId: 'express' },
@@ -52,14 +52,14 @@ export const NODES: SkillNode[] = [
   { id: 'springboot', displayName: 'Spring Boot', group: 'backend', shape: 'rectangle', x: 650, y: 280, skillId: 'springboot' },
 
   // ── Languages (rectangle) ──
-  { id: 'typescript', displayName: 'TypeScript', group: 'languages', shape: 'rectangle', x: 100, y: 480, skillId: 'typescript' },
-  { id: 'javascript', displayName: 'JavaScript', group: 'languages', shape: 'rectangle', x: 300, y: 480, skillId: 'javascript' },
-  { id: 'nodejs',     displayName: 'Node.js',    group: 'languages', shape: 'rectangle', x: 500, y: 480, skillId: 'nodejs' },
-  { id: 'python',     displayName: 'Python',     group: 'languages', shape: 'rectangle', x: 700, y: 480, skillId: 'python' },
-  { id: 'java',       displayName: 'Java',       group: 'languages', shape: 'rectangle', x: 900, y: 480, skillId: 'java' },
+  { id: 'typescript', displayName: 'TypeScript', group: 'languages', shape: 'rectangle', x: 100, y: 460, skillId: 'typescript' },
+  { id: 'javascript', displayName: 'JavaScript', group: 'languages', shape: 'rectangle', x: 300, y: 460, skillId: 'javascript' },
+  { id: 'nodejs',     displayName: 'Node.js',    group: 'languages', shape: 'rectangle', x: 500, y: 460, skillId: 'nodejs' },
+  { id: 'python',     displayName: 'Python',     group: 'languages', shape: 'rectangle', x: 700, y: 460, skillId: 'python' },
+  { id: 'java',       displayName: 'Java',       group: 'languages', shape: 'rectangle', x: 900, y: 460, skillId: 'java' },
 
   // ── Data (hexagon) ──
-  { id: 'mysql', displayName: 'MySQL', group: 'data', shape: 'hexagon', x: 450, y: 640, skillId: 'mysql' },
+  { id: 'mysql', displayName: 'MySQL', group: 'data', shape: 'hexagon', x: 450, y: 620, skillId: 'mysql' },
 ];
 
 export const EDGES: SkillEdge[] = [

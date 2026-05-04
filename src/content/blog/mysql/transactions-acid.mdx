@@ -252,9 +252,9 @@ InnoDB 每行记录都有两个隐藏字段：
 对于某行记录的 `DB_TRX_ID`：
 
 1. 如果 `DB_TRX_ID` 等于 `creator_trx_id`：该行是自己修改的，可见
-2. 如果 `DB_TRX_ID` < `min_trx_id`：修改该行的事务已提交，可见
-3. 如果 `DB_TRX_ID` >= `max_trx_id`：修改发生在视图创建之后，不可见
-4. 如果 `min_trx_id` <= `DB_TRX_ID` < `max_trx_id`：检查 `m_ids` 列表，如果在列表中则不可见（事务未提交），否则可见
+2. 如果 `DB_TRX_ID` \< `min_trx_id`：修改该行的事务已提交，可见
+3. 如果 `DB_TRX_ID` \>= `max_trx_id`：修改发生在视图创建之后，不可见
+4. 如果 `min_trx_id` \<= `DB_TRX_ID` \< `max_trx_id`：检查 `m_ids` 列表，如果在列表中则不可见（事务未提交），否则可见
 
 ### MVCC 示例
 
