@@ -2,6 +2,7 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Button from "../components/ui/Button.astro";
 import BlogList from "../components/blog/BlogList.astro";
+import CountUp from "../components/animation/CountUp.astro";
 import SkillGraph from "../components/skill-graph/SkillGraph.astro";
 import SkillGraphFallback from "../components/skill-graph/SkillGraphFallback.astro";
 import { getCollection } from "astro:content";
@@ -140,7 +141,7 @@ const techStackText = displayNames.length <= 3
   </section>
 
   <!-- ═══════════════ Stats Bar ═══════════════ -->
-  <section class="bg-brand-red border-b-4 border-foreground py-16 lg:py-20">
+  <section id="stats-bar" class="bg-brand-red border-b-4 border-foreground py-16 lg:py-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
         <!-- Stat 1: Total Posts -->
@@ -150,7 +151,7 @@ const techStackText = displayNames.length <= 3
               <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
-          <p class="text-4xl md:text-5xl font-black text-text mb-1">{totalPosts}</p>
+          <p class="text-4xl md:text-5xl font-black text-text mb-1"><CountUp target={totalPosts} /></p>
           <p class="text-xs font-bold uppercase tracking-widest text-text/60">Articles</p>
         </div>
 
@@ -161,7 +162,7 @@ const techStackText = displayNames.length <= 3
               <path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
             </svg>
           </div>
-          <p class="text-4xl md:text-5xl font-black text-text mb-1">{categoryCount}</p>
+          <p class="text-4xl md:text-5xl font-black text-text mb-1"><CountUp target={categoryCount} /></p>
           <p class="text-xs font-bold uppercase tracking-widest text-text/60">Skills</p>
         </div>
 
@@ -172,7 +173,7 @@ const techStackText = displayNames.length <= 3
               <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <p class="text-4xl md:text-5xl font-black text-text mb-1">{writingMonths}</p>
+          <p class="text-4xl md:text-5xl font-black text-text mb-1"><CountUp target={writingMonths} /></p>
           <p class="text-xs font-bold uppercase tracking-widest text-text/60">Months Writing</p>
         </div>
 
@@ -181,7 +182,7 @@ const techStackText = displayNames.length <= 3
           <div class="w-12 h-12 mx-auto mb-4 bg-brand-red shape-circle border-4 border-foreground flex items-center justify-center relative">
             <div class="absolute w-6 h-6 bg-brand-blue shape-square border-2 border-foreground"></div>
           </div>
-          <p class="text-4xl md:text-5xl font-black text-text mb-1">{avgProgress}%</p>
+          <p class="text-4xl md:text-5xl font-black text-text mb-1"><CountUp target={avgProgress} suffix="%" /></p>
           <p class="text-xs font-bold uppercase tracking-widest text-text/60">Roadmap Progress</p>
         </div>
       </div>
@@ -250,4 +251,23 @@ const techStackText = displayNames.length <= 3
       </div>
     </div>
   </section>
+
+  <script>
+    (() => {
+      const section = document.getElementById('stats-bar');
+      if (!section) return;
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              observer.disconnect();
+              import('../components/animation/CountUp.client.ts').then((m) => m.initAllCountUps());
+            }
+          });
+        },
+        { rootMargin: '100px' }
+      );
+      observer.observe(section);
+    })();
+  </script>
 </BaseLayout>

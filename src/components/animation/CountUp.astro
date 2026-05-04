@@ -1,0 +1,18 @@
+---
+interface Props {
+  target: number;
+  suffix?: string;
+  duration?: number;
+}
+
+const { target, suffix = '', duration = 2 } = Astro.props;
+---
+
+<span
+  data-count-up
+  data-target={target}
+  data-suffix={suffix}
+  data-duration={duration}
+>
+  {target}{suffix}
+</span>
