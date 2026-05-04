@@ -28,5 +28,8 @@
     "simplebar": "^6.3.3",
     "tailwindcss": "^4.2.2",
     "unist-util-visit": "^5.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
   }
 }
