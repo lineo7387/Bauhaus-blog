@@ -1,0 +1,13 @@
+---
+interface Props {
+  delay?: number;
+  duration?: number;
+  class?: string;
+}
+
+const { delay = 60, duration = 600, class: className } = Astro.props;
+---
+
+<div data-stagger-list data-delay={delay} data-duration={duration} class={className}>
+  <slot />
+</div>

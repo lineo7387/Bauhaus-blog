@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Button from '../../components/ui/Button.astro';
+import StaggerList from '../../components/animation/StaggerList.astro';
 import { getCollection } from 'astro:content';
 import { BASE } from '../../utils/base';
 import { CATEGORY_COLORS } from '../../config/category-colors';
@@ -73,7 +74,7 @@ const sortedCategories = Object.entries(categories)
   <!-- Categories Grid -->
   <section class="bg-surface-raised border-b-4 border-foreground py-16 lg:py-24 overflow-hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 skills-grid">
+      <StaggerList class="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 skills-grid">
         {sortedCategories.map((cat) => {
           const colors = CATEGORY_COLORS[cat.name.toLowerCase()] ?? CATEGORY_COLORS['python'];
           const displayName = getSkillDisplayName(cat.name);
@@ -84,7 +85,7 @@ const sortedCategories = Object.entries(categories)
           return (
             <a
               href={`${BASE}/skills/${cat.name}`}
-              class={`group relative border-4 border-foreground p-6 shadow-hard-md card-lift overflow-hidden flex flex-col scroll-anim
+              class={`group relative border-4 border-foreground p-6 shadow-hard-md card-lift overflow-hidden flex flex-col
                 ${colors.bg}
                 ${colors.text}
               `}
@@ -140,9 +141,17 @@ const sortedCategories = Object.entries(categories)
             </a>
           );
         })}
-      </div>
+      </StaggerList>
     </div>
   </section>
+
+  <script>
+    (() => {
+      const section = /** @type {HTMLElement|null} */ (document.querySelector('[data-stagger-list]'));
+      if (!section) return;
+      import('../../components/animation/StaggerList.client.ts').then((m) => m.initStaggerList(section));
+    })();
+  </script>
 
   <!-- CTA Section -->
   <section class="bg-muted border-b-4 border-foreground py-16 lg:py-24 overflow-hidden">
