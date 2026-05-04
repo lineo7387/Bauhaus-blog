@@ -1,0 +1,117 @@
+---
+import { NODES, EDGES, GROUPS } from './topology';
+import { BASE } from '../../utils/base';
+import { CATEGORY_COLORS } from '../../config/category-colors';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  posts: CollectionEntry<'blog'>[];
+  plans: CollectionEntry<'plans'>[];
+}
+
+const { posts, plans } = Astro.props;
+
+function getContrastColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? '#121212' : '#ffffff';
+}
+
+const nodeData = NODES.map((node) => {
+  const count = posts.filter((p) => p.data.category === node.skillId).length;
+  const plan = plans.find(
+    (p) => p.data.skill?.toLowerCase() === node.skillId.toLowerCase()
+  );
+  const completedInPlan = plan
+    ? [...new Set(
+        posts
+          .filter((p) => p.data.category === node.skillId && p.data.planId)
+          .map((p) => p.data.planId!)
+      )].filter((id) => plan.data.planOrder?.includes(id)).length
+    : 0;
+  const totalInPlan = plan
+    ? (plan.data.total ?? plan.data.planOrder?.length ?? 0)
+    : 0;
+  const progress = totalInPlan > 0 ? Math.round((completedInPlan / totalInPlan) * 100) : 100;
+  const colors = CATEGORY_COLORS[node.skillId] ?? CATEGORY_COLORS['design'];
+  return {
+    ...node,
+    articleCount: count,
+    progress,
+    hexColor: colors.hex,
+    textColor: getContrastColor(colors.hex),
+    label: `${node.displayName}\n${count} 篇`,
+  };
+});
+
+const minY = Math.min(...GROUPS.map((g) => g.yRange[0]));
+const maxY = Math.max(...GROUPS.map((g) => g.yRange[1]));
+const totalY = maxY - minY || 1;
+---
+
+<div class="skill-graph-container relative w-full" style="min-height: 720px;">
+  <!-- Group banners — serve as skeleton + permanent overlay -->
+  {
+    GROUPS.map((group) => {
+      const topPct = ((group.yRange[0] - minY) / totalY) * 100;
+      return (
+        <div
+          class="absolute left-0 right-0 pointer-events-none z-10"
+          style={`top: ${topPct}%;`}
+        >
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+            <span class="font-black uppercase tracking-tight text-foreground/15 text-lg md:text-xl">
+              {group.title}
+            </span>
+          </div>
+        </div>
+      );
+    })
+  }
+
+  <!-- Cytoscape canvas container -->
+  <div
+    id="skill-graph-cy"
+    class="absolute inset-0 z-0"
+    data-nodes={JSON.stringify(nodeData)}
+    data-edges={JSON.stringify(EDGES)}
+    data-base={BASE}
+  >
+  </div>
+
+  <!-- Tooltip -->
+  <div
+    id="skill-graph-tooltip"
+    class="absolute hidden z-20 pointer-events-none"
+    style="transform: translateX(-50%);"
+  >
+    <div class="bg-foreground text-on-foreground px-2.5 py-1 text-xs font-black whitespace-nowrap border-2 border-foreground shadow-hard-sm">
+      <span id="skill-graph-tooltip-text"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+  (() => {
+    const container = document.getElementById('skill-graph-cy');
+    if (!container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            observer.disconnect();
+            import('./SkillGraph.client.ts').then((m) =>
+              m.initSkillGraph(container)
+            );
+          }
+        });
+      },
+      { rootMargin: '200px' }
+    );
+
+    observer.observe(container);
+  })();
+</script>

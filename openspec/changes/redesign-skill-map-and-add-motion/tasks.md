@@ -16,22 +16,22 @@
 
 ## 3. Skill Graph 桌面端组件
 
-- [ ] 3.1 创建 `src/components/skill-graph/SkillGraph.astro` 作为 Astro island 容器,接受 `posts` 与 `plans` props,渲染容器 div
-- [ ] 3.2 容器 SSR 渲染 skeleton(占位高度,避免 layout shift),hydrate 后被 cytoscape 替换
-- [ ] 3.3 创建 `src/components/skill-graph/SkillGraph.client.ts`,在 `client:visible` 触发后初始化 cytoscape 实例
-- [ ] 3.4 定义 cytoscape style array: 节点填充色绑定 `data(color)`、4px 描边、硬阴影(用 `box-shadow` 不可,需要 SVG `filter` 或 `border-style` + 偏移技巧)、按 `data(shape)` 切形状
-- [ ] 3.5 定义边样式: 实线/虚线分别走 `line-style: solid` / `line-style: dashed`,3px 黑色,三角箭头
-- [ ] 3.6 加载 preset 布局,节点位置来自 topology.ts 的 `(x, y)`
-- [ ] 3.7 为节点 `data` 注入 `progress`、`articleCount`、`skillId`,文字显示 `displayName + ${count} 篇`
-- [ ] 3.8 实现 hover 高亮: `mouseover` 计算 `node.predecessors().union(node.successors()).union(node)`,其余节点 `style('opacity', 0.2)`,`mouseout` 恢复
-- [ ] 3.9 实现 `tap` 事件 → `window.location.href = ${BASE}/skills/${data.skillId}`
-- [ ] 3.10 实现入场动画: 节点初始位置覆盖到容器中心,`cy.batch()` 中对每个节点调用 `.animate({ position: presetPos }, { duration: 800, easing: 'spring(500, 40)', queue: false })`,通过 `setTimeout(_, i * 60)` 实现 stagger
-- [ ] 3.11 边 opacity 初始 0,所有节点入场完成后(`Promise.all` 配合 `.animation()` 的 promise)淡入 200ms
-- [ ] 3.12 实现进度 tooltip: 自定义 DOM 浮层(非 cytoscape 内置),hover 时定位到节点屏幕坐标下方,显示 `${progress}%`,样式沿用现有 `bg-foreground` + 硬阴影
-- [ ] 3.13 实现 `prefers-reduced-motion` 检测: 若启用,跳过入场动画,节点直接显示在 preset 位置
-- [ ] 3.14 实现 4 个分组横幅(DOM 叠加层): 在容器内绝对定位 4 个 `<div>`,每个跨容器宽度,左侧显示 Outfit Black uppercase 标题,顶部对齐对应分组 y 坐标
-- [ ] 3.15 实现窗口 resize 处理: 重新布局节点(节点 x/y 按比例缩放) + 重定位横幅
-- [ ] 3.16 销毁清理: 组件卸载时调用 `cy.destroy()` 释放资源
+- [x] 3.1 创建 `src/components/skill-graph/SkillGraph.astro` 作为 Astro island 容器,接受 `posts` 与 `plans` props,渲染容器 div
+- [x] 3.2 容器 SSR 渲染 skeleton(占位高度,避免 layout shift),hydrate 后被 cytoscape 替换
+- [x] 3.3 创建 `src/components/skill-graph/SkillGraph.client.ts`,在 `client:visible` 触发后初始化 cytoscape 实例
+- [x] 3.4 定义 cytoscape style array: 节点填充色绑定 `data(hexColor)`、4px 描边、硬阴影(cytoscape shadow props)、按 `data(shape)` 切形状
+- [x] 3.5 定义边样式: 实线/虚线分别走 `line-style: solid` / `line-style: dashed`,3px 黑色,三角箭头
+- [x] 3.6 加载 preset 布局,节点位置来自 topology.ts 的 `(x, y)`
+- [x] 3.7 为节点 `data` 注入 `progress`、`articleCount`、`skillId`,文字显示 `displayName + ${count} 篇`
+- [x] 3.8 实现 hover 高亮: `mouseover` 计算 `node.predecessors().union(node.successors()).union(node)`,其余节点 `style('opacity', 0.2)`,`mouseout` 恢复
+- [x] 3.9 实现 `tap` 事件 → `window.location.href = ${BASE}/skills/${data.skillId}`
+- [x] 3.10 实现入场动画: 节点初始位置覆盖到容器中心,`.animate({ position: presetPos }, { duration: 800, easing: 'spring(500, 40)', queue: false })`,通过 `setTimeout(_, i * 60)` 实现 stagger
+- [x] 3.11 边 opacity 初始 0,所有节点入场完成后(complete callback)淡入 200ms
+- [x] 3.12 实现进度 tooltip: 自定义 DOM 浮层(非 cytoscape 内置),hover 时定位到节点屏幕坐标下方,显示 `${progress}%`,样式沿用现有 `bg-foreground` + 硬阴影
+- [x] 3.13 实现 `prefers-reduced-motion` 检测: 若启用,跳过入场动画,节点直接显示在 preset 位置
+- [x] 3.14 实现 4 个分组横幅(DOM 叠加层): 在容器内绝对定位 4 个 `<div>`,每个跨容器宽度,左侧显示 Outfit Black uppercase 标题,顶部对齐对应分组 y 坐标
+- [x] 3.15 实现窗口 resize 处理: `cy.resize()`
+- [x] 3.16 销毁清理: `beforeunload` 时 `cy.destroy()` + 移除 resize 监听
 
 ## 4. Skill Graph 移动端 fallback
 
