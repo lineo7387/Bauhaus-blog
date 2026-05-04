@@ -1,0 +1,152 @@
+---
+import { NODES, EDGES, GROUPS } from './topology';
+import { BASE } from '../../utils/base';
+import { CATEGORY_COLORS } from '../../config/category-colors';
+import { getSkillDisplayName } from '../../utils/post';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  posts: CollectionEntry<'blog'>[];
+  plans: CollectionEntry<'plans'>[];
+}
+
+const { posts, plans } = Astro.props;
+
+// 计算每个节点的 enriched 数据
+const nodeData = NODES.map((node) => {
+  const count = posts.filter((p) => p.data.category === node.skillId).length;
+  const plan = plans.find(
+    (p) => p.data.skill?.toLowerCase() === node.skillId.toLowerCase()
+  );
+  const completedInPlan = plan
+    ? [...new Set(
+        posts
+          .filter((p) => p.data.category === node.skillId && p.data.planId)
+          .map((p) => p.data.planId!)
+      )].filter((id) => plan.data.planOrder?.includes(id)).length
+    : 0;
+  const totalInPlan = plan ? (plan.data.total ?? plan.data.planOrder?.length ?? 0) : 0;
+  const progress = totalInPlan > 0 ? Math.round((completedInPlan / totalInPlan) * 100) : 100;
+  const colors = CATEGORY_COLORS[node.skillId] ?? CATEGORY_COLORS['design'];
+
+  // 入边：谁指向我（即我基于谁）
+  const incoming = EDGES.filter((e) => e.target === node.id);
+  const builtOn = incoming
+    .filter((e) => e.style !== 'dashed')
+    .map((e) => {
+      const src = NODES.find((n) => n.id === e.source);
+      return src ? getSkillDisplayName(src.skillId) : e.source;
+    });
+  const supersetOf = incoming
+    .filter((e) => e.style === 'dashed')
+    .map((e) => {
+      const src = NODES.find((n) => n.id === e.source);
+      return src ? getSkillDisplayName(src.skillId) : e.source;
+    });
+
+  return {
+    ...node,
+    count,
+    progress,
+    colors,
+    builtOn,
+    supersetOf,
+    hasPlan: !!plan,
+    completedInPlan,
+    totalInPlan,
+  };
+});
+
+// 按分组组织
+const nodesByGroup = GROUPS.map((group) => ({
+  group,
+  nodes: nodeData.filter((n) => n.group === group.id),
+}));
+---
+
+<div class="skill-graph-fallback space-y-8">
+  {
+    nodesByGroup.map(({ group, nodes }) => (
+      <div class="space-y-4">
+        {/* 分组标题 */}
+        <div class="flex items-center gap-3">
+          <h3 class="font-black uppercase tracking-tight text-foreground text-lg">
+            {group.title}
+          </h3>
+          <div class="flex-1 h-1 bg-foreground/10" />
+        </div>
+
+        {/* 卡片堆叠 */}
+        <div class="space-y-3">
+          {nodes.map((node) => (
+            <a
+              href={`${BASE}/skills/${node.skillId}`}
+              class={`group relative block border-4 border-foreground p-4 shadow-hard-md overflow-hidden ${node.colors.bg} ${node.colors.text}`}
+            >
+              {/* 顶部：名称 + 文章数 */}
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="text-lg font-black uppercase tracking-tight">
+                  {getSkillDisplayName(node.skillId)}
+                </h4>
+                <span class="text-xs font-bold opacity-80">
+                  {node.count} 篇
+                </span>
+              </div>
+
+              {/* 关系提示 */}
+              {(node.builtOn.length > 0 || node.supersetOf.length > 0) && (
+                <div class="mb-3">
+                  {node.builtOn.length > 0 && (
+                    <p class="text-[13px] font-medium opacity-70 leading-tight">
+                      基于 {node.builtOn.join('、')}
+                    </p>
+                  )}
+                  {node.supersetOf.length > 0 && (
+                    <p class="text-[13px] font-medium opacity-70 leading-tight">
+                      {node.supersetOf.join('、')} 的超集
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* 进度条 */}
+              {node.hasPlan ? (
+                <div>
+                  <div class="flex gap-1 mb-1.5">
+                    {Array.from({ length: 10 }, (_, i) => {
+                      const filled = i < Math.round((node.completedInPlan / node.totalInPlan) * 10);
+                      return (
+                        <div
+                          class={`flex-1 h-2.5 border-2 border-current transition-all duration-300
+                            ${filled ? 'bg-current' : 'bg-transparent'}
+                          `}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-[11px] font-bold uppercase tracking-wider opacity-70">
+                      {node.completedInPlan}/{node.totalInPlan}
+                    </span>
+                    <span class="text-[11px] font-black opacity-90">
+                      {node.progress}%
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div class="h-6" />
+              )}
+
+              {/* 箭头指示 */}
+              <div class="absolute bottom-3 right-3 w-5 h-5 border-2 border-current flex items-center justify-center group-hover:bg-foreground group-hover:border-foreground transition-all">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="square" stroke-width="3" d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    ))
+  }
+</div>

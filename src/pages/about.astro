@@ -2,9 +2,10 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Button from "../components/ui/Button.astro";
 import BlogList from "../components/blog/BlogList.astro";
+import SkillGraph from "../components/skill-graph/SkillGraph.astro";
+import SkillGraphFallback from "../components/skill-graph/SkillGraphFallback.astro";
 import { getCollection } from "astro:content";
 import { BASE } from "../utils/base";
-import { CATEGORY_COLORS } from "../config/category-colors";
 import { getSkillDisplayName } from "../utils/post";
 
 const allPosts = await getCollection("blog", ({ data }) => !data.draft);
@@ -41,23 +42,6 @@ const plannedCategories = categories
 const avgProgress = plannedCategories.length > 0
   ? Math.round((plannedCategories.reduce((a, b) => a + b, 0) / plannedCategories.length) * 100)
   : 0;
-
-// ── Skill Map data ──
-const categoryStats = categories
-  .map((cat) => {
-    const count = allPosts.filter((p) => p.data.category === cat).length;
-    const plan = plans.find((p) => p.data.skill?.toLowerCase() === cat.toLowerCase());
-    const completedInPlan = plan
-      ? [...new Set(
-          allPosts
-            .filter((p) => p.data.category === cat && p.data.planId)
-            .map((p) => p.data.planId!)
-        )].filter((id) => plan.data.planOrder?.includes(id)).length
-      : 0;
-    const totalInPlan = plan ? (plan.data.total ?? plan.data.planOrder?.length ?? 0) : 0;
-    return { name: cat, count, completedInPlan, totalInPlan, hasPlan: !!plan };
-  })
-  .sort((a, b) => a.name.localeCompare(b.name));
 
 // ── Latest posts ──
 const latestPosts = [...allPosts]
@@ -204,89 +188,24 @@ const techStackText = displayNames.length <= 3
     </div>
   </section>
 
-  <!-- ═══════════════ Skill Map ═══════════════ -->
+  <!-- ═══════════════ Skill Graph ═══════════════ -->
   <section class="bg-surface-raised border-b-4 border-foreground py-16 lg:py-24 overflow-hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center gap-4 mb-16 scroll-anim anim-slide-left delay-0">
+      <div class="flex items-center gap-4 mb-12 scroll-anim anim-slide-left delay-0">
         <h2 class="text-2xl md:text-3xl font-black uppercase tracking-tight text-text">
-          Skill Map
+          Skill Graph
         </h2>
         <div class="flex-1 h-4 bg-foreground scroll-anim anim-slide-up delay-50"></div>
       </div>
 
-      <div class="flex flex-wrap justify-center items-start gap-5 lg:gap-7 py-4 px-2">
-        {categoryStats.map((cat, index) => {
-          const colors = CATEGORY_COLORS[cat.name.toLowerCase()] ?? CATEGORY_COLORS['python'];
-          const displayName = getSkillDisplayName(cat.name);
-          const isCircle = index % 2 === 0;
+      {/* Desktop: cytoscape graph */}
+      <div class="hidden md:block scroll-anim anim-slide-up delay-100">
+        <SkillGraph posts={allPosts} plans={plans} />
+      </div>
 
-          // Size by article count
-          let sizeClass = 'w-28 h-28 text-xs';
-          if (cat.count >= 6) sizeClass = 'w-44 h-44 text-base';
-          else if (cat.count >= 3) sizeClass = 'w-36 h-36 text-sm';
-
-          // Scattered vertical offset (margin to avoid transform conflict)
-          const marginOffsets = [
-            'mt-0',
-            'mt-8',
-            '-mt-5',
-            'mt-4',
-            '-mt-8',
-            'mt-3',
-            '-mt-3',
-            'mt-6',
-          ];
-          const marginOffset = marginOffsets[index % marginOffsets.length];
-
-          // Float animation stagger
-          const floatDelay = ((index * 0.5) % 2.5).toFixed(1);
-          const entryDelay = index * 60;
-
-          const progress = cat.hasPlan && cat.totalInPlan > 0
-            ? Math.round((cat.completedInPlan / cat.totalInPlan) * 100)
-            : 100;
-
-          return (
-            <a
-              href={`${BASE}/skills/${cat.name}`}
-              class={`group relative scroll-anim anim-bounce-in ${marginOffset}`}
-              style={`animation-delay: ${entryDelay}ms;`}
-            >
-              {/* Floating bubble */}
-              <div
-                class={`${sizeClass} ${isCircle ? 'shape-circle' : ''} ${colors.bg} ${colors.text}
-                  border-4 border-foreground shadow-hard-md
-                  flex items-center justify-center text-center
-                  transition-transform duration-200 hover:scale-110 hover:z-10
-                  anim-float
-                `}
-                style={`animation-delay: ${floatDelay}s;`}
-              >
-                {/* Content */}
-                <div class="px-2 leading-none">
-                  <span class="block font-black uppercase tracking-tight break-words">
-                    {displayName}
-                  </span>
-                  <span class="block text-[0.7em] font-medium opacity-70 mt-1">
-                    {cat.count} 篇
-                  </span>
-                </div>
-
-                {/* Hover: progress tooltip */}
-                {cat.hasPlan && (
-                  <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 group-hover:translate-y-2 transition-all duration-200 pointer-events-none z-20">
-                    <div class="bg-foreground text-on-foreground px-2.5 py-1 text-[10px] font-black whitespace-nowrap border-2 border-foreground shadow-hard-sm">
-                      {progress}%
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Decorative accent on hover */}
-              <div class={`absolute -top-1.5 -right-1.5 w-4 h-4 border-2 border-foreground ${isCircle ? 'shape-square' : 'shape-circle'} ${colors.bg === 'bg-brand-yellow' ? 'bg-brand-red' : 'bg-brand-yellow'} opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none`}></div>
-            </a>
-          );
-        })}
+      {/* Mobile: fallback card stack */}
+      <div class="md:hidden scroll-anim anim-slide-up delay-100">
+        <SkillGraphFallback posts={allPosts} plans={plans} />
       </div>
     </div>
   </section>
