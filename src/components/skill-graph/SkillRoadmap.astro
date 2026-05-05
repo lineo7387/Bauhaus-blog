@@ -1,0 +1,92 @@
+---
+import { NODES, EDGES } from './topology';
+import { BASE } from '../../utils/base';
+import { CATEGORY_COLORS } from '../../config/category-colors';
+import { getSkillDisplayName } from '../../utils/post';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  posts: CollectionEntry<'blog'>[];
+  plans: CollectionEntry<'plans'>[];
+}
+
+const { posts } = Astro.props;
+
+// Enrich nodes with article count & colors
+const nodeData = NODES.map((node) => {
+  const count = posts.filter((p) => p.data.category === node.skillId).length;
+  const colors = CATEGORY_COLORS[node.skillId] ?? CATEGORY_COLORS['design'];
+  return { ...node, count, colors };
+});
+
+// Compute dependency levels (foundation = 0, higher = built on others)
+// Edge: source -> target means "source is built on target"
+const levels: Record<string, number> = {};
+for (const node of NODES) levels[node.id] = 0;
+
+let changed = true;
+while (changed) {
+  changed = false;
+  for (const edge of EDGES) {
+    const newLevel = levels[edge.target] + 1;
+    if (newLevel > levels[edge.source]) {
+      levels[edge.source] = newLevel;
+      changed = true;
+    }
+  }
+}
+
+const maxLevel = Math.max(...Object.values(levels));
+
+const levelLabels = ['基础层', '框架与工具', '应用层'];
+
+// Build levels from top (highest) to bottom (foundation)
+const roadmapLevels = [];
+for (let i = maxLevel; i >= 0; i--) {
+  const nodes = nodeData.filter((n) => levels[n.id] === i);
+  roadmapLevels.push({
+    level: i,
+    label: levelLabels[maxLevel - i] || `Level ${i}`,
+    nodes,
+  });
+}
+---
+
+<div class="skill-roadmap">
+  {
+    roadmapLevels.map((item, idx) => (
+      <>
+        <div class="roadmap-section">
+          {/* Level label */}
+          <div class="flex items-center gap-3 mb-3">
+            <span class="text-xs font-bold uppercase tracking-widest text-foreground/50">
+              {item.label}
+            </span>
+            <div class="flex-1 h-px bg-foreground/10" />
+          </div>
+
+          {/* Nodes grid */}
+          <div class="flex flex-wrap justify-center gap-2.5">
+            {item.nodes.map((node) => (
+              <a
+                href={`${BASE}/skills/${node.skillId}`}
+                class={`group relative inline-flex flex-col items-center justify-center rounded-xl px-3.5 py-2.5 shadow-md hover:shadow-lg transition-shadow min-w-[90px] ${node.colors.bg} ${node.colors.text}`}
+              >
+                <span class="font-bold text-sm leading-tight">{getSkillDisplayName(node.skillId)}</span>
+                <span class="text-[11px] opacity-75 mt-0.5">{node.count} 篇</span>
+              </a>
+            ))}
+          </div>
+        </div>
+
+        {idx < roadmapLevels.length - 1 ? (
+          <div class="flex justify-center py-2">
+            <div class="relative w-px h-5 bg-foreground/20">
+              <div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[3px] border-r-[3px] border-t-[4px] border-l-transparent border-r-transparent border-t-foreground/20" />
+            </div>
+          </div>
+        ) : null}
+      </>
+    ))
+  }
+</div>

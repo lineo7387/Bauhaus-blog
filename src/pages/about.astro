@@ -4,7 +4,7 @@ import Button from "../components/ui/Button.astro";
 import BlogList from "../components/blog/BlogList.astro";
 import CountUp from "../components/animation/CountUp.astro";
 import SkillGraph from "../components/skill-graph/SkillGraph.astro";
-import SkillGraphFallback from "../components/skill-graph/SkillGraphFallback.astro";
+import SkillRoadmap from "../components/skill-graph/SkillRoadmap.astro";
 import { getCollection } from "astro:content";
 import { BASE } from "../utils/base";
 import { getSkillDisplayName } from "../utils/post";
@@ -199,14 +199,14 @@ const techStackText = displayNames.length <= 3
         <div class="flex-1 h-4 bg-foreground scroll-anim anim-slide-up delay-50"></div>
       </div>
 
-      {/* Desktop: cytoscape graph */}
+      {/* Desktop: force-directed graph */}
       <div class="hidden md:block scroll-anim anim-slide-up delay-100">
         <SkillGraph posts={allPosts} plans={plans} />
       </div>
 
-      {/* Mobile: fallback card stack */}
+      {/* Mobile: skill roadmap */}
       <div class="md:hidden scroll-anim anim-slide-up delay-100">
-        <SkillGraphFallback posts={allPosts} plans={plans} />
+        <SkillRoadmap posts={allPosts} plans={plans} />
       </div>
     </div>
   </section>
