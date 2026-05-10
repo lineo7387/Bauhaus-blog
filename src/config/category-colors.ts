@@ -21,5 +21,6 @@ export const CATEGORY_COLORS: Record<string, CategoryColor> = {
   mysql: { hex: '#F29111', bg: 'bg-primary-mysql', text: 'text-inverse-surface', hover: 'hover:text-primary-mysql' },
   htmx: { hex: '#3366CC', bg: 'bg-primary-htmx', text: 'text-inverse-surface', hover: 'hover:text-primary-htmx' },
   javascript: { hex: '#F7DF1E', bg: 'bg-primary-javascript', text: 'text-inverse-surface', hover: 'hover:text-primary-javascript' },
+  flutter: { hex: '#0553B1', bg: 'bg-primary-flutter', text: 'text-inverse-surface', hover: 'hover:text-primary-flutter' },
   design: { hex: '#121212', bg: 'bg-foreground', text: 'text-inverse-surface', hover: 'hover:text-foreground' },
 } as const;

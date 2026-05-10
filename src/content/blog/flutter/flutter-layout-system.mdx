@@ -1,0 +1,580 @@
+---
+title: 基础布局系统与常用 Widget
+description: 掌握 Flutter 核心布局原理，深入理解 Row、Column、Stack、Flex 的工作机制，以及 Container、SizedBox、Padding 等常用 Widget 的最佳实践
+pubDate: 2026-05-08
+category: flutter
+tags: [flutter, layout, row, column, stack, widget]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 11
+planId: flutter-layout-system
+---
+
+# 基础布局系统与常用 Widget
+
+Flutter 采用自顶向下的布局约束模型，父组件告诉子组件"你最大/最小能有多大"，子组件再回复"我需要多大"。理解这个约束传递机制，是解决布局问题的关键。本文将系统讲解 Flutter 的核心布局 Widget 和常用组件。
+
+## 约束与尺寸
+
+### 盒约束（Box Constraints）
+
+Flutter 中的每个 Widget 都受到父组件传递的 **BoxConstraints** 限制：
+
+```dart
+class BoxConstraints {
+  final double minWidth;
+  final double maxWidth;
+  final double minHeight;
+  final double maxHeight;
+}
+```
+
+约束有四种典型情况：
+
+| 约束类型 | 描述 | 示例 |
+|---------|------|------|
+| 紧约束（Tight） | min == max，尺寸被完全限定 | `BoxConstraints.tight(Size(100, 50))` |
+| 松约束（Loose） | min == 0，max 有限 | `BoxConstraints.loose(Size(200, 100))` |
+| 无界（Unbounded） | max 为无穷大 | `BoxConstraints(maxWidth: double.infinity)` |
+| 无限（Infinite） | 所有值为无穷 | 通常在报错信息中出现 |
+
+### 常见布局约束规则
+
+```dart
+// 1. 在有限空间中，子组件默认会尽可能大
+Container(
+  color: Colors.red,
+  // 没有设置宽高时，会填充父组件给的最大空间
+)
+
+// 2. 设置具体尺寸后，尺寸由自身决定
+Container(
+  width: 100,
+  height: 100,
+  color: Colors.blue,
+)
+
+// 3. 子组件尺寸超出约束时会报错（溢出）
+Container(
+  width: 100,
+  child: Text('这是一段非常非常非常非常长的文本'),
+  // 可能触发溢出警告！
+)
+```
+
+## 线性布局：Row 与 Column
+
+**Row** 和 **Column** 是 Flutter 最常用的布局 Widget，分别实现水平和垂直方向的线性排列。
+
+### Row（水平排列）
+
+```dart
+Row(
+  // 主轴对齐（水平方向）
+  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  // 交叉轴对齐（垂直方向）
+  crossAxisAlignment: CrossAxisAlignment.center,
+  children: [
+    Container(width: 50, height: 50, color: Colors.red),
+    Container(width: 50, height: 80, color: Colors.green),
+    Container(width: 50, height: 60, color: Colors.blue),
+  ],
+)
+```
+
+### Column（垂直排列）
+
+```dart
+Column(
+  mainAxisAlignment: MainAxisAlignment.center,
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Text('标题', style: TextStyle(fontSize: 24)),
+    SizedBox(height: 16),  // 间距
+    Text('这是一段描述文本'),
+    SizedBox(height: 8),
+    ElevatedButton(onPressed: () {}, child: Text('按钮')),
+  ],
+)
+```
+
+### 主轴对齐方式
+
+```dart
+// MainAxisAlignment 的六种对齐方式
+MainAxisAlignment.start      // 从起点开始排列（默认）
+MainAxisAlignment.end        // 向终点靠拢
+MainAxisAlignment.center     // 居中对齐
+MainAxisAlignment.spaceBetween  // 两端对齐，中间均分
+MainAxisAlignment.spaceAround   // 每个子组件两侧均分空间
+MainAxisAlignment.spaceEvenly   // 所有间距完全相等
+```
+
+```
+start:        [A][B][C]□□□□
+end:          □□□□[A][B][C]
+center:       □□[A][B][C]□□
+spaceBetween: [A]□□[B]□□[C]
+spaceAround:  □[A]□□[B]□□[C]□
+spaceEvenly:  □[A]□[B]□[C]□
+```
+
+### 交叉轴对齐方式
+
+```dart
+// CrossAxisAlignment 的五种对齐方式
+CrossAxisAlignment.start     // 顶部/左侧对齐
+CrossAxisAlignment.end       // 底部/右侧对齐
+CrossAxisAlignment.center    // 居中对齐（默认）
+CrossAxisAlignment.stretch   // 拉伸填充整个交叉轴
+CrossAxisAlignment.baseline  // 按文本基线对齐（仅 Row 有效）
+```
+
+### 弹性空间：Expanded 与 Flexible
+
+当子组件的总尺寸超过父组件可用空间时，需要使用 **Expanded** 或 **Flexible** 分配剩余空间：
+
+```dart
+Row(
+  children: [
+    Container(width: 50, color: Colors.red),
+    // Expanded 占据所有剩余空间
+    Expanded(
+      child: Container(color: Colors.green),
+    ),
+    Container(width: 50, color: Colors.blue),
+  ],
+)
+```
+
+**Expanded vs Flexible**：
+
+```dart
+Row(
+  children: [
+    // Expanded 等价于 Flexible(flex: 1, fit: FlexFit.tight)
+    // 强制子组件填满分配到的空间
+    Expanded(
+      flex: 2,  // 占据 2 份空间
+      child: Container(color: Colors.red),
+    ),
+    // Flexible 允许子组件保持自身尺寸
+    Flexible(
+      flex: 1,  // 占据 1 份空间
+      fit: FlexFit.loose,  // 不强制填满（默认）
+      child: Container(
+        width: 50,  // 子组件可以保持自己的宽度
+        color: Colors.green,
+      ),
+    ),
+  ],
+)
+```
+
+| 属性 | Expanded | Flexible |
+|------|---------|---------|
+| `fit` | `FlexFit.tight` | `FlexFit.loose` |
+| 行为 | 强制填满分配空间 | 允许保持自身尺寸 |
+| 使用场景 | 等分空间、填满剩余 | 自适应内容尺寸 |
+
+### 溢出处理
+
+当 Row 或 Column 的子组件超出可用空间时：
+
+```dart
+// ❌ 溢出警告：Row 中的文本超出屏幕宽度
+Row(
+  children: [
+    Text('标题'),
+    Text('这是一段很长的文本...'),  // 可能溢出
+  ],
+)
+
+// ✅ 方案 1：使用 Expanded 包裹可能溢出的组件
+Row(
+  children: [
+    Text('标题'),
+    Expanded(
+      child: Text('这是一段很长的文本...'),
+    ),
+  ],
+)
+
+// ✅ 方案 2：使用 Flexible
+Row(
+  children: [
+    Flexible(child: Text('较短的文本')),
+    Flexible(child: Text('另一段文本')),
+  ],
+)
+
+// ✅ 方案 3：允许滚动
+SingleChildScrollView(
+  scrollDirection: Axis.horizontal,
+  child: Row(
+    children: List.generate(20, (i) => Text('Item $i ')),
+  ),
+)
+```
+
+## 层叠布局：Stack
+
+**Stack** 允许子组件按顺序层叠放置，后放的在上层。适合实现复杂的重叠效果：
+
+```dart
+Stack(
+  alignment: Alignment.center,
+  children: [
+    // 底层：背景图
+    Image.asset('assets/background.jpg'),
+    // 中层：渐变遮罩
+    Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.transparent, Colors.black54],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+    ),
+    // 顶层：文字内容
+    Positioned(
+      bottom: 20,
+      left: 20,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Bauhaus Design',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            'Form follows function',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ],
+      ),
+    ),
+  ],
+)
+```
+
+### Positioned 定位
+
+**Positioned** 只能在 Stack 中使用，用于精确控制子组件位置：
+
+```dart
+Stack(
+  children: [
+    Container(width: 300, height: 300, color: Colors.grey),
+    Positioned(
+      top: 20,
+      left: 20,
+      child: Container(width: 100, height: 100, color: Colors.red),
+    ),
+    Positioned(
+      bottom: 20,
+      right: 20,
+      child: Container(width: 100, height: 100, color: Colors.blue),
+    ),
+    // 填满整个 Stack
+    Positioned.fill(
+      child: Center(child: Text('居中')),
+    ),
+  ],
+)
+```
+
+### Align 对齐
+
+**Align** 用于控制单个子组件在父组件中的对齐位置：
+
+```dart
+Align(
+  alignment: Alignment.bottomRight,
+  child: FloatingActionButton(
+    onPressed: () {},
+    child: Icon(Icons.add),
+  ),
+)
+
+// Alignment 取值范围 (-1, -1) 到 (1, 1)
+// (-1, -1) = 左上    (0, 0) = 中心    (1, 1) = 右下
+Align(
+  alignment: Alignment(0.5, -0.5),  // 偏右上
+  child: Text('自定义位置'),
+)
+```
+
+## 滚动布局
+
+### ListView（列表）
+
+```dart
+// 简单列表
+ListView(
+  children: [
+    ListTile(leading: Icon(Icons.home), title: Text('首页')),
+    ListTile(leading: Icon(Icons.settings), title: Text('设置')),
+    ListTile(leading: Icon(Icons.person), title: Text('我的')),
+  ],
+)
+
+// 长列表优化：使用 builder 懒加载
+ListView.builder(
+  itemCount: 1000,
+  itemBuilder: (context, index) {
+    return ListTile(
+      title: Text('Item $index'),
+    );
+  },
+)
+
+// 带分隔线的列表
+ListView.separated(
+  itemCount: 20,
+  itemBuilder: (context, index) => ListTile(title: Text('Item $index')),
+  separatorBuilder: (context, index) => Divider(),
+)
+```
+
+### GridView（网格）
+
+```dart
+GridView.count(
+  crossAxisCount: 3,  // 每行 3 列
+  crossAxisSpacing: 10,  // 列间距
+  mainAxisSpacing: 10,   // 行间距
+  children: List.generate(
+    12,
+    (index) => Container(
+      color: Colors.primaries[index % Colors.primaries.length],
+      child: Center(child: Text('$index')),
+    ),
+  ),
+)
+
+// 自适应列数
+GridView.builder(
+  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+    maxCrossAxisExtent: 150,  // 每格最大宽度 150
+    crossAxisSpacing: 10,
+    mainAxisSpacing: 10,
+  ),
+  itemCount: 50,
+  itemBuilder: (context, index) => Card(child: Text('Item $index')),
+)
+```
+
+## 常用基础 Widget
+
+### Container（万能容器）
+
+Container 是 Flutter 中功能最丰富的布局 Widget，集成了尺寸、装饰、变换等能力：
+
+```dart
+Container(
+  // 尺寸
+  width: 200,
+  height: 100,
+  // 内边距
+  padding: EdgeInsets.all(16),
+  // 外边距
+  margin: EdgeInsets.symmetric(horizontal: 20),
+  // 对齐
+  alignment: Alignment.center,
+  // 装饰
+  decoration: BoxDecoration(
+    color: Colors.blue,
+    borderRadius: BorderRadius.circular(12),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black26,
+        blurRadius: 8,
+        offset: Offset(4, 4),
+      ),
+    ],
+    gradient: LinearGradient(
+      colors: [Colors.blue, Colors.purple],
+    ),
+  ),
+  // 变换
+  transform: Matrix4.rotationZ(0.1),
+  // 子组件
+  child: Text('Container 演示'),
+)
+```
+
+### SizedBox（尺寸盒）
+
+用于设置固定尺寸或作为占位空间：
+
+```dart
+// 固定尺寸
+SizedBox(
+  width: 100,
+  height: 50,
+  child: ElevatedButton(onPressed: () {}, child: Text('确定')),
+)
+
+// 仅作为间距
+Column(
+  children: [
+    Text('上方'),
+    SizedBox(height: 20),  // 20 像素的垂直间距
+    Text('下方'),
+  ],
+)
+
+// 展开填充
+SizedBox.expand(
+  child: Container(color: Colors.red),
+)
+
+// 填满父组件宽度
+SizedBox(
+  width: double.infinity,
+  child: ElevatedButton(onPressed: () {}, child: Text('全宽按钮')),
+)
+```
+
+### Padding（内边距）
+
+专门用于添加内边距，代码语义更清晰：
+
+```dart
+Padding(
+  padding: EdgeInsets.all(16.0),  // 四边均为 16
+  child: Text('带内边距的文本'),
+)
+
+// EdgeInsets 的多种构造方式
+EdgeInsets.all(16)                    // 四边相同
+EdgeInsets.symmetric(horizontal: 20)  // 左右相同
+EdgeInsets.only(left: 8, top: 16)     // 指定单边
+EdgeInsets.fromLTRB(8, 16, 8, 16)     // 分别指定
+```
+
+### Center（居中）
+
+```dart
+Center(
+  child: Text('居中显示的文本'),
+)
+```
+
+### AspectRatio（固定宽高比）
+
+```dart
+AspectRatio(
+  aspectRatio: 16 / 9,  // 宽:高 = 16:9
+  child: Container(color: Colors.blue),
+)
+```
+
+### FractionallySizedBox（百分比尺寸）
+
+```dart
+FractionallySizedBox(
+  widthFactor: 0.8,   // 占父组件宽度的 80%
+  heightFactor: 0.5,  // 占父组件高度的 50%
+  child: Container(color: Colors.green),
+)
+```
+
+## 综合布局示例
+
+下面是一个完整的卡片布局示例，综合运用多种布局 Widget：
+
+```dart
+class ProductCard extends StatelessWidget {
+  final String name;
+  final String price;
+  final String imageUrl;
+
+  const ProductCard({
+    super.key,
+    required this.name,
+    required this.price,
+    required this.imageUrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 图片区域
+          ClipRRect(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          // 内容区域
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text(
+                      price,
+                      style: TextStyle(
+                        fontSize: 20,
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Spacer(),  // 占据所有剩余空间
+                    ElevatedButton(
+                      onPressed: () {},
+                      child: Text('购买'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+## 小结
+
+本文系统讲解了 Flutter 的布局体系：
+
+1. **约束模型**：父传子约束，子回复尺寸，自顶向下的布局流程
+2. **Row/Column**：线性布局的核心，配合 MainAxisAlignment 和 CrossAxisAlignment 控制对齐
+3. **Expanded/Flexible**：分配弹性空间，解决溢出和等分需求
+4. **Stack**：层叠布局，配合 Positioned 实现精确定位
+5. **滚动布局**：ListView 和 GridView 的多种构造方式
+6. **常用 Widget**：Container、SizedBox、Padding 等的功能和最佳实践
+
+掌握这些基础布局工具后，你就可以构建绝大多数常见的 UI 界面了。下一篇将介绍**事件处理与表单交互**。

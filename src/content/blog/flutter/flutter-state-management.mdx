@@ -1,0 +1,341 @@
+---
+title: 状态管理：Provider、Riverpod 与 Bloc
+description: 系统讲解 Flutter 三大主流状态管理方案的演进与对比，掌握 Provider 依赖注入、Riverpod 响应式编程、Bloc 事件驱动架构的实战用法
+pubDate: 2026-05-08
+category: flutter
+tags: [flutter, state-management, riverpod, bloc, provider]
+featured: true
+draft: false
+author: AI-Writer
+readingTime: 16
+planId: flutter-state-management
+---
+
+# 状态管理：Provider、Riverpod 与 Bloc
+
+随着应用规模增长，跨 Widget 共享状态变得棘手。`setState` 适用于局部 UI，但当多个分支需要同一份数据时，单纯通过构造函数逐层传递会让代码迅速劣化。Flutter 生态围绕这一痛点演进出三套主流方案：**Provider**、**Riverpod** 与 **Bloc**。本文将分别拆解它们的设计哲学、典型用法以及选型考量。
+
+## 状态管理的演进路线
+
+Flutter 早期推荐 `InheritedWidget` 在 Widget 树中向下传递数据。它是底层基石，但 API 冗长、缺少派发逻辑封装。社区由此衍生出三条路径：
+
+| 方案 | 核心理念 | 起源 | 典型场景 |
+|------|----------|------|----------|
+| **Provider** | 对 InheritedWidget 的封装，强调**依赖注入** | Google 推荐（2019） | 中小型应用、入门首选 |
+| **Riverpod** | 编译时安全 + 响应式缓存，**完全独立于 Widget 树** | Provider 作者 Remi 重构（2020 起） | 现代化应用、异步数据驱动 |
+| **Bloc** | 事件 → 状态的单向数据流，**业务逻辑与 UI 严格分离** | 借鉴 Redux/RxJS | 大型团队、复杂业务流程 |
+
+> **选型建议**：新项目首选 **Riverpod 3.x**；团队已有 Bloc 积累且重视架构强约束时选 **Bloc**；快速原型或教学场景使用 **Provider** 即可。
+
+## Provider：依赖注入的轻量方案
+
+### 核心 API
+
+`provider` 包提供了 `Provider`、`ChangeNotifierProvider`、`StreamProvider` 等多种 Provider 类型。最常用的是 `ChangeNotifierProvider`，它包装一个继承自 `ChangeNotifier` 的类，调用 `notifyListeners()` 触发监听者重建。
+
+```dart
+// 1. 定义状态模型
+class CounterModel extends ChangeNotifier {
+  int _count = 0;
+  int get count => _count;
+
+  void increment() {
+    _count++;
+    notifyListeners(); // 通知监听者刷新
+  }
+}
+
+// 2. 在 Widget 树顶层注入
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => CounterModel(),
+      child: const MyApp(),
+    ),
+  );
+}
+
+// 3. 在子 Widget 中消费
+class CounterText extends StatelessWidget {
+  const CounterText({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // watch 触发重建，read 仅读取
+    final count = context.watch<CounterModel>().count;
+    return Text('Count: $count');
+  }
+}
+
+class IncrementButton extends StatelessWidget {
+  const IncrementButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: () => context.read<CounterModel>().increment(),
+      child: const Text('+1'),
+    );
+  }
+}
+```
+
+### Selector 精细化重建
+
+频繁变化的对象会拖累性能。`Selector` 允许只监听某个字段：
+
+```dart
+Selector<CartModel, int>(
+  selector: (_, cart) => cart.totalItems, // 只关心数量
+  builder: (_, total, __) => Text('购物车: $total 件'),
+)
+```
+
+### Provider 的局限
+
+- 依赖 `BuildContext`，单元测试需要构造 Widget 树。
+- 类型安全在运行时校验，写错类型会抛 `ProviderNotFoundException`。
+- 多 Provider 嵌套时容易形成「金字塔」。
+
+## Riverpod：现代响应式方案
+
+Riverpod 由 Provider 的作者重写，目标是修正 Provider 的痛点：**脱离 Widget 树、编译时安全、内置异步处理**。截至 2026 年，主流版本是 **Riverpod 3.x**，强烈推荐配合 `riverpod_generator` 使用代码生成。
+
+### 安装与初始化
+
+```yaml
+# pubspec.yaml
+dependencies:
+  flutter_riverpod: ^3.0.0
+  riverpod_annotation: ^3.0.0
+
+dev_dependencies:
+  build_runner: ^2.4.0
+  riverpod_generator: ^3.0.0
+```
+
+入口处包裹 `ProviderScope`，它是 Riverpod 的「依赖容器」：
+
+```dart
+void main() {
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
+}
+```
+
+### 基础 Provider 与 Notifier
+
+使用注解 + 代码生成定义 Provider：
+
+```dart
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'counter.g.dart';
+
+// 简单只读值
+@riverpod
+String appTitle(Ref ref) => 'My App';
+
+// 可变状态：使用 Notifier
+@riverpod
+class Counter extends _$Counter {
+  @override
+  int build() => 0; // 初始值
+
+  void increment() => state++;
+  void reset() => state = 0;
+}
+```
+
+执行 `dart run build_runner watch` 生成 `counter.g.dart`，自动产出 `counterProvider`。
+
+### ConsumerWidget 消费状态
+
+```dart
+class CounterPage extends ConsumerWidget {
+  const CounterPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(counterProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Riverpod Counter')),
+      body: Center(child: Text('Count: $count', style: const TextStyle(fontSize: 32))),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => ref.read(counterProvider.notifier).increment(),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+```
+
+> **`ref.watch` vs `ref.read` vs `ref.select`**
+> - `ref.watch`：监听并重建，UI 渲染时使用。
+> - `ref.read`：一次性读取，事件回调中使用。
+> - `ref.select`：仅当某个派生值变化时重建，性能优化首选。
+
+```dart
+// 仅当 count 是偶数 / 奇数切换时重建
+final isEven = ref.watch(
+  counterProvider.select((value) => value.isEven),
+);
+```
+
+### 异步数据：AsyncNotifier
+
+Riverpod 把异步状态视为「一等公民」，`AsyncValue<T>` 自动封装 `loading / data / error` 三态：
+
+```dart
+@riverpod
+class UserList extends _$UserList {
+  @override
+  Future<List<User>> build() async {
+    final dio = ref.read(dioProvider);
+    final response = await dio.get('/users');
+    return (response.data as List).map(User.fromJson).toList();
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() => build());
+  }
+}
+```
+
+UI 端通过 `switch` 表达式优雅处理三态：
+
+```dart
+final users = ref.watch(userListProvider);
+
+return switch (users) {
+  AsyncData(:final value) => UserListView(users: value),
+  AsyncError(:final error) => ErrorView(message: '$error'),
+  _ => const Center(child: CircularProgressIndicator()),
+};
+```
+
+### 自动释放与依赖
+
+Provider 默认惰性创建，并在最后一个监听者消失后自动释放（`autoDispose`）。Provider 之间可以互相依赖：
+
+```dart
+@riverpod
+Future<UserDetail> userDetail(Ref ref, int id) async {
+  final api = ref.watch(apiClientProvider); // 依赖另一个 provider
+  return api.fetchUser(id);
+}
+```
+
+> **Riverpod 3.x 提示**：函数型 Provider 统一使用 `Ref` 类型；旧版的 `XxxRef`（如 `UserDetailRef`）已在 3.0 中移除。
+
+`(Ref ref, int id)` 这种带参数的 Provider 称为 **family**，调用时使用 `userDetailProvider(42)`。Riverpod 会按参数缓存独立实例。
+
+## Bloc：事件驱动的架构强约束
+
+Bloc（Business Logic Component）借鉴 Redux 的单向数据流，强调**业务逻辑与 UI 解耦**。它把所有状态变化抽象为「事件 → 状态」的纯函数映射，便于测试与回放。
+
+### 核心概念
+
+- **Event**：用户操作或外部触发器（如 `IncrementPressed`）。
+- **State**：UI 渲染所需的数据快照。
+- **Bloc**：接收 Event、产出 State 的逻辑单元，内部基于 Stream。
+
+### 安装
+
+```yaml
+dependencies:
+  flutter_bloc: ^8.1.0
+  equatable: ^2.0.5
+```
+
+### 实现一个 Bloc
+
+```dart
+// 事件
+sealed class CounterEvent {}
+class IncrementPressed extends CounterEvent {}
+class DecrementPressed extends CounterEvent {}
+
+// Bloc：事件处理 + 状态产出
+class CounterBloc extends Bloc<CounterEvent, int> {
+  CounterBloc() : super(0) {
+    on<IncrementPressed>((event, emit) => emit(state + 1));
+    on<DecrementPressed>((event, emit) => emit(state - 1));
+  }
+}
+```
+
+### 在 UI 中接入
+
+```dart
+void main() {
+  runApp(
+    BlocProvider(
+      create: (_) => CounterBloc(),
+      child: const MyApp(),
+    ),
+  );
+}
+
+class CounterView extends StatelessWidget {
+  const CounterView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // BlocBuilder 自动监听 state 重建
+      body: Center(
+        child: BlocBuilder<CounterBloc, int>(
+          builder: (context, count) => Text('$count', style: const TextStyle(fontSize: 48)),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.read<CounterBloc>().add(IncrementPressed()),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+```
+
+### Cubit：轻量版 Bloc
+
+如果业务流程不需要事件抽象，可以使用 `Cubit` 直接暴露方法：
+
+```dart
+class CounterCubit extends Cubit<int> {
+  CounterCubit() : super(0);
+
+  void increment() => emit(state + 1);
+  void decrement() => emit(state - 1);
+}
+```
+
+> **Cubit vs Bloc**：Cubit 写起来更短、上手更快；Bloc 显式建模事件，便于审计与日志追踪。中后台 / B 端复杂业务推荐 Bloc，前台快速迭代用 Cubit 即可。
+
+## 三者横向对比
+
+| 维度 | Provider | Riverpod 3.x | Bloc |
+|------|----------|--------------|------|
+| 学习曲线 | ⭐ 最低 | ⭐⭐ 中等（需理解 ref） | ⭐⭐⭐ 较高（事件建模） |
+| 与 Widget 树耦合 | 强（依赖 BuildContext） | 无 | 中（需 BlocProvider） |
+| 编译时安全 | ❌ 运行时校验 | ✅ 类型安全 | ✅ 类型安全 |
+| 异步支持 | 需手写 FutureProvider | ⭐ 内置 AsyncValue | 通过 Stream 处理 |
+| 测试便捷度 | 中等 | 高（不依赖 Widget） | 高（纯函数映射） |
+| 代码量 | 中 | 中（需注解） | 较多（事件 / 状态分离） |
+
+## 选型决策指南
+
+1. **个人项目 / 教学**：Provider 即可，避免引入额外概念。
+2. **中型应用 / 异步数据驱动**：Riverpod，享受 `AsyncValue` 与缓存语义。
+3. **大型团队 / 强架构约束**：Bloc，事件溯源便于审计、回放和测试。
+4. **从 Provider 迁移**：Riverpod 提供平滑迁移路径，可逐步替换 Provider 实例。
+
+## 小结
+
+状态管理没有银弹，关键是匹配项目规模与团队习惯。**Provider** 是 Flutter 的入门答案；**Riverpod** 在 2026 年已成为社区事实标准，配合代码生成几乎覆盖了所有场景；**Bloc** 在严肃业务系统中仍有不可替代的地位。下一篇我们将进入 Flutter 3.27 的渲染引擎与 API 革新，看看官方层面又带来了哪些进化。

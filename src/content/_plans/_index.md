@@ -21,6 +21,7 @@
 | MySQL | 8.x | completed | [_plans/mysql.md](mysql.md) | 12 / 12 |
 | htmx | 2.x | completed | [_plans/htmx.md](htmx.md) | 13 / 13 |
 | JavaScript | ES2025 | completed | [_plans/javascript.md](javascript.md) | 19 / 19 |
+| Flutter | 3.27+ | completed | [_plans/flutter.md](flutter.md) | 12 / 12 |
 
 ## 状态说明
 

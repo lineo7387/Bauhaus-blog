@@ -1,0 +1,421 @@
+---
+title: 异步编程与网络请求
+description: 系统讲解 Dart 的 Future 与 Stream 异步模型、StreamBuilder 响应式 UI，以及 Dio 网络库封装与 JSON 序列化的工程化实践
+pubDate: 2026-05-08
+category: flutter
+tags: [flutter, async, future, stream, dio, json]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 13
+planId: flutter-async-networking
+---
+
+# 异步编程与网络请求
+
+移动应用几乎离不开网络数据：列表分页、文件下载、推送消息……这些场景都建立在**异步编程**模型之上。Dart 提供了 `Future` 与 `Stream` 两种核心抽象，配合 Flutter 的 `FutureBuilder` / `StreamBuilder` 形成了简洁的响应式 UI 模式。本文围绕异步基础、网络请求封装、JSON 序列化三个层次展开。
+
+## Future 与 async/await
+
+### Future 的本质
+
+`Future<T>` 表示「未来某个时间点会有一个 T 类型的值」。它有三种状态：**未完成（Pending）**、**完成（Completed with value）**、**错误（Completed with error）**。
+
+```dart
+Future<String> fetchUsername() {
+  return Future.delayed(
+    const Duration(seconds: 2),
+    () => 'lineo',
+  );
+}
+```
+
+### async / await：同步风格的异步
+
+直接处理 `Future.then` 容易出现回调嵌套。`async / await` 允许使用同步语法书写异步逻辑：
+
+```dart
+Future<void> loadProfile() async {
+  try {
+    final username = await fetchUsername();
+    final age = await fetchAge(username);
+    print('$username, $age 岁');
+  } on TimeoutException {
+    print('请求超时');
+  } catch (e) {
+    print('其它错误: $e');
+  }
+}
+```
+
+> **关键点**：
+> - `async` 标记的函数自动返回 `Future`。
+> - `await` 暂停函数直到 Future 完成，期间 UI 不会卡死。
+> - 错误使用 `try-catch` 捕获，与同步代码风格一致。
+
+### 并行 vs 串行
+
+当多个请求**互不依赖**时，应该并行执行而非依次 `await`：
+
+```dart
+// ❌ 串行：耗时 = T1 + T2
+final user = await fetchUser();
+final posts = await fetchPosts();
+
+// ✅ 并行：耗时 = max(T1, T2)
+final results = await Future.wait([
+  fetchUser(),
+  fetchPosts(),
+]);
+final user = results[0] as User;
+final posts = results[1] as List<Post>;
+```
+
+### 错误处理与超时
+
+```dart
+Future<Data> fetchWithTimeout() {
+  return fetchData()
+      .timeout(const Duration(seconds: 5))
+      .catchError((e) {
+        debugPrint('降级到缓存');
+        return readFromCache();
+      });
+}
+```
+
+## Stream 与异步序列
+
+`Future` 只产出一个值；当数据持续到达（WebSocket、文件读取、传感器）时，使用 `Stream<T>` 描述「未来到达的多个值」。
+
+### 创建 Stream
+
+```dart
+// 1. 周期性 Stream
+final ticker = Stream.periodic(
+  const Duration(seconds: 1),
+  (count) => count,
+).take(5);
+
+// 2. async* 生成器
+Stream<int> countdown(int from) async* {
+  for (var i = from; i >= 0; i--) {
+    await Future.delayed(const Duration(seconds: 1));
+    yield i; // 每次 yield 推送一个值
+  }
+}
+
+// 3. StreamController 手动控制
+final controller = StreamController<String>();
+controller.add('hello');
+controller.add('world');
+await controller.close();
+```
+
+### 监听与转换
+
+```dart
+final subscription = countdown(3).listen(
+  (value) => print('剩余 $value'),
+  onError: (e) => print('出错: $e'),
+  onDone: () => print('完成'),
+);
+
+// 取消订阅，避免内存泄漏
+await subscription.cancel();
+```
+
+`Stream` 提供了丰富的链式操作：
+
+```dart
+countdown(10)
+  .where((n) => n.isEven)         // 过滤
+  .map((n) => 'tick $n')           // 映射
+  .distinct()                      // 去重
+  .listen(print);
+```
+
+### Broadcast Stream
+
+默认 Stream 是单订阅的（second listener 会抛错）。需要多个监听者时，转为 Broadcast：
+
+```dart
+final hot = controller.stream.asBroadcastStream();
+hot.listen((v) => print('A: $v'));
+hot.listen((v) => print('B: $v'));
+```
+
+## FutureBuilder 与 StreamBuilder
+
+Flutter 提供两个组件把 Future / Stream 直接绑定到 UI。
+
+### FutureBuilder
+
+```dart
+FutureBuilder<Album>(
+  future: fetchAlbum(),
+  builder: (context, snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const CircularProgressIndicator();
+    }
+    if (snapshot.hasError) {
+      return Text('错误: ${snapshot.error}');
+    }
+    final album = snapshot.data!;
+    return Text(album.title);
+  },
+)
+```
+
+> **常见坑**：`FutureBuilder` 每次 `build` 都会重新调用 `future`。如果在 build 方法里直接 `fetchAlbum()`，会无限请求。**正确做法**是在 `initState` 中保存 future 实例：
+>
+> ```dart
+> late final Future<Album> _albumFuture;
+> @override
+> void initState() {
+>   super.initState();
+>   _albumFuture = fetchAlbum();
+> }
+> ```
+
+### StreamBuilder
+
+```dart
+StreamBuilder<int>(
+  stream: countdown(5),
+  initialData: 5,
+  builder: (context, snapshot) {
+    final remaining = snapshot.data ?? 0;
+    return Text('倒计时: $remaining');
+  },
+)
+```
+
+## 用 Dio 构建网络层
+
+Flutter 官方提供 `http` 包用于简单请求，但生产应用更推荐 **Dio**：拦截器、并发控制、文件上传 / 下载、取消令牌、自动重试一应俱全。
+
+### 安装
+
+```yaml
+dependencies:
+  dio: ^5.7.0
+```
+
+### 创建可复用客户端
+
+```dart
+import 'package:dio/dio.dart';
+
+class ApiClient {
+  ApiClient._() {
+    _dio = Dio(BaseOptions(
+      baseUrl: 'https://api.example.com',
+      connectTimeout: const Duration(seconds: 5),
+      receiveTimeout: const Duration(seconds: 10),
+      headers: {'Accept': 'application/json'},
+    ))
+      ..interceptors.addAll([
+        _AuthInterceptor(),
+        LogInterceptor(responseBody: true),
+      ]);
+  }
+
+  static final ApiClient instance = ApiClient._();
+  late final Dio _dio;
+  Dio get dio => _dio; // 暴露给需要 cancelToken 等高级用法的调用方
+
+  Future<T> get<T>(
+    String path, {
+    Map<String, dynamic>? query,
+    CancelToken? cancelToken,
+  }) async {
+    final response = await _dio.get<T>(
+      path,
+      queryParameters: query,
+      cancelToken: cancelToken,
+    );
+    return response.data as T;
+  }
+
+  Future<T> post<T>(String path, {Object? data}) async {
+    final response = await _dio.post<T>(path, data: data);
+    return response.data as T;
+  }
+}
+```
+
+### 拦截器：注入 Token 与统一处理
+
+```dart
+class _AuthInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final token = TokenStorage.read();
+    if (token != null) {
+      options.headers['Authorization'] = 'Bearer $token';
+    }
+    handler.next(options);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (err.response?.statusCode == 401) {
+      // 触发刷新 Token 流程
+      AuthService.instance.refreshAndRetry(err);
+    }
+    handler.next(err);
+  }
+}
+```
+
+### 取消请求
+
+切换页面时取消未完成的请求，避免回调到已 dispose 的 Widget：
+
+```dart
+final cancelToken = CancelToken();
+
+ApiClient.instance.dio.get(
+  '/posts',
+  cancelToken: cancelToken,
+);
+
+// 在 dispose 中取消
+@override
+void dispose() {
+  cancelToken.cancel('页面销毁');
+  super.dispose();
+}
+```
+
+### 并发与重试
+
+```dart
+// 最大并发 4：使用 Future.wait + 队列控制
+final results = await Future.wait(
+  ids.map((id) => ApiClient.instance.get('/posts/$id')),
+  eagerError: true,
+);
+
+// 简单重试封装
+Future<T> retry<T>(Future<T> Function() task, {int retries = 3}) async {
+  for (var i = 0; i < retries; i++) {
+    try {
+      return await task();
+    } on DioException catch (e) {
+      if (i == retries - 1) rethrow;
+      await Future.delayed(Duration(milliseconds: 200 * (i + 1)));
+    }
+  }
+  throw StateError('unreachable');
+}
+```
+
+## JSON 序列化与数据模型
+
+### 手写 fromJson / toJson
+
+模型简单时手写最直观：
+
+```dart
+class User {
+  final int id;
+  final String name;
+  final String? avatar;
+
+  const User({required this.id, required this.name, this.avatar});
+
+  factory User.fromJson(Map<String, dynamic> json) => User(
+        id: json['id'] as int,
+        name: json['name'] as String,
+        avatar: json['avatar'] as String?,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        if (avatar != null) 'avatar': avatar,
+      };
+}
+```
+
+### 用 json_serializable 自动生成
+
+字段较多时使用代码生成更安全：
+
+```yaml
+dependencies:
+  json_annotation: ^4.9.0
+dev_dependencies:
+  build_runner: ^2.4.0
+  json_serializable: ^6.8.0
+```
+
+```dart
+import 'package:json_annotation/json_annotation.dart';
+
+part 'post.g.dart';
+
+@JsonSerializable()
+class Post {
+  final int id;
+  final String title;
+  @JsonKey(name: 'created_at')
+  final DateTime createdAt;
+
+  Post({required this.id, required this.title, required this.createdAt});
+
+  factory Post.fromJson(Map<String, dynamic> json) => _$PostFromJson(json);
+  Map<String, dynamic> toJson() => _$PostToJson(this);
+}
+```
+
+执行 `dart run build_runner watch -d` 即可生成 `post.g.dart`。
+
+### 与 Riverpod 结合的完整示例
+
+```dart
+@riverpod
+Future<List<Post>> posts(Ref ref) async {
+  final raw = await ApiClient.instance.get<List<dynamic>>('/posts');
+  return raw.cast<Map<String, dynamic>>().map(Post.fromJson).toList();
+}
+
+class PostListPage extends ConsumerWidget {
+  const PostListPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncPosts = ref.watch(postsProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('文章列表')),
+      body: switch (asyncPosts) {
+        AsyncData(:final value) => RefreshIndicator(
+            onRefresh: () => ref.refresh(postsProvider.future),
+            child: ListView.separated(
+              itemCount: value.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (_, i) => ListTile(title: Text(value[i].title)),
+            ),
+          ),
+        AsyncError(:final error) => Center(child: Text('加载失败: $error')),
+        _ => const Center(child: CircularProgressIndicator()),
+      },
+    );
+  }
+}
+```
+
+## 工程化最佳实践
+
+1. **集中式客户端**：把 baseUrl、超时、拦截器封装在单例中，业务层只关心接口契约。
+2. **错误分层**：网络层抛 `DioException`、领域层转换为业务错误（如 `UnauthorizedError`），UI 层只展示文案。
+3. **缓存优先**：列表页面优先使用缓存渲染，再后台刷新；Riverpod 的 `keepAlive` 与本地 Hive / Drift 配合效果最佳。
+4. **取消令牌不可少**：长列表 / 滚动加载场景必须实现取消，否则容易回调到已销毁的状态。
+5. **JSON 安全解析**：所有外部数据走 `fromJson`，避免在 UI 直接操作 `Map`。
+
+## 小结
+
+异步是 Flutter 的「血液」：`Future` 处理一次性结果，`Stream` 处理持续事件，`async/await` 让代码近似同步，`Dio + json_serializable` 让网络层既灵活又类型安全。掌握这些工具后，再复杂的接口对接也能模式化处理。后续我们会进入自定义绘制与动画系统，把这些数据动起来、画出来。

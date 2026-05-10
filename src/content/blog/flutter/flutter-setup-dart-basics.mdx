@@ -1,0 +1,423 @@
+---
+title: Flutter 环境搭建与 Dart 基础语法
+description: 从零开始配置 Flutter 3.27+ 开发环境，掌握 Dart 语言核心语法、空安全机制与常用数据结构，为跨平台开发打下坚实基础
+pubDate: 2026-05-08
+category: flutter
+tags: [flutter, dart, 入门, 环境配置, 跨平台]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 12
+planId: flutter-setup-dart-basics
+---
+
+# Flutter 环境搭建与 Dart 基础语法
+
+Flutter 是 Google 推出的开源 UI 框架，使用 **Dart** 语言编写，一套代码即可构建 iOS、Android、Web 和桌面端应用。Flutter 3.27 作为当前稳定版本，默认在 Android 上启用了 **Impeller** 渲染引擎，大幅提升了图形性能和一致性。本文将带你完成环境配置，并掌握 Dart 语言的核心语法。
+
+## 环境搭建
+
+### 安装 Flutter SDK
+
+Flutter 支持 macOS、Windows 和 Linux。以下以 macOS 为例：
+
+```bash
+# 使用 Homebrew 安装（推荐）
+brew install flutter
+
+# 验证安装
+flutter doctor
+```
+
+`flutter doctor` 会检查开发环境的完整性，列出需要修复的问题：
+
+```
+[✓] Flutter (Channel stable, 3.27.0, on macOS ...)
+[✓] Android toolchain - develop for Android devices
+[✓] Xcode - develop for iOS and macOS
+[✓] Chrome - develop for the web
+[!] Android Studio (not installed)
+```
+
+> **提示**：遇到 `[!]` 标记的项并非致命错误，按需安装即可。Android Studio 不是必须的，VS Code + Flutter 插件完全可以胜任开发工作。
+
+### 配置 IDE
+
+**VS Code** 是 Flutter 开发的首选编辑器，安装以下扩展：
+
+- **Flutter**：提供代码补全、调试、热重载支持
+- **Dart**：Dart 语言支持
+
+安装后按 `Cmd/Ctrl + Shift + P`，输入 `Flutter: New Project` 即可创建项目。
+
+### 创建第一个项目
+
+```bash
+# 创建新项目
+flutter create my_first_app
+
+# 进入项目目录
+cd my_first_app
+
+# 运行项目（会自动检测连接的设备）
+flutter run
+```
+
+项目创建后会生成标准目录结构：
+
+```
+my_first_app/
+├── android/          # Android 原生工程
+├── ios/              # iOS 原生工程
+├── lib/              # Dart 源代码（主要工作目录）
+│   └── main.dart     # 应用入口
+├── test/             # 测试文件
+├── pubspec.yaml      # 项目依赖配置
+└── analysis_options.yaml  # 静态分析配置
+```
+
+### 热重载与热重启
+
+Flutter 开发的两大利器：
+
+| 命令 | 快捷键 | 作用 | 状态保留 |
+|------|--------|------|----------|
+| 热重载 (Hot Reload) | `r` | 更新 UI，不重启应用 | ✅ 保留 |
+| 热重启 (Hot Restart) | `R` | 重启应用，重新执行 `main()` | ❌ 重置 |
+
+在终端中按 `r` 即可触发热重载，代码变更会立即反映在设备上。
+
+## Dart 语言基础
+
+Dart 是一种面向对象、类定义的编程语言，语法风格介于 Java 和 JavaScript 之间。Flutter 3.27 配套 Dart 3.6，带来了更完善的类型推断和模式匹配支持。
+
+### 变量与类型
+
+Dart 支持显式类型和类型推断：
+
+```dart
+// 显式声明类型
+String name = 'Flutter';
+int count = 42;
+double price = 19.99;
+bool isActive = true;
+
+// 类型推断（编译器自动推导类型）
+var message = 'Hello Dart';  // 推断为 String
+final pi = 3.14159;          // 运行时常量
+const maxSize = 100;         // 编译时常量
+```
+
+**`final` 与 `const` 的区别**：
+
+- `final`：只能赋值一次，值在运行时确定
+- `const`：编译时常量，值必须在编译期确定
+
+```dart
+final currentTime = DateTime.now();  // ✅ final 允许运行时值
+const currentTime = DateTime.now();  // ❌ const 不允许运行时值
+```
+
+### 空安全（Null Safety）
+
+Dart 2.12 引入的空安全机制是 Dart 最重要的特性之一。所有类型默认**不可为空**：
+
+```dart
+String name = 'Flutter';
+name = null;  // ❌ 编译错误：String 类型不能为 null
+
+// 声明可空类型（在类型后加 ?）
+String? nickname;
+nickname = null;  // ✅ 允许为 null
+nickname = 'Bauhaus';
+
+// 安全调用（?.）
+print(nickname?.length);  // null 时返回 null，不会抛异常
+
+// 空值断言（!）—— 确保值不为 null
+print(nickname!.length);  // 确信不为 null 时使用
+
+// 空合并运算符（??）
+String displayName = nickname ?? '匿名用户';
+```
+
+> **注意**：在 Flutter 3.27+ 中，空安全已是强制要求。编写代码时应尽量使用不可空类型，仅在必要时使用可空类型。
+
+### 集合类型
+
+Dart 提供丰富的内置集合类型：
+
+```dart
+// List（有序列表）
+List<String> fruits = ['苹果', '香蕉', '橙子'];
+fruits.add('葡萄');
+fruits.insert(0, '草莓');
+print(fruits[1]);  // 苹果
+
+// Set（无序不重复集合）
+Set<int> numbers = {1, 2, 3, 3, 3};
+print(numbers);  // {1, 2, 3}
+
+// Map（键值对）
+Map<String, dynamic> user = {
+  'name': '张三',
+  'age': 28,
+  'isVip': true,
+};
+print(user['name']);  // 张三
+```
+
+**集合的进阶操作**：
+
+```dart
+var scores = [85, 92, 78, 95, 88];
+
+// 高阶函数
+var passed = scores.where((s) => s >= 90);  // [92, 95]
+var doubled = scores.map((s) => s * 2);     // [170, 184, ...]
+var total = scores.reduce((a, b) => a + b); // 438
+
+// 级联操作符（..）
+var buffer = StringBuffer()
+  ..write('Hello')
+  ..write(' ')
+  ..write('Flutter');
+print(buffer.toString());  // Hello Flutter
+```
+
+### 函数与控制流
+
+Dart 的函数是一等公民，支持箭头函数和命名参数：
+
+```dart
+// 普通函数
+int add(int a, int b) {
+  return a + b;
+}
+
+// 箭头函数（单行表达式）
+int multiply(int a, int b) => a * b;
+
+// 命名参数（调用时更清晰的语义）
+void createUser({
+  required String name,
+  int age = 18,
+  String? email,
+}) {
+  print('创建用户: $name, 年龄: $age');
+}
+
+// 调用命名参数函数
+createUser(name: '李四', age: 25);
+```
+
+> **`required` 关键字**：在空安全环境下，命名参数默认是可选的。如需强制传入，使用 `required` 修饰符。
+
+**控制流语句**：
+
+```dart
+// if-else
+var score = 85;
+if (score >= 90) {
+  print('优秀');
+} else if (score >= 80) {
+  print('良好');
+} else {
+  print('及格');
+}
+
+// for-in 循环
+for (var fruit in fruits) {
+  print(fruit);
+}
+
+// switch 表达式（Dart 3 增强）
+var grade = switch (score) {
+  >= 90 => 'A',
+  >= 80 => 'B',
+  >= 70 => 'C',
+  _ => 'D',
+};
+```
+
+### 类与面向对象
+
+Dart 的类系统简洁而强大，支持单继承、接口实现和 Mixins：
+
+```dart
+// 定义类
+class User {
+  // 私有字段（以下划线开头）
+  final String _id;
+  String name;
+  int _age;
+
+  // 构造函数
+  User(this._id, this.name, this._age);
+
+  // 命名构造函数
+  User.guest()
+      : _id = 'guest_001',
+        name = '访客',
+        _age = 0;
+
+  // Getter
+  int get age => _age;
+
+  // Setter
+  set age(int value) {
+    if (value >= 0) _age = value;
+  }
+
+  // 方法
+  void sayHello() {
+    print('你好，我是 $name');
+  }
+
+  @override
+  String toString() => 'User(id: $_id, name: $name, age: $_age)';
+}
+```
+
+**继承与 Mixins**：
+
+```dart
+// 抽象类（类似接口）
+abstract class Animal {
+  void speak();
+}
+
+// Mixin（代码复用单元）
+mixin Walkable {
+  void walk() => print('正在行走...');
+}
+
+// 继承 + 实现 + with Mixin
+class Dog extends Animal with Walkable {
+  @override
+  void speak() => print('汪汪！');
+}
+
+var dog = Dog();
+dog.speak();  // 汪汪！
+dog.walk();   // 正在行走...
+```
+
+### 异步编程
+
+Dart 使用 `Future` 和 `Stream` 处理异步操作：
+
+```dart
+// async/await 处理 Future
+Future<String> fetchUserData() async {
+  await Future.delayed(Duration(seconds: 2));  // 模拟网络延迟
+  return '用户数据加载完成';
+}
+
+// 调用异步函数
+void loadData() async {
+  print('开始加载...');
+  var result = await fetchUserData();
+  print(result);  // 用户数据加载完成
+}
+
+// Stream（数据流）
+Stream<int> countStream(int max) async* {
+  for (var i = 1; i <= max; i++) {
+    await Future.delayed(Duration(milliseconds: 500));
+    yield i;  // 产出值
+  }
+}
+
+// 监听 Stream
+countStream(5).listen((data) => print('收到: $data'));
+```
+
+## 第一个 Flutter 应用
+
+将 Dart 基础与 Flutter 结合，写一个计数器应用：
+
+```dart
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Bauhaus Counter',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0553B1)),
+        useMaterial3: true,
+      ),
+      home: const CounterPage(),
+    );
+  }
+}
+
+class CounterPage extends StatefulWidget {
+  const CounterPage({super.key});
+
+  @override
+  State<CounterPage> createState() => _CounterPageState();
+}
+
+class _CounterPageState extends State<CounterPage> {
+  int _counter = 0;
+
+  void _increment() {
+    setState(() {
+      _counter++;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Bauhaus 计数器'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('点击次数'),
+            Text(
+              '$_counter',
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _increment,
+        tooltip: '增加',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+```
+
+这个示例涵盖了 Flutter 的核心概念：
+
+- **`StatelessWidget`**：无状态组件，UI 不随数据变化
+- **`StatefulWidget`**：有状态组件，通过 `setState` 触发 UI 更新
+- **`build` 方法**：描述 Widget 的 UI 结构
+- **`MaterialApp`** 和 **`Scaffold`**：Material Design 应用框架
+
+## 小结
+
+本文覆盖了 Flutter 开发的起点：
+
+1. **环境配置**：安装 Flutter SDK、配置 IDE、运行第一个项目
+2. **Dart 核心语法**：变量类型、空安全、集合、函数、类与异步编程
+3. **初步实践**：一个完整的计数器应用
+
+在后续文章中，我们将深入探讨 **Widget 体系**、**布局系统** 和 **状态管理**，逐步构建复杂的跨平台应用。

@@ -1,0 +1,686 @@
+---
+title: 导航与路由：GoRouter 实战
+description: 全面掌握 Flutter 声明式路由方案 GoRouter，涵盖基础配置、深层链接、路由守卫与重定向、ShellRoute 嵌套导航以及类型安全路由的实践技巧
+pubDate: 2026-05-09
+category: flutter
+tags: [flutter, navigation, gorouter, routing, deep-link]
+featured: false
+draft: false
+author: AI-Writer
+readingTime: 15
+planId: flutter-gorouter-navigation
+---
+
+# 导航与路由：GoRouter 实战
+
+Flutter 原生的导航 API（`Navigator.push`/`pop`）采用命令式风格，在简单场景下工作良好，但随着页面增多、深层链接需求出现、路由守卫逻辑复杂化后，代码会变得难以维护。**GoRouter** 是 Flutter 官方推荐的声明式路由方案，它基于 URL 驱动页面导航，天然支持深层链接（Deep Linking），并提供了丰富的路由配置能力。
+
+## 为什么选择 GoRouter
+
+| 特性 | Navigator 2.0 | GoRouter |
+|------|--------------|----------|
+| 声明式路由 | 手动实现 | 原生支持 |
+| 深层链接 | 需自行解析 | 自动解析 URL |
+| 路由守卫 | 需自行实现 | `redirect` 支持 |
+| 嵌套导航 | 复杂 | `ShellRoute` 简洁 |
+| 类型安全 | 无 | `go_router_builder` 支持 |
+| 后退按钮处理 | 手动管理 | 自动管理 |
+
+## 基础配置与使用
+
+### 安装
+
+```yaml
+dependencies:
+  go_router: ^14.0.0
+```
+
+### 最简单的路由配置
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+// 1. 定义路由配置
+final _router = GoRouter(
+  initialLocation: '/',  // 初始路由
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomePage(),
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const ProfilePage(),
+    ),
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const SettingsPage(),
+    ),
+  ],
+);
+
+// 2. 在 MaterialApp 中使用
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      routerConfig: _router,  // 传入 GoRouter 实例
+      title: 'GoRouter Demo',
+      theme: ThemeData.light(),
+    );
+  }
+}
+```
+
+### 页面导航
+
+```dart
+// 使用 context.go() 导航（替换当前栈）
+context.go('/profile');
+
+// 使用 context.push() 导航（压入新页面）
+context.push('/settings');
+
+// 返回上一页
+context.pop();
+
+// 返回指定页并携带结果
+context.pop('返回结果');
+
+// 导航到子路由（自动保留父路由）
+context.go('/user/123/posts');
+```
+
+### 带参数的路由
+
+```dart
+final _router = GoRouter(
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomePage(),
+    ),
+    // 路径参数：/user/123
+    GoRoute(
+      path: '/user/:userId',
+      builder: (context, state) {
+        // 通过 state.pathParameters 获取路径参数
+        final userId = state.pathParameters['userId']!;
+        return UserDetailPage(userId: userId);
+      },
+    ),
+    // 查询参数：/search?query=flutter&page=1
+    GoRoute(
+      path: '/search',
+      builder: (context, state) {
+        // 通过 state.uri.queryParameters 获取查询参数
+        final query = state.uri.queryParameters['query'] ?? '';
+        final page = int.tryParse(state.uri.queryParameters['page'] ?? '1') ?? 1;
+        return SearchPage(query: query, page: page);
+      },
+    ),
+  ],
+);
+```
+
+### 可选参数与默认值
+
+```dart
+GoRoute(
+  path: '/products/:category',
+  builder: (context, state) {
+    final category = state.pathParameters['category']!;
+    final sort = state.uri.queryParameters['sort'] ?? 'popular';
+    final filter = state.uri.queryParametersAll['filter'] ?? [];
+
+    return ProductListPage(
+      category: category,
+      sortBy: sort,
+      filters: filter,
+    );
+  },
+),
+```
+
+## 路由嵌套与子路由
+
+### 基础子路由
+
+```dart
+final _router = GoRouter(
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomePage(),
+      routes: [
+        // 子路由：/details
+        GoRoute(
+          path: 'details',
+          builder: (context, state) => const DetailPage(),
+        ),
+        // 子路由：/profile
+        GoRoute(
+          path: 'profile',
+          builder: (context, state) => const ProfilePage(),
+          routes: [
+            // 嵌套子路由：/profile/edit
+            GoRoute(
+              path: 'edit',
+              builder: (context, state) => const ProfileEditPage(),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ],
+);
+```
+
+### ShellRoute：带外壳的嵌套导航
+
+**ShellRoute** 是 GoRouter 的强大特性，它允许子路由共享一个公共的外壳 Widget（如带 BottomNavigationBar 的 Scaffold），同时保持每个子路由独立的导航栈。
+
+```dart
+final _rootNavigatorKey = GlobalKey<NavigatorState>();
+final _shellNavigatorKey = GlobalKey<NavigatorState>();
+
+final _router = GoRouter(
+  navigatorKey: _rootNavigatorKey,
+  initialLocation: '/home',
+  routes: [
+    // 全屏页面（在 Shell 之外）
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginPage(),
+    ),
+
+    // ShellRoute：所有子路由共享同一个外壳
+    ShellRoute(
+      navigatorKey: _shellNavigatorKey,
+      builder: (context, state, child) {
+        // 这个 builder 为所有子路由提供统一外壳
+        return ScaffoldWithNavBar(child: child);
+      },
+      routes: [
+        // /home
+        GoRoute(
+          path: '/home',
+          builder: (context, state) => const HomePage(),
+        ),
+        // /explore
+        GoRoute(
+          path: '/explore',
+          builder: (context, state) => const ExplorePage(),
+        ),
+        // /library
+        GoRoute(
+          path: '/library',
+          builder: (context, state) => const LibraryPage(),
+          routes: [
+            // /library/book/:id
+            GoRoute(
+              path: 'book/:id',
+              builder: (context, state) {
+                final bookId = state.pathParameters['id']!;
+                return BookDetailPage(bookId: bookId);
+              },
+            ),
+          ],
+        ),
+        // /settings
+        GoRoute(
+          path: '/settings',
+          builder: (context, state) => const SettingsPage(),
+        ),
+      ],
+    ),
+  ],
+);
+
+// 带导航栏的 Scaffold
+class ScaffoldWithNavBar extends StatelessWidget {
+  final Widget child;
+  const ScaffoldWithNavBar({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: child,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _calculateSelectedIndex(context),
+        onDestinationSelected: (index) => _onItemTapped(index, context),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home), label: '首页'),
+          NavigationDestination(icon: Icon(Icons.explore), label: '发现'),
+          NavigationDestination(icon: Icon(Icons.library_books), label: '书架'),
+          NavigationDestination(icon: Icon(Icons.settings), label: '设置'),
+        ],
+      ),
+    );
+  }
+
+  int _calculateSelectedIndex(BuildContext context) {
+    final location = GoRouterState.of(context).uri.path;
+    if (location.startsWith('/home')) return 0;
+    if (location.startsWith('/explore')) return 1;
+    if (location.startsWith('/library')) return 2;
+    if (location.startsWith('/settings')) return 3;
+    return 0;
+  }
+
+  void _onItemTapped(int index, BuildContext context) {
+    switch (index) {
+      case 0:
+        context.go('/home');
+      case 1:
+        context.go('/explore');
+      case 2:
+        context.go('/library');
+      case 3:
+        context.go('/settings');
+    }
+  }
+}
+```
+
+## 路由守卫与重定向
+
+### 基于认证状态的重定向
+
+```dart
+// 简化的认证状态管理
+class AuthState extends ChangeNotifier {
+  bool _isAuthenticated = false;
+  bool get isAuthenticated => _isAuthenticated;
+
+  void login() {
+    _isAuthenticated = true;
+    notifyListeners();
+  }
+
+  void logout() {
+    _isAuthenticated = false;
+    notifyListeners();
+  }
+}
+
+final authState = AuthState();
+
+final _router = GoRouter(
+  initialLocation: '/',
+  // 刷新监听：认证状态变化时重新评估路由
+  refreshListenable: authState,
+  redirect: (context, state) {
+    final isAuthenticated = authState.isAuthenticated;
+    final isLoggingIn = state.uri.path == '/login';
+
+    // 未登录且不在登录页 → 重定向到登录页
+    if (!isAuthenticated && !isLoggingIn) {
+      return '/login';
+    }
+
+    // 已登录但在登录页 → 重定向到首页
+    if (isAuthenticated && isLoggingIn) {
+      return '/';
+    }
+
+    // 无需重定向
+    return null;
+  },
+  routes: [
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => LoginPage(
+        onLogin: () => authState.login(),
+      ),
+    ),
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomePage(),
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const ProfilePage(),
+    ),
+  ],
+);
+```
+
+### 条件重定向：角色权限
+
+```dart
+redirect: (context, state) {
+  final user = authState.currentUser;
+  final isAdminRoute = state.uri.path.startsWith('/admin');
+
+  if (isAdminRoute && (user == null || !user.isAdmin)) {
+    // 非管理员访问管理员路由 → 403 或无权限页
+    return '/forbidden';
+  }
+
+  return null;
+},
+```
+
+## 深层链接（Deep Linking）
+
+GoRouter 天然支持 URL 到路由的映射，深层链接配置非常简单。
+
+### Android 配置
+
+在 `android/app/src/main/AndroidManifest.xml` 中为 `MainActivity` 添加 intent-filter：
+
+```xml
+<activity
+    android:name=".MainActivity"
+    android:exported="true">
+    <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <!-- 自定义 scheme -->
+        <data android:scheme="myapp" android:host="details" />
+        <!-- 或者 https 链接 -->
+        <data android:scheme="https" android:host="myapp.com" />
+    </intent-filter>
+</activity>
+```
+
+### iOS 配置
+
+在 `ios/Runner/Info.plist` 中添加 URL Scheme：
+
+```xml
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLName</key>
+    <string>com.example.myapp</string>
+    <key>CFBundleURLSchemes</key>
+    <array>
+      <string>myapp</string>
+    </array>
+  </dict>
+</array>
+```
+
+同时配置 Universal Links（`ios/Runner/Runner.entitlements`）：
+
+```xml
+<key>com.apple.developer.associated-domains</key>
+<array>
+  <string>applinks:myapp.com</string>
+</array>
+```
+
+### 路由中处理深层链接参数
+
+```dart
+GoRoute(
+  path: '/product/:productId',
+  builder: (context, state) {
+    final productId = state.pathParameters['productId']!;
+    // 深层链接可能携带推广来源
+    final source = state.uri.queryParameters['utm_source'];
+
+    return ProductPage(
+      productId: productId,
+      source: source,
+    );
+  },
+),
+```
+
+使用 `uni_links` 或系统深层链接时，URL `myapp://product/123?utm_source=email` 会自动映射到 `/product/123` 路由。
+
+## 页面过渡动画
+
+GoRouter 默认使用平台的页面过渡（iOS 侧滑、Android Material），但也可以自定义：
+
+### 自定义页面转场
+
+```dart
+final _router = GoRouter(
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomePage(),
+    ),
+    GoRoute(
+      path: '/detail',
+      pageBuilder: (context, state) {
+        return CustomTransitionPage(
+          key: state.pageKey,
+          child: const DetailPage(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            // 淡入 + 缩放效果
+            return FadeTransition(
+              opacity: CurveTween(curve: Curves.easeInOut).animate(animation),
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.9, end: 1.0).animate(animation),
+                child: child,
+              ),
+            );
+          },
+        );
+      },
+    ),
+    // 全屏对话框风格
+    GoRoute(
+      path: '/modal',
+      pageBuilder: (context, state) => const MaterialPage(
+        fullscreenDialog: true,
+        child: ModalPage(),
+      ),
+    ),
+  ],
+);
+```
+
+### 共享元素转场（Hero）在 GoRouter 中
+
+GoRouter 与 Hero 动画完全兼容，只需确保 Hero 的 `tag` 在导航前后保持一致：
+
+```dart
+// 列表页
+GoRoute(
+  path: '/gallery',
+  builder: (context, state) => Scaffold(
+    body: GridView.builder(
+      itemCount: 20,
+      itemBuilder: (context, index) => GestureDetector(
+        onTap: () => context.push('/gallery/image/$index'),
+        child: Hero(
+          tag: 'image_$index',
+          child: Image.network('https://picsum.photos/400?random=$index'),
+        ),
+      ),
+    ),
+  ),
+),
+
+// 详情页
+GoRoute(
+  path: '/gallery/image/:index',
+  builder: (context, state) {
+    final index = state.pathParameters['index']!;
+    return Scaffold(
+      body: Center(
+        child: Hero(
+          tag: 'image_$index',
+          child: Image.network('https://picsum.photos/800?random=$index'),
+        ),
+      ),
+    );
+  },
+),
+```
+
+## 错误处理与 404 页面
+
+```dart
+final _router = GoRouter(
+  routes: [
+    GoRoute(path: '/', builder: (context, state) => const HomePage()),
+  ],
+  // 处理不存在的路由
+  errorBuilder: (context, state) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('页面未找到')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text('404: ${state.uri.path} 不存在'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => context.go('/'),
+              child: const Text('返回首页'),
+            ),
+          ],
+        ),
+      ),
+    );
+  },
+);
+```
+
+## 类型安全路由（go_router_builder）
+
+对于大型项目，手动维护路由字符串容易出错。`go_router_builder` 通过代码生成提供编译时类型安全：
+
+### 依赖
+
+```yaml
+dependencies:
+  go_router: ^14.0.0
+
+dev_dependencies:
+  build_runner: ^2.4.0
+  go_router_builder: ^2.7.0
+```
+
+### 定义路由类
+
+```dart
+// lib/routes.dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+part 'routes.g.dart'; // 代码生成产物
+
+@TypedGoRoute<HomeRoute>(path: '/')
+class HomeRoute extends GoRouteData {
+  const HomeRoute();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) {
+    return const HomePage();
+  }
+}
+
+@TypedGoRoute<UserRoute>(path: '/user/:userId')
+class UserRoute extends GoRouteData {
+  final String userId;
+  final String? tab; // 可选查询参数
+
+  const UserRoute({required this.userId, this.tab});
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) {
+    return UserPage(userId: userId, tab: tab);
+  }
+}
+
+@TypedGoRoute<SearchRoute>(path: '/search')
+class SearchRoute extends GoRouteData {
+  final String? query;
+  final int? page;
+
+  const SearchRoute({this.query, this.page});
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) {
+    return SearchPage(query: query, page: page ?? 1);
+  }
+}
+```
+
+### 生成代码
+
+```bash
+dart run build_runner build
+```
+
+### 使用类型安全路由
+
+```dart
+final _router = GoRouter(
+  routes: $appRoutes, // 生成的路由列表
+);
+
+// 类型安全导航
+UserRoute(userId: '123').go(context);
+SearchRoute(query: 'flutter', page: 2).push(context);
+
+// 不再担心拼写错误或参数类型不匹配
+```
+
+## 路由状态恢复
+
+Flutter 支持在应用被系统回收后恢复页面栈：
+
+```dart
+final _router = GoRouter(
+  initialLocation: '/',
+  // 启用路由恢复
+  restorationScopeId: 'router',
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomePage(),
+    ),
+    GoRoute(
+      path: '/detail/:id',
+      builder: (context, state) {
+        final id = state.pathParameters['id']!;
+        return DetailPage(id: id);
+      },
+    ),
+  ],
+);
+
+// 在 MaterialApp 中启用状态恢复
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      routerConfig: _router,
+      restorationScopeId: 'app',
+    );
+  }
+}
+```
+
+## 总结
+
+| 功能 | API / 方案 |
+|------|-----------|
+| 基础导航 | `context.go()` / `context.push()` / `context.pop()` |
+| 路径参数 | `state.pathParameters['id']` |
+| 查询参数 | `state.uri.queryParameters['key']` |
+| 嵌套导航 | `ShellRoute` |
+| 路由守卫 | `redirect` + `refreshListenable` |
+| 深层链接 | 配置平台 manifest + URL 映射 |
+| 自定义转场 | `CustomTransitionPage` |
+| 类型安全 | `go_router_builder` |
+| 状态恢复 | `restorationScopeId` |
+
+GoRouter 将 Flutter 的导航从命令式提升到声明式，使得路由配置集中化、URL 驱动、深层链接友好。对于任何规模大于原型级的 Flutter 应用，采用 GoRouter 都是明智之选。
